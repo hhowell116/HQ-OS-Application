@@ -490,3 +490,6 @@ mark.rl-hit { background: rgba(var(--hl-rgb),.35); color: #fff; border-radius: 2
 /* chat open: centre music + wave in the free space right of the SYSTEM/CLAUDE stats (they end at ~790px) */
 .core-wrap.small.viz-on .music, .core-wrap.small .music, .core-wrap.small .viz { left: calc(50% + 400px); }
 .core-wrap.small .viz { width: min(320px, calc(100% - 820px)); }
+
+/* War room covered titlebar pop-ups (needs review, accents): lift titlebar above .room-view (z 10) */
+.titlebar { z-index: 20; }
