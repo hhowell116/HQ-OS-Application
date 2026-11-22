@@ -170,7 +170,7 @@ async function fillConvPick(list) {
 async function openConv(id) { S.conv = await hq.chatGet(id); $("#conv-pick").value = id; $("#model-pick").value = (S.conv && S.conv.model) || ""; S.follow = true; renderLog(); }
 
 function renderLog() {
-  const log = $("#log"), c = S.conv; log.textContent = "";
+  const log = $("#log"), c = S.conv; const fromBottom = log.scrollHeight - log.scrollTop; log.textContent = "";
   const has = c && c.msgs && c.msgs.length;
   $("#core-wrap").classList.toggle("small", !!has && !S.hideChat);
   $("#console").classList.toggle("collapsed", !!S.hideChat); $("#btn-hide").textContent = S.hideChat ? "▴ show chat" : "▾ hide chat";
@@ -183,7 +183,9 @@ function renderLog() {
   if (c) (c.queue || []).forEach((q) => { const m = renderMsg({ r: "user", text: q.text, imgs: q.imgs }); m.classList.add("queued"); m.querySelector(".who").append(el("span", "qtag", " · queued · sends when Claude finishes")); log.append(m); });
   const busy = !!(c && c.busy); $("#btn-send").classList.toggle("hidden", busy); $("#btn-stop").classList.toggle("hidden", !busy);
   renderCache();
-  if (S.follow) log.scrollTop = log.scrollHeight;
+  // keep the reader where they were: rebuilding the log used to reset it to the top
+  if (S.follow) log.scrollTop = log.scrollHeight; else log.scrollTop = Math.max(0, log.scrollHeight - fromBottom);
+  log.querySelectorAll("img").forEach((im) => { if (!im.complete) im.addEventListener("load", () => { if (S.follow) log.scrollTop = log.scrollHeight; }, { once: true }); });
 }
 function renderMsg(m) {
   const d = el("div", "msg " + (m.r === "user" ? "user" : "asst"));
