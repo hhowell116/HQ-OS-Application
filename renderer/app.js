@@ -179,7 +179,7 @@ function renderLog() {
     const e = el("div", "empty"); e.append(el("div", "", p ? "CONSOLE READY · " + p.name.toUpperCase() : "CONSOLE READY"), el("div", "", "Claude works inside this project's folder."), el("div", "", "Ctrl+K focus · Ctrl+N new conversation · Ctrl+1-9 switch project · Ctrl+Alt+H show/hide"));
     log.append(e);
   } else c.msgs.forEach((m) => log.append(renderMsg(m)));
-  if (c) (c.queue || []).forEach((q) => { const m = renderMsg({ r: "user", text: q.text, imgs: q.imgs }); m.classList.add("queued"); m.querySelector(".who").append(el("span", "qtag", " · queued · sends when Claude finishes")); log.append(m); });
+  if (c) (c.queue || []).forEach((q) => { const m = renderMsg({ r: "user", text: q.text, imgs: q.imgs }); m.classList.add("queued"); const w = m.querySelector(".who"); w.append(el("span", "qtag", " · queued · sends when Claude finishes ")); const now = el("button", "ghost qnow", "⚡ send now"); now.title = "Interrupt Claude and send this now (Ctrl+Enter)"; now.onclick = () => hq.chatStop(c.id); w.append(now); log.append(m); });
   const busy = !!(c && c.busy); $("#btn-send").classList.toggle("hidden", busy); $("#btn-stop").classList.toggle("hidden", !busy);
   renderCache();
   // keep the reader where they were: rebuilding the log used to reset it to the top
@@ -355,7 +355,7 @@ hq.on("todo-changed", async (id) => { if (id === S.cur) { S.detail = await hq.pr
   new ResizeObserver(() => { if (S.follow) l.scrollTop = l.scrollHeight; }).observe(l);
   window.HQPinLog = () => { S.follow = true; l.scrollTop = l.scrollHeight; }; }
 $("#input").addEventListener("input", autosize);
-$("#input").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendInput(); } });
+$("#input").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); const cut = (e.ctrlKey || e.metaKey) && S.conv && S.conv.busy, id = S.conv && S.conv.id; sendInput().then(() => { if (cut && id) hq.chatStop(id); }); } });
 $("#btn-send").onclick = sendInput;
 $("#btn-stop").onclick = () => S.conv && hq.chatStop(S.conv.id);
 $("#btn-new").onclick = newConv;

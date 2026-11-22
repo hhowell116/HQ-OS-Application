@@ -445,3 +445,13 @@ select.ghost option { background: #0b1118; color: #cfe; }
 .vpop button.on { border-color: var(--acc, #4dabf7); color: var(--acc, #4dabf7); background: #ffffff0a; }
 .vpop .vp-sp { display: flex; flex-wrap: wrap; gap: 2px; }
 .vpop .vp-sp button { text-align: center; padding: 3px 6px; }
+
+/* audio visualizer strip (viz.js) */
+.viz { position: absolute; left: 50%; bottom: 0; transform: translateX(-50%); width: min(720px, 56%); height: 80px; z-index: 1; opacity: 0; pointer-events: none; transition: opacity .6s ease; }
+.viz.on { opacity: 1; pointer-events: auto; cursor: pointer; }
+.core-wrap.viz-on:not(.small) .core-label { bottom: 82px; }
+.core-wrap.small .viz { left: auto; right: 380px; transform: none; width: 220px; height: 44px; bottom: auto; top: 50%; margin-top: -22px; }
+.room-view .viz { display: none; }
+@media (max-width: 1500px) { .core-wrap.small .viz { display: none; } }
+
+.qnow { padding: 0 6px; font: 10px var(--mono); color: var(--warn); border-color: rgba(255,176,46,.5); margin-left: 6px; }
