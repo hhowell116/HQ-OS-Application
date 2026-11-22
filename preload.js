@@ -8,7 +8,7 @@ contextBridge.exposeInMainWorld("hq", {
   reviewList: inv("review-list"), reviewSet: inv("review-set"),
   restart: inv("restart"), busy: inv("busy"),
   agents: inv("agents"), crew: inv("crew"), usage: inv("usage"), music: inv("music"), musicCtl: inv("music-ctl"),
-  set: inv("set"), openPath: inv("open-path"), openVSCode: inv("open-vscode"),
+  set: inv("set"), openPath: inv("open-path"),
   chatList: inv("chat-list"), chatGet: inv("chat-get"), chatNew: inv("chat-new"), chatSend: inv("chat-send"),
   chatStop: inv("chat-stop"), chatModel: inv("chat-model"), chatDelete: inv("chat-delete"), chatHandoff: inv("chat-handoff"), chatCompact: inv("chat-compact"),
   win: (a) => ipcRenderer.send("win", a),

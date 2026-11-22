@@ -146,7 +146,6 @@ app.whenReady().then(() => {
   ipcMain.handle("music-ctl", (_, cmd) => now.control(cmd));
   ipcMain.handle("set", (_, kv) => { for (const k of ["voice", "person", "theme", "accent", "audio", "music"]) if (k in kv) settings[k] = kv[k]; if (Array.isArray(kv.archived)) settings.archived = kv.archived.filter((x) => typeof x === "string"); D.saveSettings(SETTINGS_FILE, settings); send("settings", pub()); if ("music" in kv) kv.music ? now.start() : (now.stop(), send("music", null)); return true; });
   ipcMain.handle("open-path", (_, p) => { const target = p === "settings" ? SETTINGS_FILE : p; if (target && fs.existsSync(target)) shell.openPath(target); });
-  ipcMain.handle("open-vscode", (_, id) => { const p = projById(id); if (!p) return; const code = path.join(process.env.LOCALAPPDATA || "", "Programs", "Microsoft VS Code", "bin", "code.cmd"); require("child_process").spawn(fs.existsSync(code) ? code : "code", [p.folder], { shell: true, detached: true, windowsHide: true }).unref(); });
   ipcMain.handle("chat-list", (_, proj) => chats.list(proj));
   ipcMain.handle("chat-get", (_, id) => chats.get(id));
   ipcMain.handle("chat-new", (_, { proj, model }) => chats.create(proj ? projById(proj) : null, model));

@@ -246,7 +246,6 @@ $("#conv-pick").onchange = (e) => e.target.value && openConv(e.target.value);
 $("#model-pick").onchange = (e) => S.conv && hq.chatModel({ id: S.conv.id, model: e.target.value });
 $("#btn-voice").onclick = () => { S.voice = !S.voice; hq.set({ voice: S.voice }); $("#btn-voice").textContent = S.voice ? "🔊 voice on" : "🔈 voice off"; if (!S.voice) speechSynthesis.cancel(); else speak("Voice online."); };
 $("#btn-refresh").onclick = async () => { await loadProjects(); if (S.cur) { S.detail = await hq.project(S.cur); renderDetail(); } hq.usage(true); toast("Refreshed"); };
-$("#btn-code").onclick = () => S.cur && hq.openVSCode(S.cur);
 $("#btn-note").onclick = () => S.detail && S.detail.todoFile && hq.openPath(S.detail.todoFile);
 $("#add-form").onsubmit = async (e) => { e.preventDefault(); const i = $("#add-input"), t = i.value.trim(); if (!t || !S.cur) return; try { S.detail = await hq.todoAdd({ id: S.cur, text: t }); i.value = ""; renderDetail(); loadProjects(); } catch (er) { toast(er.message, true); } };
 document.querySelectorAll(".winbtns button").forEach((b) => (b.onclick = () => hq.win(b.dataset.w)));
