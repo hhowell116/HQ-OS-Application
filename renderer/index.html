@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: hqreview:; media-src 'self' blob: hqreview:; connect-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: hqreview: hqchat:; media-src 'self' blob: hqreview:; connect-src 'none'">
 <title>HQ OS</title>
 <link rel="stylesheet" href="style.css">
 </head>
@@ -63,6 +63,7 @@
     <div class="console" id="console">
       <div class="console-h">
         <select id="conv-pick" title="Conversations"></select>
+        <button class="ghost" id="btn-rename" title="Rename this conversation (or double-click the picker)">✎ rename</button>
         <button class="ghost" id="btn-new" title="New conversation (Ctrl+N)">＋ new</button>
         <select id="model-pick" title="Model">
           <option value="">default model</option><option value="opus">opus</option><option value="sonnet">sonnet</option><option value="haiku">haiku</option>
@@ -77,6 +78,7 @@
         <button class="ghost fold room-only" data-fold="room-comms" title="Collapse">▾</button>
       </div>
       <div class="log" id="log"></div>
+      <div class="attach-strip hidden" id="attach"></div>
       <div class="input-row">
         <span class="prompt">›</span>
         <textarea id="input" rows="2" placeholder="Talk to Claude about this project…  (Enter to send, Shift+Enter for a new line, Ctrl+K to focus)"></textarea>

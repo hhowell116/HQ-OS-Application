@@ -20,7 +20,7 @@ class Chats {
   constructor(dir, getSettings, emit) {
     this.dir = dir; this.getSettings = getSettings; this.emitFn = emit; this.convs = new Map();
     this.logFile = path.join(dir, "..", "hq-chat.log");
-    fs.mkdirSync(dir, { recursive: true });
+    fs.mkdirSync(dir, { recursive: true }); this.imgDir = path.join(dir, "..", "chat-images");
     for (const f of fs.readdirSync(dir)) if (f.endsWith(".json")) {
       try { const c = JSON.parse(fs.readFileSync(path.join(dir, f), "utf8")); if (c && c.id) { Object.assign(c, { proc: null, busy: false, cur: null }); this.convs.set(c.id, c); } } catch (e) {}
     }
@@ -28,7 +28,7 @@ class Chats {
   }
   exe() { const s = this.getSettings(); return (s.claudePath || "").trim() || path.join(os.homedir(), ".local", "bin", "claude.exe"); }
   log(m) { try { fs.appendFileSync(this.logFile, new Date().toISOString() + " " + redact(String(m)).slice(0, 1500) + "\n"); } catch (e) {} }
-  view(c) { const o = {}; for (const k of ["id", "title", "model", "proj", "projName", "created", "updated", "busy", "msgs", "ctx", "lastAt", "sessionId"]) o[k] = c[k]; o.queue = (c.queue || []).slice(); o.handingOff = !!c.handingOff; return o; }
+  view(c) { const o = {}; for (const k of ["id", "title", "model", "proj", "projName", "created", "updated", "busy", "msgs", "ctx", "lastAt", "sessionId"]) o[k] = c[k]; o.queue = (c.queue || []).map((q) => ({ text: q.text, imgs: (q.files || []).map((f) => f.path) })); o.handingOff = !!c.handingOff; return o; }
   // Busy console chats, for the agent tracker.
   active() { return [...this.convs.values()].filter((c) => c.busy).map((c) => { const cur = c.cur, b = cur && cur.blocks[cur.blocks.length - 1]; const say = cur && [...cur.blocks].reverse().find((x) => x.k === "text" && x.text); return { id: c.id, title: c.title, proj: c.projName, model: c.model, start: cur ? cur.at : Date.now(), step: b ? (b.k === "tool" ? b.name + (b.target ? " · " + b.target : "") : b.k === "think" ? "thinking" : (b.text || "").slice(-140)) : "starting", say: say ? say.text.slice(-160) : "", files: cur ? cur.blocks.filter((x) => x.k === "tool" && /^(Edit|Write|Read|MultiEdit)$/.test(x.name) && x.target).map((x) => ({ p: x.target, op: x.name === "Read" ? "read" : "edit", t: Date.now() })).slice(-8) : [] }; }); }
   // Send a prompt and resolve with the reply text when the turn ends.
@@ -53,7 +53,7 @@ class Chats {
   get(id) { const c = this.convs.get(id); return c ? this.view(c) : null; }
   save(c) {
     clearTimeout(c._st);
-    c._st = setTimeout(() => { try { const o = {}; for (const k of ["id", "sessionId", "title", "model", "created", "updated", "proj", "projName", "cwd", "primed", "ctx", "lastAt"]) o[k] = c[k]; o.msgs = c.msgs.slice(-200); fs.writeFileSync(path.join(this.dir, c.id + ".json"), redact(JSON.stringify(o))); } catch (e) { this.log("save " + e.message); } }, 400);
+    c._st = setTimeout(() => { try { const o = {}; for (const k of ["id", "sessionId", "title", "model", "created", "updated", "proj", "projName", "cwd", "primed", "ctx", "lastAt"]) o[k] = c[k]; o.msgs = c.msgs.slice(-200); o.imgN = c.imgN; o.titleSet = c.titleSet; fs.writeFileSync(path.join(this.dir, c.id + ".json"), redact(JSON.stringify(o))); } catch (e) { this.log("save " + e.message); } }, 400);
   }
   create(pr, model) {
     const id = "hq-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -86,20 +86,41 @@ class Chats {
   }
   killAll() { for (const c of this.convs.values()) this.kill(c, "shutdown"); clearInterval(this.idle); }
 
-  send(id, text) {
+  // Images arrive as [{mediaType, data(base64)}]; they are saved under userData/chat-images/<conv>/ and only paths are kept.
+  saveImages(c, images) {
+    const out = [], dir = path.join(this.imgDir, c.id.replace(/[^\w-]/g, "_"));
+    for (const im of (images || []).slice(0, 6)) {
+      const mt = String((im && im.mediaType) || ""); if (!/^image\/(png|jpeg|gif|webp)$/.test(mt) || !im.data) continue;
+      try { fs.mkdirSync(dir, { recursive: true }); const n = c.imgN = (c.imgN || 0) + 1; const p = path.join(dir, n + "." + (mt === "image/jpeg" ? "jpg" : mt.slice(6))); fs.writeFileSync(p, Buffer.from(im.data, "base64")); out.push({ mediaType: mt, path: p }); } catch (e) { this.log("saveImages " + e.message); }
+    }
+    return out;
+  }
+  rename(id, title) {
+    const c = this.convs.get(id); title = String(title || "").replace(/\s+/g, " ").trim().slice(0, 80); if (!c || !title) return;
+    c.title = title; c.titleSet = true; this.save(c); this.emitFn({ what: "list" });
+  }
+  send(id, text, images) {
     const c = this.convs.get(id); if (!c) return;
-    text = String(text || "").trim(); if (!text) return;
-    if (c.busy) { (c.queue = c.queue || []).push(text); this.emit(c, "queue"); return; }
+    text = String(text || "").trim();
+    const files = Array.isArray(images) && images.length && images[0] && images[0].data ? this.saveImages(c, images) : (images || []);
+    if (!text && !files.length) return;
+    if (c.busy) { (c.queue = c.queue || []).push({ text, files }); this.emit(c, "queue"); return; }
     if (c.proc && c.procModel !== c.model) this.kill(c, "model changed");
     let p = c.proc;
     if (!p) { try { p = this.spawnProc(c); } catch (e) { c.msgs.push({ r: "user", text }, { r: "asst", blocks: [{ k: "error", text: e.message }] }); this.save(c); this.emit(c, "done"); return; } }
-    const slash = /^\/\S/.test(text);
-    if (c.title === "New conversation" && !slash) c.title = text.replace(/\s+/g, " ").slice(0, 48);
+    const slash = /^\/\S/.test(text) && !files.length;
+    if (c.title === "New conversation" && !c.titleSet && !slash) c.title = (text || "Image").replace(/\s+/g, " ").slice(0, 48);
     let wire = text;
     if (!c.primed && c.proj && !slash) { wire = "[Project context] Project: " + c.projName + ", folder " + c.cwd + ". Notes live in its Notes\\ folder.\n\n" + text; c.primed = true; }
-    c.msgs.push({ r: "user", text: redact(text) }); c.cur = { r: "asst", blocks: [], at: Date.now() }; c.msgs.push(c.cur);
+    const um = { r: "user", text: redact(text) }; if (files.length) um.imgs = files.map((f) => f.path); c.msgs.push(um); c.cur = { r: "asst", blocks: [], at: Date.now() }; c.msgs.push(c.cur);
     c.idx = {}; c.busy = true; c.stopping = false; c.lastUse = Date.now(); c.updated = Date.now();
-    try { p.stdin.write(JSON.stringify({ type: "user", message: { role: "user", content: wire } }) + "\n"); }
+    let content = wire;
+    if (files.length) {
+      const parts = [];
+      for (const f of files) { try { parts.push({ type: "image", source: { type: "base64", media_type: f.mediaType, data: fs.readFileSync(f.path).toString("base64") } }); } catch (e) { this.log("read image " + e.message); } }
+      parts.push({ type: "text", text: wire || "(see attached image" + (files.length > 1 ? "s" : "") + ")" }); content = parts;
+    }
+    try { p.stdin.write(JSON.stringify({ type: "user", message: { role: "user", content } }) + "\n"); }
     catch (e) { this.finish(c, "Could not write to Claude Code: " + e.message); return; }
     this.save(c); this.emit(c, "turn");
   }
@@ -114,7 +135,7 @@ class Chats {
     if (cur) { if (err) cur.blocks.push({ k: "error", text: err }); cur.blocks.forEach((b) => { if (b.k === "tool") b.open = false; }); if (c.stopping) cur.stopped = true; }
     c.busy = false; c.stopping = false; c.cur = null; c.lastUse = Date.now(); c.lastAt = Date.now(); this.save(c); this.emit(c, "done");
     if (c._waiter) { const w = c._waiter; c._waiter = null; const t = cur ? cur.blocks.filter((b) => b.k === "text").map((b) => b.text).join("\n").trim() : ""; err && !t ? w.rej(new Error(err)) : w.res(t); }
-    if (c.queue && c.queue.length) setTimeout(() => { if (!c.busy && c.queue.length) this.send(c.id, c.queue.shift()); }, 300);
+    if (c.queue && c.queue.length) setTimeout(() => { if (!c.busy && c.queue.length) { const q = c.queue.shift(); this.send(c.id, q.text, q.files); } }, 300);
   }
   onLine(c, line) {
     let j; try { j = JSON.parse(line); } catch (e) { return; }

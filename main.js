@@ -22,7 +22,7 @@ let win = null, chats = null, now = null;
 const cache = { projects: [], agents: [], boards: [], usage: null, usageErr: "", usageAt: 0, music: null, vit: [] };
 
 // Read-only hqreview://f/<encoded path>: serves only media inside a project's Review folder.
-protocol.registerSchemesAsPrivileged([{ scheme: "hqreview", privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } }]);
+protocol.registerSchemesAsPrivileged([{ scheme: "hqchat", privileges: { standard: true, secure: true, supportFetchAPI: true } }, { scheme: "hqreview", privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } }]);
 const inReview = (f) => cache.projects.some((p) => p.review && D.inside(p.review, f));
 
 const wins = () => [win].filter((w) => w && !w.isDestroyed());
@@ -113,6 +113,13 @@ app.whenReady().then(() => {
     if (!f || !/\.(png|jpe?g|gif|webp|mp4|webm)$/i.test(f) || !inReview(f)) return new Response("denied", { status: 403 });
     return net.fetch(pathToFileURL(f).toString(), { headers: req.headers });
   });
+  // Read-only hqchat://f/<encoded path>: serves only images inside userData/chat-images.
+  protocol.handle("hqchat", (req) => {
+    let f = ""; try { f = path.resolve(decodeURIComponent(new URL(req.url).pathname.slice(1))); } catch (e) {}
+    const root = path.resolve(USER, "chat-images") + path.sep;
+    if (!f || !/\.(png|jpe?g|gif|webp)$/i.test(f) || !f.toLowerCase().startsWith(root.toLowerCase())) return new Response("denied", { status: 403 });
+    return net.fetch(pathToFileURL(f).toString());
+  });
   chats = new Chats(path.join(USER, "chats"), () => settings, (ev) => { send("chat", ev); if (ev.what !== "stream") send("crew", crew()); });
   now = new SYS.NowPlaying((m) => { cache.music = m; send("music", m); });
 
@@ -149,7 +156,8 @@ app.whenReady().then(() => {
   ipcMain.handle("chat-list", (_, proj) => chats.list(proj));
   ipcMain.handle("chat-get", (_, id) => chats.get(id));
   ipcMain.handle("chat-new", (_, { proj, model }) => chats.create(proj ? projById(proj) : null, model));
-  ipcMain.handle("chat-send", (_, { id, text }) => chats.send(id, text));
+  ipcMain.handle("chat-rename", (_, { id, title }) => chats.rename(id, title));
+  ipcMain.handle("chat-send", (_, { id, text, images }) => chats.send(id, text, images));
   ipcMain.handle("chat-stop", (_, id) => chats.stop(id));
   ipcMain.handle("chat-model", (_, { id, model }) => chats.setModel(id, model));
   ipcMain.handle("chat-delete", (_, id) => chats.remove(id));

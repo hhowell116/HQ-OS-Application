@@ -180,7 +180,7 @@ function renderLog() {
     const e = el("div", "empty"); e.append(el("div", "", p ? "CONSOLE READY · " + p.name.toUpperCase() : "CONSOLE READY"), el("div", "", "Claude works inside this project's folder."), el("div", "", "Ctrl+K focus · Ctrl+N new conversation · Ctrl+1-9 switch project · Ctrl+Alt+H show/hide"));
     log.append(e);
   } else c.msgs.forEach((m) => log.append(renderMsg(m)));
-  if (c) (c.queue || []).forEach((t) => { const m = renderMsg({ r: "user", text: t }); m.classList.add("queued"); m.querySelector(".who").append(el("span", "qtag", " · queued · sends when Claude finishes")); log.append(m); });
+  if (c) (c.queue || []).forEach((q) => { const m = renderMsg({ r: "user", text: q.text, imgs: q.imgs }); m.classList.add("queued"); m.querySelector(".who").append(el("span", "qtag", " · queued · sends when Claude finishes")); log.append(m); });
   const busy = !!(c && c.busy); $("#btn-send").classList.toggle("hidden", busy); $("#btn-stop").classList.toggle("hidden", !busy);
   renderCache();
   if (S.follow) log.scrollTop = log.scrollHeight;
@@ -189,7 +189,10 @@ function renderMsg(m) {
   const d = el("div", "msg " + (m.r === "user" ? "user" : "asst"));
   d.append(el("div", "who", m.r === "user" ? S.person.toUpperCase() : "CLAUDE"));
   const body = el("div", "body");
-  if (m.r === "user") body.textContent = m.text;
+  if (m.r === "user") {
+    if (m.text) body.textContent = m.text;
+    if (m.imgs && m.imgs.length) { const g = el("div", "msg-imgs"); m.imgs.forEach((p) => { const i = document.createElement("img"); i.src = "hqchat://f/" + encodeURIComponent(p); i.onclick = () => window.open(i.src); g.append(i); }); body.append(g); }
+  }
   else (m.blocks || []).forEach((b) => {
     if (b.k === "text") { const t = el("div", "md"); t.innerHTML = md(b.text); body.append(t); }
     else if (b.k === "think") body.append(el("div", "think", "· thinking ·"));
@@ -203,10 +206,53 @@ async function newConv() { if (!S.cur) return toast("Pick a project first", true
 $("#btn-hide").onclick = () => { S.hideChat = !S.hideChat; renderLog(); };
 async function sendInput() {
   if (S.hideChat) { S.hideChat = false; renderLog(); }
-  const ta = $("#input"), text = ta.value.trim(); if (!text) return;
+  const ta = $("#input"), text = ta.value.trim(), images = S.attach.map((a) => ({ mediaType: a.mediaType, data: a.data })); if (!text && !images.length) return;
   if (!S.conv) await newConv(); if (!S.conv) return;
-  ta.value = ""; autosize(); S.follow = true; await hq.chatSend({ id: S.conv.id, text });
+  ta.value = ""; S.attach = []; renderAttach(); autosize(); S.follow = true; await hq.chatSend({ id: S.conv.id, text, images });
 }
+// ---- rename ----
+function startRename() {
+  if (!S.conv) return; const sel = $("#conv-pick"); if (sel.nextElementSibling && sel.nextElementSibling.id === "rename-in") return;
+  const inp = document.createElement("input"); inp.id = "rename-in"; inp.className = "rename-in"; inp.maxLength = 80; inp.value = S.conv.title || "";
+  let done = false;
+  const end = async (save) => { if (done) return; done = true; const v = inp.value.trim(); inp.remove(); sel.style.display = ""; if (save && v && v !== S.conv.title) { await hq.chatRename({ id: S.conv.id, title: v }); S.conv.title = v; if (S.cur) fillConvPick(await hq.chatList(S.cur)); } };
+  inp.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); end(true); } else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); end(false); } };
+  inp.onblur = () => end(true);
+  sel.style.display = "none"; sel.after(inp); inp.focus(); inp.select();
+}
+$("#btn-rename").onclick = startRename; $("#conv-pick").ondblclick = startRename;
+// ---- image attachments (paste / drop) ----
+S.attach = [];
+const MAX_IMG = 5 * 1024 * 1024, MAX_N = 6;
+function renderAttach() {
+  const st = $("#attach"); st.textContent = ""; st.classList.toggle("hidden", !S.attach.length);
+  S.attach.forEach((a, i) => { const w = el("div", "thumb"), im = document.createElement("img"); im.src = "data:" + a.mediaType + ";base64," + a.data; const x = el("button", "x", "×"); x.title = "Remove"; x.onclick = () => { S.attach.splice(i, 1); renderAttach(); }; w.append(im, x); st.append(w); });
+}
+function readFile(file) { return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(file); }); }
+async function shrink(url, mt) { // downscale until the base64 payload fits the limit
+  const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; });
+  let scale = 1, out = url, outMt = mt;
+  for (let n = 0; n < 8 && Math.ceil((out.length - out.indexOf(",") - 1) * 0.75) > MAX_IMG; n++) {
+    scale *= 0.75; const cv = document.createElement("canvas"); cv.width = Math.max(1, Math.round(img.naturalWidth * scale)); cv.height = Math.max(1, Math.round(img.naturalHeight * scale));
+    cv.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height); outMt = "image/jpeg"; out = cv.toDataURL("image/jpeg", 0.85);
+  }
+  return { mediaType: outMt, data: out.slice(out.indexOf(",") + 1) };
+}
+async function addFiles(files) {
+  const imgs = [...files].filter((f) => /^image\/(png|jpeg|gif|webp)$/.test(f.type)); if (!imgs.length) return false;
+  for (const f of imgs) {
+    if (S.attach.length >= MAX_N) { toast("Max " + MAX_N + " images per message", true); break; }
+    try { const url = await readFile(f); S.attach.push(await shrink(url, f.type)); } catch (e) { toast("Could not read that image", true); }
+  }
+  renderAttach(); return true;
+}
+function wireAttach(elm) {
+  elm.addEventListener("paste", (e) => { const fl = [...((e.clipboardData && e.clipboardData.items) || [])].filter((i) => i.kind === "file").map((i) => i.getAsFile()).filter(Boolean); if (!e._hq && fl.some((f) => /^image\//.test(f.type))) { e._hq = 1; e.preventDefault(); addFiles(fl); } });
+  elm.addEventListener("dragover", (e) => { if (e.dataTransfer && [...e.dataTransfer.types].includes("Files")) { e.preventDefault(); elm.classList.add("dropping"); } });
+  elm.addEventListener("dragleave", () => elm.classList.remove("dropping"));
+  elm.addEventListener("drop", (e) => { elm.classList.remove("dropping"); if (!e._hq && e.dataTransfer && e.dataTransfer.files.length) { e._hq = 1; e.preventDefault(); addFiles(e.dataTransfer.files); } });
+}
+wireAttach($("#input")); wireAttach($("#console"));
 function autosize() { const ta = $("#input"); ta.style.height = "auto"; ta.style.height = Math.min(220, ta.scrollHeight + 2) + "px"; }
 function lastReplyText(c) { const m = [...(c.msgs || [])].reverse().find((x) => x.r === "asst"); if (!m) return ""; return (m.blocks || []).filter((b) => b.k === "text").map((b) => b.text).join(" "); }
 function speak(text) {
