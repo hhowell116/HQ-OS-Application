@@ -215,7 +215,7 @@ function startRename() {
   if (!S.conv) return; const sel = $("#conv-pick"); if (sel.nextElementSibling && sel.nextElementSibling.id === "rename-in") return;
   const inp = document.createElement("input"); inp.id = "rename-in"; inp.className = "rename-in"; inp.maxLength = 80; inp.value = S.conv.title || "";
   let done = false;
-  const end = async (save) => { if (done) return; done = true; const v = inp.value.trim(); inp.remove(); sel.style.display = ""; if (save && v && v !== S.conv.title) { await hq.chatRename({ id: S.conv.id, title: v }); S.conv.title = v; if (S.cur) fillConvPick(await hq.chatList(S.cur)); } };
+  const end = async (save) => { if (done) return; done = true; const v = inp.value.trim(); inp.remove(); sel.style.display = ""; if (save && v && v !== S.conv.title) { try { await hq.chatRename({ id: S.conv.id, title: v }); } catch (x) { return toast(/No handler/i.test(String(x)) ? "Rename needs a restart: click ⟳ restart to apply" : "Rename failed: " + (x.message || x), true); } S.conv.title = v; if (S.cur) fillConvPick(await hq.chatList(S.cur)); } };
   inp.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); end(true); } else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); end(false); } };
   inp.onblur = () => end(true);
   sel.style.display = "none"; sel.after(inp); inp.focus(); inp.select();
