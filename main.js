@@ -179,6 +179,11 @@ app.whenReady().then(() => {
   ipcMain.handle("music-ctl", (_, cmd) => now.control(cmd));
   ipcMain.handle("set", (_, kv) => { for (const k of ["voice", "voiceName", "speed", "person", "theme", "accent", "audio", "music"]) if (k in kv) settings[k] = kv[k]; if (Array.isArray(kv.archived)) settings.archived = kv.archived.filter((x) => typeof x === "string"); D.saveSettings(SETTINGS_FILE, settings); send("settings", pub()); if ("music" in kv) kv.music ? now.start() : (now.stop(), send("music", null)); return true; });
   ipcMain.handle("open-path", (_, p) => { const target = p === "settings" ? SETTINGS_FILE : p; if (target && fs.existsSync(target)) shell.openPath(target); });
+  // Rules viewer: read-only, exactly one file (CLAUDE.md in the Projects root). The renderer never supplies a path.
+  const rulesFile = () => path.join(settings.projectsRoot || path.join(require("os").homedir(), "Projects"), "CLAUDE.md");
+  ipcMain.handle("rules-read", () => { const f = rulesFile(); try { return { path: f, text: fs.readFileSync(f, "utf8"), mtime: fs.statSync(f).mtimeMs }; } catch (e) { return { path: f, text: "", mtime: 0, err: "Could not read " + path.basename(f) }; } });
+  ipcMain.handle("rules-open", () => { const f = rulesFile(); if (fs.existsSync(f)) shell.openPath(f); });
+  { let t, w; try { w = fs.watch(path.dirname(rulesFile()), (ev, name) => { if (name && name.toLowerCase() !== "claude.md") return; clearTimeout(t); t = setTimeout(() => send("rules-changed", true), 300); }); w.on("error", () => {}); } catch (e) {} }
   ipcMain.handle("chat-list", (_, proj) => chats.list(proj));
   ipcMain.handle("chat-get", (_, id) => chats.get(id));
   ipcMain.handle("chat-new", (_, { proj, model }) => chats.create(proj ? projById(proj) : null, model));
