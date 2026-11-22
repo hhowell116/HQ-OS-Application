@@ -1,0 +1,18 @@
+{
+  "name": "hq-os",
+  "productName": "HQ OS",
+  "version": "2.0.0",
+  "description": "HQ OS command center: projects, live Claude agents, usage and a Claude console, outside Obsidian.",
+  "main": "main.js",
+  "author": "Hayden Howell",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "postinstall": "node tools/brand-exe.js",
+    "brand": "node tools/brand-exe.js"
+  },
+  "devDependencies": {
+    "electron": "^45.4.1",
+    "rcedit": "^4.0.1"
+  }
+}

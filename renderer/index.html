@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' blob:; connect-src 'none'">
+<title>HQ OS</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="grid-bg"></div><div class="scan"></div>
+
+<header class="titlebar">
+  <div class="brand"><span class="glyph">◈</span><span>HQ<b>OS</b></span><span class="ver">v2.1</span></div>
+  <div class="tabs" id="tabs"><button data-view="hq" class="on" title="Command center (F1)">HQ</button><button data-view="room" title="War room: your agents around the table (F2)">WAR ROOM</button></div>
+  <div class="status" id="status">
+    <span class="chip" id="chip-agents">0 agents</span>
+    <span class="chip" id="chip-usage">usage —</span>
+    <span class="chip dim" id="chip-sys" title="Show everything waiting on you">systems nominal</span>
+    <div class="needs-pop hidden" id="needs-pop"></div>
+  </div>
+  <div class="clock"><span id="clock-t">--:--</span><span id="clock-d"></span></div>
+  <div class="tb-tools">
+    <select id="theme-pick" title="Colour theme"></select>
+    <div class="acc-wrap"><button class="ghost acc-btn" id="acc-btn" title="Accent colour"><span class="sw" id="acc-sw"></span></button>
+      <div class="acc-pop hidden" id="acc-pop"><div class="acc-grid" id="acc-grid"></div>
+        <div class="acc-row"><label class="acc-custom">custom <input type="color" id="acc-custom"></label><button class="ghost" id="acc-reset">theme default</button></div></div></div>
+    <button class="ghost" id="btn-audio" title="Audio visualizer (reacts to whatever is playing)">♫ viz on</button>
+  </div>
+  <div class="winbtns"><button data-w="min" title="Minimize">─</button><button data-w="max" title="Maximize">▢</button><button data-w="close" class="x" title="Close">✕</button></div>
+</header>
+
+<main class="layout">
+  <aside class="col left">
+    <div class="panel-h"><span>PROJECTS</span><button class="ghost" id="btn-refresh" title="Refresh (F5)">⟳</button></div>
+    <div id="projects" class="projects"></div>
+    <div class="panel-h sub live-h"><span>LIVE AGENTS</span><span class="count zero" id="c-live">0</span><span class="spacer"></span><button class="ghost" id="live-room" title="Watch them in the war room (F2)">⛶</button></div>
+    <div id="live-ag" class="live-ag"></div>
+  </aside>
+
+  <section class="col center">
+    <div class="core-wrap" id="core-wrap">
+      <canvas id="core"></canvas>
+      <div class="hud hud-l">
+        <div class="hud-h">SYSTEM</div>
+        <div class="vitals" id="vitals">
+          <div class="vit" id="v-cpu"><span class="k">CPU</span><span class="bar"><i></i><svg viewBox="0 0 60 18" preserveAspectRatio="none"><polyline/></svg></span><span class="v">–</span></div>
+          <div class="vit" id="v-ram"><span class="k">RAM</span><span class="bar"><i></i><svg viewBox="0 0 60 18" preserveAspectRatio="none"><polyline/></svg></span><span class="v">–</span></div>
+          <div class="vit-sub" id="v-sub"></div>
+        </div>
+      </div>
+      <div class="hud hud-r">
+        <div class="hud-h">CLAUDE</div>
+        <div class="rings" id="rings"></div>
+      </div>
+      <div class="music hidden" id="music">
+        <img id="m-cover" alt="">
+        <div class="mi"><div class="mapp" id="m-app"></div><div class="mt" id="m-title"></div><div class="ma" id="m-artist"></div></div>
+          <div class="mc"><button data-m="prev" title="Previous">⏮</button><button data-m="toggle" id="m-play" title="Play/pause">⏯</button><button data-m="next" title="Next">⏭</button></div>
+      </div>
+      <div class="core-label"><div id="greet" class="greet">Initializing…</div><div id="mood" class="mood">standing by</div></div>
+    </div>
+    <div class="console" id="console">
+      <div class="console-h">
+        <select id="conv-pick" title="Conversations"></select>
+        <button class="ghost" id="btn-new" title="New conversation (Ctrl+N)">＋ new</button>
+        <select id="model-pick" title="Model">
+          <option value="">default model</option><option value="opus">opus</option><option value="sonnet">sonnet</option><option value="haiku">haiku</option>
+        </select>
+        <span class="cache hidden" id="cache"></span>
+        <span class="spacer"></span>
+        <button class="ghost" id="btn-handoff" title="HANDOFF: Claude writes a detailed summary of this chat, then a NEW chat starts with it, so you continue fresh without losing context. Better than compact for long chats.">⇄ handoff</button>
+        <button class="ghost" id="btn-compact" title="COMPACT: Claude Code summarizes this chat in place to shrink it (/compact). Cheaper per message afterwards, but drops some detail.">⇲ compact</button>
+        <button class="ghost" id="btn-voice" title="Speak replies aloud">🔈 voice off</button>
+        <button class="ghost danger" id="btn-del" title="Delete this conversation">delete</button>
+        <button class="ghost fold room-only" data-fold="room-comms" title="Collapse">▾</button>
+      </div>
+      <div class="log" id="log"></div>
+      <div class="input-row">
+        <span class="prompt">›</span>
+        <textarea id="input" rows="2" placeholder="Talk to Claude about this project…  (Enter to send, Shift+Enter for a new line, Ctrl+K to focus)"></textarea>
+        <button id="btn-send" class="primary">SEND</button>
+        <button id="btn-stop" class="danger hidden">STOP</button>
+      </div>
+    </div>
+  </section>
+
+  <aside class="col right">
+    <div class="panel-h"><span id="p-name">—</span><span class="spacer"></span><button class="ghost" id="btn-code" title="Open in VS Code">⧉ code</button><button class="ghost" id="btn-note" title="Open the To-Do note">✎ note</button></div>
+    <div id="p-live" class="live hidden"></div>
+    <div class="spark-row"><span class="lbl">COMMITS 14d</span><svg id="p-spark" viewBox="0 0 140 26"></svg><span id="p-last" class="dim small ell"></span></div>
+    <div class="panel-h sub"><span>NEEDS YOU</span><span class="count" id="c-wait">0</span></div>
+    <div id="p-wait" class="list"></div>
+    <div class="panel-h sub"><span>NEXT UP</span><span class="count" id="c-next">0</span></div>
+    <form id="add-form" class="add"><input id="add-input" placeholder="+ add a task to Next…" autocomplete="off"></form>
+    <div id="p-next" class="list"></div>
+    <div class="panel-h sub"><span>FILES IN PLAY</span><span class="count zero" id="c-files">0</span></div>
+    <div id="files" class="files"></div>
+    <div class="panel-h sub"><span>TEAM BOARD</span></div>
+    <div id="p-board" class="list"></div>
+  </aside>
+</main>
+
+<footer class="ticker"><span class="lbl">LIVE AGENTS</span><div id="agents" class="agents"></div>
+  <button class="ghost open-tr" id="btn-room" title="War room view (F2)">⛶ war room</button>
+</footer>
+<section class="room-view hidden" id="room-view">
+  <canvas id="scene"></canvas>
+  <div class="rbar"><span class="ttl">◈ WAR ROOM</span><span class="sub" id="sub">assembling…</span><span class="spacer"></span><button class="ghost" id="room-back" title="Back to HQ (Esc)">← back to HQ</button></div>
+  <div class="feed" id="feed"></div>
+  <div class="detail hidden" id="detail"></div>
+  <aside class="rleft" id="room-left">
+    <div class="rproj" id="rproj">
+      <div class="rp-top"><span class="lbl">PROJECT</span><select id="r-proj-pick" title="Switch project"></select><button class="ghost fold" data-fold="rproj" title="Collapse">▾</button></div>
+      <div class="rp-live" id="r-live"></div>
+      <div class="rp-stats" id="r-stats"></div>
+      <div class="rp-list" id="r-list"></div>
+    </div>
+  </aside>
+  <aside class="comms" id="room-comms"></aside>
+  <div class="legend">click a seat for details · Ctrl+D demo crew · Esc back to HQ</div>
+</section>
+<div id="toast" class="toast hidden"></div>
+
+<script src="themes.js"></script>
+<script src="core.js"></script>
+<script src="app.js"></script>
+<script src="room.js"></script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+node_modules/
+dist/
+out/
+release/
+.env*
+*.log
+data/
+data.json
+settings.json
+usage-cache.json
+conversations/
+chats/
+cache/
+.cache/
+*.lnk
+.DS_Store
