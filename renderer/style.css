@@ -434,3 +434,6 @@ select.ghost option { background: #0b1118; color: #cfe; }
 
 /* handoff button glows when the cache is cold or the context is high */
 #btn-handoff.hot { color: var(--warn); border-color: rgba(255,176,46,.8); background: rgba(255,176,46,.12); box-shadow: none; }
+
+/* Hayden's messages get a tinted bubble so they stand out from Claude's replies */
+.msg.user .body { background: rgba(var(--hl-rgb),.10); border-left: 3px solid rgba(var(--hl-rgb),.7); border-radius: 0 6px 6px 0; padding: 8px 12px; }
