@@ -111,7 +111,7 @@ class Chats {
     const slash = /^\/\S/.test(text) && !files.length;
     if (c.title === "New conversation" && !c.titleSet && !slash) c.title = (text || "Image").replace(/\s+/g, " ").slice(0, 48);
     let wire = text;
-    if (!c.primed && c.proj && !slash) { wire = "[Project context] Project: " + c.projName + ", folder " + c.cwd + ". Notes live in its Notes\\ folder.\n\n" + text; c.primed = true; }
+    if (!c.primed && c.proj && !slash) { wire = "[Project context] Project: " + c.projName + ", folder " + c.cwd + ". Notes live in its Notes\\ folder. Your knowledge notes: Notes\\Claude\\ (read Index.md first if it exists; see 'Claude's Notes' in the rules).\n\n" + text; c.primed = true; }
     const um = { r: "user", text: redact(text) }; if (files.length) um.imgs = files.map((f) => f.path); c.msgs.push(um); c.cur = { r: "asst", blocks: [], at: Date.now() }; c.msgs.push(c.cur);
     c.idx = {}; c.busy = true; c.stopping = false; c.lastUse = Date.now(); c.updated = Date.now();
     let content = wire;
