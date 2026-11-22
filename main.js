@@ -167,10 +167,17 @@ app.whenReady().then(() => {
   ipcMain.handle("code-pending", () => codePending);
   ipcMain.handle("restart", () => { app.relaunch(); app.exit(0); });
   if (!app.isPackaged) {
-    // Dev watchers: renderer edits reload the window; main-process edits only show a "restart to apply" chip (a restart would kill running chats).
-    let t1 = null, t2 = null;
-    try { fs.watch(path.join(__dirname, "renderer"), { recursive: true }, (_, f) => { if (!f || /(~|.swp|.tmp|.part)$|^.#|^4913$/i.test(f)) return; clearTimeout(t1); t1 = setTimeout(() => win && !win.isDestroyed() && win.webContents.reload(), 400); }); } catch (e) {}
-    try { fs.watch(__dirname, (_, f) => { if (!f || !/.js$/i.test(f)) return; codePending = f; clearTimeout(t2); t2 = setTimeout(() => send("code-changed", f), 400); }); } catch (e) {}
+    // Dev watchers. Changes apply only once they are FINISHED, i.e. committed (Hayden 2026-11-22: no reloads mid-change).
+    // File edits just mark what changed; a new commit in app/.git then reloads the window (renderer) or shows the restart chip (main process).
+    let rendDirty = false, mainDirty = null, tc = null;
+    try { fs.watch(path.join(__dirname, "renderer"), { recursive: true }, (_, f) => { if (f && !/(~|.swp|.tmp|.part)$|^.#|^4913$/i.test(f)) rendDirty = true; }); } catch (e) {}
+    try { fs.watch(__dirname, (_, f) => { if (f && /\.js$/i.test(f)) mainDirty = f; }); } catch (e) {}
+    const applyFinished = () => {
+      if (mainDirty) { codePending = mainDirty; send("code-changed", mainDirty); mainDirty = null; }
+      if (rendDirty) { rendDirty = false; if (win && !win.isDestroyed()) win.webContents.reload(); }
+    };
+    // HEAD's reflog grows on every commit; wait a moment so a commit + push sequence settles
+    try { fs.watch(path.join(__dirname, ".git", "logs"), { recursive: true }, () => { clearTimeout(tc); tc = setTimeout(applyFinished, 1500); }); } catch (e) {}
   }
   ipcMain.handle("agents", async () => { await pollAgents(); return cache.agents; });
   ipcMain.handle("crew", () => crew());
