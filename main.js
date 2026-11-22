@@ -1,5 +1,6 @@
 // HQ OS: Electron main process. Owns the file system, Claude processes and polling; windows only render.
-const { app, BrowserWindow, ipcMain, shell, globalShortcut, session, desktopCapturer } = require("electron");
+const { app, BrowserWindow, ipcMain, shell, globalShortcut, session, desktopCapturer, protocol, net } = require("electron");
+const { pathToFileURL } = require("url");
 const path = require("path"), fs = require("fs");
 const D = require("./data");
 const { Chats } = require("./chat");
@@ -19,6 +20,10 @@ const ELECTRON = process.execPath;
 let settings = D.loadSettings(SETTINGS_FILE, LEGACY);
 let win = null, chats = null, now = null;
 const cache = { projects: [], agents: [], boards: [], usage: null, usageErr: "", usageAt: 0, music: null, vit: [] };
+
+// Read-only hqreview://f/<encoded path>: serves only media inside a project's Review folder.
+protocol.registerSchemesAsPrivileged([{ scheme: "hqreview", privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } }]);
+const inReview = (f) => cache.projects.some((p) => p.review && D.inside(p.review, f));
 
 const wins = () => [win].filter((w) => w && !w.isDestroyed());
 const send = (ch, data) => wins().forEach((w) => w.webContents.send(ch, data));
@@ -103,6 +108,11 @@ function ensureShortcuts() {
 
 app.whenReady().then(() => {
   refreshProjects();
+  protocol.handle("hqreview", (req) => {
+    let f = ""; try { f = path.resolve(decodeURIComponent(new URL(req.url).pathname.slice(1))); } catch (e) {}
+    if (!f || !/\.(png|jpe?g|gif|webp|mp4|webm)$/i.test(f) || !inReview(f)) return new Response("denied", { status: 403 });
+    return net.fetch(pathToFileURL(f).toString(), { headers: req.headers });
+  });
   chats = new Chats(path.join(USER, "chats"), () => settings, (ev) => { send("chat", ev); if (ev.what !== "stream") send("crew", crew()); });
   now = new SYS.NowPlaying((m) => { cache.music = m; send("music", m); });
 
@@ -119,6 +129,16 @@ app.whenReady().then(() => {
   ipcMain.handle("project", (_, id) => { if (id && settings.last !== id) { settings.last = id; D.saveSettings(SETTINGS_FILE, settings); } return projectDetail(id); });
   ipcMain.handle("todo-toggle", async (_, { id, line, raw, on }) => { const p = projById(id); if (!p || !p.todo) throw new Error("No To-Do note"); await D.toggleTodo(p.todo, line, raw, on); return projectDetail(id); });
   ipcMain.handle("todo-add", async (_, { id, text }) => { const p = projById(id); if (!p || !p.todo) throw new Error("No To-Do note"); await D.addTodo(p.todo, p, String(text).trim()); return projectDetail(id); });
+  ipcMain.handle("review-list", async (_, id) => { const p = projById(id); if (!p) return []; return (await D.reviewList(p)).map((i) => ({ key: i.key, title: i.title, status: i.status, created: i.created, note: i.note, video: i.video, media: i.files.map((f) => "hqreview://f/" + encodeURIComponent(f)) })); });
+  ipcMain.handle("review-set", async (_, { id, key, status, comment }) => { const p = projById(id); if (!p) throw new Error("Unknown project"); await D.reviewSet(p, String(key), String(status), comment); return true; });
+  ipcMain.handle("busy", () => !!(chats && chats.active().length));
+  ipcMain.handle("restart", () => { app.relaunch(); app.exit(0); });
+  if (!app.isPackaged) {
+    // Dev watchers: renderer edits reload the window; main-process edits only show a "restart to apply" chip (a restart would kill running chats).
+    let t1 = null, t2 = null;
+    try { fs.watch(path.join(__dirname, "renderer"), { recursive: true }, (_, f) => { if (!f || /(~|.swp|.tmp|.part)$|^.#|^4913$/i.test(f)) return; clearTimeout(t1); t1 = setTimeout(() => win && !win.isDestroyed() && win.webContents.reload(), 400); }); } catch (e) {}
+    try { fs.watch(__dirname, (_, f) => { if (!["main.js", "chat.js", "data.js", "preload.js", "system.js"].includes(f)) return; clearTimeout(t2); t2 = setTimeout(() => send("code-changed", f), 400); }); } catch (e) {}
+  }
   ipcMain.handle("agents", async () => { await pollAgents(); return cache.agents; });
   ipcMain.handle("crew", () => crew());
   ipcMain.handle("usage", async (_, force) => { await pollUsage(!!force); return { usage: cache.usage, err: cache.usageErr }; });

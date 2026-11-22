@@ -1,10 +1,12 @@
 // Narrow bridge: pages get named calls only, never Node or ipcRenderer itself.
 const { contextBridge, ipcRenderer } = require("electron");
 const inv = (ch) => (arg) => ipcRenderer.invoke(ch, arg);
-const EVENTS = ["chat", "agents", "crew", "usage", "todo-changed", "win-state", "vitals", "music", "settings"];
+const EVENTS = ["chat", "agents", "crew", "usage", "todo-changed", "win-state", "vitals", "music", "settings", "code-changed"];
 contextBridge.exposeInMainWorld("hq", {
   init: inv("init"), settings: inv("settings"), projects: inv("projects"), project: inv("project"),
   needs: inv("needs"), todoToggle: inv("todo-toggle"), todoAdd: inv("todo-add"),
+  reviewList: inv("review-list"), reviewSet: inv("review-set"),
+  restart: inv("restart"), busy: inv("busy"),
   agents: inv("agents"), crew: inv("crew"), usage: inv("usage"), music: inv("music"), musicCtl: inv("music-ctl"),
   set: inv("set"), openPath: inv("open-path"), openVSCode: inv("open-vscode"),
   chatList: inv("chat-list"), chatGet: inv("chat-get"), chatNew: inv("chat-new"), chatSend: inv("chat-send"),

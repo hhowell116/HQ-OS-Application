@@ -241,13 +241,58 @@ function fetchCommits(repo) {
   });
 }
 
-// ---------- review inbox (count only; media stays on disk) ----------
-async function reviewCount(pr) {
-  if (!pr.review) return 0;
-  try { const fl = await fsp.readdir(pr.review); let n = 0;
-    for (const f of fl) { if (!/\.md$/i.test(f)) continue; const t = await fsp.readFile(path.join(pr.review, f), "utf8").catch(() => ""); if (!/^status:\s*(approved|rejected|changes)/im.test(t)) n++; }
-    return n; } catch (e) { return 0; }
+// ---------- review inbox ----------
+const MEDIA = /\.(png|jpe?g|gif|webp|mp4|webm)$/i, VIDEO = /\.(mp4|webm)$/i;
+const inside = (root, p) => { const r = path.resolve(root), t = path.resolve(p); return t === r || t.startsWith(r + path.sep); };
+function parseSidecar(text) {
+  const t = String(text || "").replace(/\r\n/g, "\n"), m = /^---\n([\s\S]*?)\n---\n?([\s\S]*)$/.exec(t), fm = {};
+  if (!m) return { fm, body: t.trim() };
+  for (const l of m[1].split("\n")) { const k = /^([\w-]+):\s*(.*)$/.exec(l); if (k) fm[k[1]] = k[2].trim().replace(/^"(.*)"$/, "$1").replace(/\\"/g, '"'); }
+  return { fm, body: m[2].trim() };
 }
+// Items: each media file (+ optional same-name .md sidecar), standalone .md notes, and sub-folders holding item.md + media.
+async function reviewList(pr) {
+  if (!pr.review) return [];
+  const root = pr.review, out = [];
+  let ents = []; try { ents = await fsp.readdir(root, { withFileTypes: true }); } catch (e) { return []; }
+  const add = async (key, title, files, sidecar, def, ctime) => {
+    const txt = sidecar ? await fsp.readFile(sidecar, "utf8").catch(() => "") : "", r = parseSidecar(txt);
+    const created = r.fm.created || new Date(ctime).toISOString();
+    out.push({ key, title: r.fm.title || title, status: r.fm.status || "needs-review", created, note: r.body, files, video: files.some((f) => VIDEO.test(f)), sidecar: sidecar || "", sidecarPath: def });
+  };
+  const ct = async (f) => (await fsp.stat(f).catch(() => ({ ctimeMs: 0 }))).ctimeMs;
+  const names = ents.filter((e) => e.isFile()).map((e) => e.name), baseOf = (n) => n.replace(/\.[^.]+$/, "");
+  const media = names.filter((n) => MEDIA.test(n));
+  for (const n of media) { const sc = names.find((k) => /\.md$/i.test(k) && baseOf(k) === baseOf(n)); await add(n, baseOf(n), [path.join(root, n)], sc ? path.join(root, sc) : "", path.join(root, baseOf(n) + ".md"), await ct(path.join(root, n))); }
+  for (const n of names.filter((k) => /\.md$/i.test(k) && k.toLowerCase() !== "readme.md" && !media.some((m) => baseOf(m) === baseOf(k)))) await add(n, baseOf(n), [], path.join(root, n), path.join(root, n), await ct(path.join(root, n)));
+  for (const d of ents.filter((e) => e.isDirectory())) {
+    const dir = path.join(root, d.name), fl = await fsp.readdir(dir).catch(() => []), sc = fl.includes("item.md") ? path.join(dir, "item.md") : "";
+    await add(d.name, d.name, fl.filter((f) => MEDIA.test(f)).map((f) => path.join(dir, f)), sc, path.join(dir, "item.md"), await ct(dir));
+  }
+  out.sort((a, b) => String(b.created).localeCompare(String(a.created)));
+  return out;
+}
+async function reviewSet(pr, key, status, comment) {
+  if (!pr.review || !["needs-review", "approved", "changes", "rejected"].includes(status)) throw new Error("Bad review request");
+  const it = (await reviewList(pr)).find((x) => x.key === key); if (!it) throw new Error("Review item not found");
+  const file = path.resolve(it.sidecar || it.sidecarPath);
+  if (!inside(pr.review, file) || !/\.md$/i.test(file)) throw new Error("Outside the review folder");
+  const q = (v) => '"' + String(v).replace(/[\r\n]+/g, " ").replace(/"/g, '\\"') + '"';
+  let fmLines = [], body = "";
+  if (it.sidecar) {
+    const raw = await fsp.readFile(file, "utf8"), m = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/.exec(raw);
+    if (m) { fmLines = m[1].split(/\r?\n/); body = m[2]; } else body = raw;
+  }
+  const setKey = (k, v) => { const i = fmLines.findIndex((l) => l.startsWith(k + ":")), ln = k + ": " + q(v); i >= 0 ? (fmLines[i] = ln) : fmLines.push(ln); };
+  if (!fmLines.some((l) => l.startsWith("title:"))) setKey("title", it.title);
+  if (!fmLines.some((l) => l.startsWith("created:"))) setKey("created", it.created);
+  setKey("status", status);
+  const c = String(comment || "").trim();
+  if (c) body = body.replace(/\s+$/, "") + "\n\n**Hayden:** " + c.replace(/\r?\n/g, " ") + "\n";
+  await fsp.writeFile(file, "---\n" + fmLines.join("\n") + "\n---\n" + body.replace(/^\n+/, ""));
+  return true;
+}
+async function reviewCount(pr) { return (await reviewList(pr)).filter((i) => i.status === "needs-review").length; }
 
 // Every project's Agent Activity board, for the agent tracker (rows tagged with the project name).
 async function allBoards(projects) {
@@ -256,4 +301,4 @@ async function allBoards(projects) {
   return out;
 }
 
-module.exports = { allBoards, loadSettings, saveSettings, listProjects, readTodo, toggleTodo, addTodo, readBoard, scanAgents, fetchUsage, fetchCommits, reviewCount, clean };
+module.exports = { allBoards, loadSettings, saveSettings, listProjects, readTodo, toggleTodo, addTodo, readBoard, scanAgents, fetchUsage, fetchCommits, reviewCount, reviewList, reviewSet, inside, clean };

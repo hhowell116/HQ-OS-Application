@@ -88,7 +88,7 @@ async function loadProjects() { S.projects = await hq.projects(); renderProjects
 
 async function selectProject(id) {
   if (!id) return; S.cur = id; renderProjects();
-  S.detail = await hq.project(id); renderDetail();
+  S.detail = await hq.project(id); renderDetail(); REV.items = []; renderReview(); loadReview();
   // jump to this project's latest conversation
   const list = await hq.chatList(id); await fillConvPick(list);
   if (list.length) openConv(list[0].id); else { S.conv = null; renderLog(); }
@@ -140,10 +140,7 @@ document.querySelectorAll(".fold").forEach((b) => { const id = b.dataset.fold; l
 
 // ---------- agents + usage ----------
 function renderAgents() {
-  const box = $("#agents"); box.textContent = "";
-  const run = S.agents.filter((a) => a.status === "running"), stalled = S.agents.filter((a) => a.status === "stalled" && Date.now() - a.mtime < 3600e3);
-  [...run, ...stalled].slice(0, 8).forEach((a) => { const g = el("div", "ag " + a.status); g.title = a.title + "\n" + a.step; g.append(el("span", "dot"), el("span", "an", a.title.slice(0, 40)), el("span", "tm", dur(Date.now() - a.start)), el("span", "st", a.step)); box.append(g); });
-  if (!run.length && !stalled.length) box.append(el("span", "dim", "No agents running."));
+  const run = S.agents.filter((a) => a.status === "running");
   $("#chip-agents").textContent = run.length + " agent" + (run.length === 1 ? "" : "s") + " live";
   $("#chip-agents").className = "chip" + (run.length ? "" : " dim");
 }
@@ -183,6 +180,7 @@ function renderLog() {
     const e = el("div", "empty"); e.append(el("div", "", p ? "CONSOLE READY · " + p.name.toUpperCase() : "CONSOLE READY"), el("div", "", "Claude works inside this project's folder."), el("div", "", "Ctrl+K focus · Ctrl+N new conversation · Ctrl+1-9 switch project · Ctrl+Alt+H show/hide"));
     log.append(e);
   } else c.msgs.forEach((m) => log.append(renderMsg(m)));
+  if (c) (c.queue || []).forEach((t) => { const m = renderMsg({ r: "user", text: t }); m.classList.add("queued"); m.querySelector(".who").append(el("span", "qtag", " · queued · sends when Claude finishes")); log.append(m); });
   const busy = !!(c && c.busy); $("#btn-send").classList.toggle("hidden", busy); $("#btn-stop").classList.toggle("hidden", !busy);
   renderCache();
   if (S.follow) log.scrollTop = log.scrollHeight;
@@ -389,7 +387,6 @@ function setView(v) {
 }
 window.HQView = setView;
 document.querySelectorAll("#tabs button").forEach((b) => (b.onclick = () => setView(b.dataset.view)));
-$("#btn-room").onclick = () => setView("room");
 $("#room-back").onclick = () => setView("hq");
 
 // ---------- boot ----------
@@ -405,10 +402,60 @@ $("#room-back").onclick = () => setView("hq");
   hq.music().then(renderMusic); hq.crew().then((c) => { renderFiles(c); renderLive(c); });
   $("#greet").textContent = greet(); setInterval(() => ($("#greet").textContent = greet()), 60000);
   renderProjects();
-  const start = S.projects.find((p) => p.id === init.settings.last) || activeProjects()[0] || S.projects[0];
+  const ui = JSON.parse(sessionStorage.getItem("hqui") || "{}"); S.hideChat = !!ui.hide;
+  const start = S.projects.find((p) => p.id === (ui.proj || init.settings.last)) || S.projects.find((p) => p.id === init.settings.last) || activeProjects()[0] || S.projects[0];
   if (start) await selectProject(start.id);
+  if (ui.conv && ui.proj === S.cur) { try { await openConv(ui.conv); } catch (e) {} }
+  if (ui.view === "room") setView("room");
   hq.agents().then((a) => { S.agents = a; renderAgents(); renderProjects(); });
   hq.usage(false).then((u) => renderUsage(u.usage, u.err));
   setTimeout(() => setMood("idle"), 900);
   setInterval(loadProjects, 60000);
 })();
+
+// ---------- needs review ----------
+const REV = { items: [], all: false, cur: null, proj: "" };
+const ago = (iso) => { const m = Math.max(0, Math.round((Date.now() - new Date(iso)) / 60000)); return isNaN(m) ? "" : m < 60 ? m + "m" : m < 1440 ? Math.floor(m / 60) + "h" : Math.floor(m / 1440) + "d"; };
+async function loadReview() {
+  const id = S.cur; if (!id) return;
+  try { const items = await hq.reviewList(id); if (id !== S.cur) return; REV.items = items; REV.proj = id; } catch (e) { return; }
+  renderReview();
+}
+function renderReview() {
+  const todo = REV.items.filter((i) => i.status === "needs-review"), list = REV.all ? REV.items : todo, box = $("#p-rev");
+  $("#c-rev").textContent = todo.length; $("#c-rev").classList.toggle("zero", !todo.length);
+  $("#rev-filter").textContent = REV.all ? "all" : "to review";
+  box.textContent = "";
+  if (!list.length) box.append(el("div", "dim small", REV.all ? "Nothing in the review folder." : "Nothing to review."));
+  for (const i of list) {
+    const r = el("div", "rev-item"), th = el("div", "th");
+    if (i.media[0] && !i.video) { const im = el("img"); im.src = i.media[0]; im.alt = ""; th.append(im); } else th.textContent = i.video ? "▶" : "✎";
+    const tt = el("div", "tt"); tt.append(el("b", "", i.title), el("span", "", ago(i.created) + " ago"));
+    const cls = { approved: "ok", rejected: "bad", changes: "chg" }[i.status] || "";
+    r.append(th, tt); if (i.status !== "needs-review") r.append(el("span", "st " + cls, i.status));
+    r.onclick = () => openReview(i); box.append(r);
+  }
+  const p = S.projects.find((x) => x.id === S.cur); if (p && p.review !== todo.length) { p.review = todo.length; renderProjects(); }
+}
+function openReview(i) {
+  REV.cur = i; $("#rv-title").textContent = i.title; $("#rv-meta").textContent = i.status + " · " + ago(i.created) + " ago";
+  const m = $("#rv-media"); m.textContent = "";
+  for (const u of i.media) { if (/\.(mp4|webm)$/i.test(decodeURIComponent(u))) { const v = el("video"); v.src = u; v.controls = true; m.append(v); } else { const im = el("img"); im.src = u; im.alt = i.title; m.append(im); } }
+  $("#rv-note").innerHTML = md(i.note); $("#rv-comment").value = ""; $("#rev-ov").classList.remove("hidden");
+}
+function closeReview() { $("#rev-ov").classList.add("hidden"); $("#rv-media").textContent = ""; REV.cur = null; }
+async function reviewAct(status) {
+  const i = REV.cur; if (!i) return; const comment = $("#rv-comment").value.trim();
+  try { await hq.reviewSet({ id: S.cur, key: i.key, status, comment }); closeReview(); toast(status === "approved" ? "Approved" : status === "changes" ? "Changes requested" : "Rejected"); await loadReview(); loadProjects(); }
+  catch (e) { toast(e.message, true); }
+}
+$("#rv-ok").onclick = () => reviewAct("approved"); $("#rv-chg").onclick = () => reviewAct("changes"); $("#rv-no").onclick = () => reviewAct("rejected");
+$("#rv-close").onclick = closeReview; $("#rev-ov").onclick = (e) => { if (e.target.id === "rev-ov") closeReview(); };
+$("#rev-filter").onclick = () => { REV.all = !REV.all; renderReview(); };
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && REV.cur) { e.stopImmediatePropagation(); closeReview(); } }, true);
+window.addEventListener("focus", loadReview); setInterval(loadReview, 45000);
+
+// ---------- reload state + dev watchers ----------
+window.addEventListener("beforeunload", () => sessionStorage.setItem("hqui", JSON.stringify({ proj: S.cur, conv: S.conv && S.conv.id, view: document.body.classList.contains("in-room") ? "room" : "hq", hide: !!S.hideChat })));
+hq.on("code-changed", () => $("#restart-chip").classList.remove("hidden"));
+$("#restart-chip").onclick = async () => { const busy = await hq.busy(); if (busy && !confirm("A chat is still running, restart anyway?")) return; hq.restart(); };

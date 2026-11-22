@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' blob:; connect-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: hqreview:; media-src 'self' blob: hqreview:; connect-src 'none'">
 <title>HQ OS</title>
 <link rel="stylesheet" href="style.css">
 </head>
@@ -13,6 +13,7 @@
   <div class="brand"><span class="glyph">◈</span><span>HQ<b>OS</b></span><span class="ver">v2.1</span></div>
   <div class="tabs" id="tabs"><button data-view="hq" class="on" title="Command center (F1)">HQ</button><button data-view="room" title="War room: your agents around the table (F2)">WAR ROOM</button></div>
   <div class="status" id="status">
+    <span class="chip warn hidden" id="restart-chip" style="cursor:pointer" title="Main-process code changed. Click to restart HQ OS.">⟳ restart to apply</span>
     <span class="chip" id="chip-agents">0 agents</span>
     <span class="chip" id="chip-usage">usage —</span>
     <span class="chip dim" id="chip-sys" title="Show everything waiting on you">systems nominal</span>
@@ -91,6 +92,8 @@
     <div class="spark-row"><span class="lbl">COMMITS 14d</span><svg id="p-spark" viewBox="0 0 140 26"></svg><span id="p-last" class="dim small ell"></span></div>
     <div class="panel-h sub"><span>NEEDS YOU</span><span class="count" id="c-wait">0</span></div>
     <div id="p-wait" class="list"></div>
+    <div class="panel-h sub"><span>NEEDS REVIEW</span><span class="count zero" id="c-rev">0</span><button class="ghost" id="rev-filter" title="Toggle: to review / all">to review</button></div>
+    <div id="p-rev" class="rev-list"></div>
     <div class="panel-h sub"><span>NEXT UP</span><span class="count" id="c-next">0</span></div>
     <form id="add-form" class="add"><input id="add-input" placeholder="+ add a task to Next…" autocomplete="off"></form>
     <div id="p-next" class="list"></div>
@@ -101,9 +104,6 @@
   </aside>
 </main>
 
-<footer class="ticker"><span class="lbl">LIVE AGENTS</span><div id="agents" class="agents"></div>
-  <button class="ghost open-tr" id="btn-room" title="War room view (F2)">⛶ war room</button>
-</footer>
 <section class="room-view hidden" id="room-view">
   <canvas id="scene"></canvas>
   <div class="rbar"><span class="ttl">◈ WAR ROOM</span><span class="sub" id="sub">assembling…</span><span class="spacer"></span><button class="ghost" id="room-back" title="Back to HQ (Esc)">← back to HQ</button></div>
@@ -120,6 +120,15 @@
   <aside class="comms" id="room-comms"></aside>
   <div class="legend">click a seat for details · Ctrl+D demo crew · Esc back to HQ</div>
 </section>
+<div class="rev-ov hidden" id="rev-ov">
+  <div class="rev-box">
+    <div class="rev-top"><span id="rv-title"></span><span class="spacer"></span><span class="dim small" id="rv-meta"></span><button class="ghost" id="rv-close" title="Close (Esc)">✕</button></div>
+    <div class="rev-media" id="rv-media"></div>
+    <div class="rev-note" id="rv-note"></div>
+    <textarea id="rv-comment" rows="2" placeholder="Comment (sent with Changes / Reject)…"></textarea>
+    <div class="rev-act"><button class="primary" id="rv-ok">APPROVE</button><button class="primary" id="rv-chg">CHANGES</button><button class="danger" id="rv-no">REJECT</button></div>
+  </div>
+</div>
 <div id="toast" class="toast hidden"></div>
 
 <script src="themes.js"></script>
