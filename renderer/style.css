@@ -484,3 +484,6 @@ mark.rl-hit { background: rgba(var(--hl-rgb),.35); color: #fff; border-radius: 2
 .core-wrap.small.viz-on .music { top: 8px; transform: none; }
 .core-wrap.small .viz { left: auto; right: 0; top: 66px; margin-top: 0; bottom: auto; transform: none; width: 320px; height: 44px; }
 @media (max-width: 1500px) { .core-wrap.small .viz { display: block; width: 260px; } }
+/* chat open: centre the music box and the wave in the middle of the strip */
+.core-wrap.small.viz-on .music, .core-wrap.small .music { left: 50%; right: auto; top: 8px; transform: translateX(-50%); }
+.core-wrap.small .viz { left: 50%; right: auto; transform: translateX(-50%); }
