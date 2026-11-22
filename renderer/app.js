@@ -535,4 +535,5 @@ window.addEventListener("focus", loadReview); setInterval(loadReview, 45000);
 // ---------- reload state + dev watchers ----------
 window.addEventListener("beforeunload", () => sessionStorage.setItem("hqui", JSON.stringify({ proj: S.cur, conv: S.conv && S.conv.id, view: document.body.classList.contains("in-room") ? "room" : "hq", hide: !!S.hideChat })));
 hq.on("code-changed", () => $("#restart-chip").classList.remove("hidden"));
+hq.codePending().then((f) => f && $("#restart-chip").classList.remove("hidden")).catch(() => {});
 $("#restart-chip").onclick = async () => { const busy = await hq.busy(); if (busy && !confirm("A chat is still running, restart anyway?")) return; hq.restart(); };

@@ -6,7 +6,7 @@ contextBridge.exposeInMainWorld("hq", {
   init: inv("init"), settings: inv("settings"), projects: inv("projects"), project: inv("project"),
   needs: inv("needs"), todoToggle: inv("todo-toggle"), todoAdd: inv("todo-add"),
   reviewList: inv("review-list"), reviewSet: inv("review-set"),
-  restart: inv("restart"), busy: inv("busy"),
+  restart: inv("restart"), codePending: inv("code-pending"), busy: inv("busy"),
   agents: inv("agents"), crew: inv("crew"), usage: inv("usage"), music: inv("music"), musicCtl: inv("music-ctl"),
   ttsSpeak: inv("tts-speak"), ttsStop: inv("tts-stop"),
   set: inv("set"), openPath: inv("open-path"),

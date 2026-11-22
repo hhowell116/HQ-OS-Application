@@ -1,4 +1,5 @@
 // HQ OS: Electron main process. Owns the file system, Claude processes and polling; windows only render.
+let codePending = null; // a main-process file changed since launch (survives renderer reloads)
 const { app, BrowserWindow, ipcMain, utilityProcess, shell, globalShortcut, session, desktopCapturer, protocol, net } = require("electron");
 const { pathToFileURL } = require("url");
 const path = require("path"), fs = require("fs");
@@ -152,12 +153,13 @@ app.whenReady().then(() => {
   ipcMain.handle("tts-speak", (_, { text, voice, speed }) => { const id = ++ttsId; ttsStart().postMessage({ type: "speak", id, text: String(text || "").slice(0, 2000), voice, speed, cache: path.join(USER, "kokoro-cache") }); return id; });
   ipcMain.handle("tts-stop", () => { ++ttsId; if (ttsProc) ttsProc.postMessage({ type: "stop" }); return true; });
   app.on("before-quit", () => { if (ttsProc) ttsProc.kill(); });
+  ipcMain.handle("code-pending", () => codePending);
   ipcMain.handle("restart", () => { app.relaunch(); app.exit(0); });
   if (!app.isPackaged) {
     // Dev watchers: renderer edits reload the window; main-process edits only show a "restart to apply" chip (a restart would kill running chats).
     let t1 = null, t2 = null;
     try { fs.watch(path.join(__dirname, "renderer"), { recursive: true }, (_, f) => { if (!f || /(~|.swp|.tmp|.part)$|^.#|^4913$/i.test(f)) return; clearTimeout(t1); t1 = setTimeout(() => win && !win.isDestroyed() && win.webContents.reload(), 400); }); } catch (e) {}
-    try { fs.watch(__dirname, (_, f) => { if (!["main.js", "chat.js", "data.js", "preload.js", "system.js"].includes(f)) return; clearTimeout(t2); t2 = setTimeout(() => send("code-changed", f), 400); }); } catch (e) {}
+    try { fs.watch(__dirname, (_, f) => { if (!f || !/.js$/i.test(f)) return; codePending = f; clearTimeout(t2); t2 = setTimeout(() => send("code-changed", f), 400); }); } catch (e) {}
   }
   ipcMain.handle("agents", async () => { await pollAgents(); return cache.agents; });
   ipcMain.handle("crew", () => crew());
