@@ -1,6 +1,6 @@
 // Kokoro TTS worker (runs in an Electron utilityProcess or plain node). Messages: {id, type:"speak", text, voice, speed} | {type:"stop"} | {type:"init"}
 const send = (m) => (process.parentPort ? process.parentPort.postMessage(m) : process.send && process.send(m));
-let tts = null, loading = null, gen = 0;
+let tts = null, loading = null, gen = 0, lastP = "";
 async function load(cache) {
   if (tts) return tts;
   if (!loading) loading = (async () => {
@@ -9,7 +9,7 @@ async function load(cache) {
     const { KokoroTTS } = await import("kokoro-js");
     tts = await KokoroTTS.from_pretrained("onnx-community/Kokoro-82M-v1.0-ONNX", {
       dtype: "q8", device: "cpu",
-      progress_callback: (p) => { if (p && p.status === "progress") send({ type: "progress", pct: Math.round(p.progress || 0), file: p.file }); },
+      progress_callback: (p) => { if (p && p.status === "progress") { const pct = Math.round(p.progress || 0), k = p.file + ":" + pct; if (k !== lastP) { lastP = k; send({ type: "progress", pct, file: p.file }); } } },
     });
     return tts;
   })().catch((e) => { loading = null; throw e; });

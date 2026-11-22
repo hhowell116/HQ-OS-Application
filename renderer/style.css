@@ -331,7 +331,6 @@ body.in-room .layout { display: none; }
 .room-view .rp-list .ri.wait { border-left-color: #ffb02e; }
 .room-view .rp-list .ri.wait { color: #ffb02e; cursor: pointer; } .room-view .rp-list .ri.wait:hover { text-decoration: underline; }
 .room-view .comms .console { flex: 1; min-height: 0; background: rgba(var(--panel-rgb),.86); backdrop-filter: blur(8px); }
-.room-view .comms #btn-voice { display: none; }
 .room-view #scene { top: 0; bottom: auto; height: calc(100% - var(--strip, 32vh)); }
 .room-view .detail { right: auto; left: 12px; top: 48px; max-height: calc(100% - var(--strip, 32vh) - 60px); }
 .room-view .legend { right: 16px; bottom: calc(var(--strip, 32vh) + 6px); }
@@ -339,7 +338,7 @@ body.in-room .layout { display: none; }
 .room-view .comms .console-h { flex-wrap: nowrap; min-width: 0; }
 .room-view .comms .console-h > * { flex: none; } .room-view .comms .console-h .spacer { flex: 1 1 0; min-width: 0; }
 .room-view .comms #conv-pick { flex: 0 1 150px; min-width: 70px; }
-@media (max-width: 1500px) { .room-view .comms #voice-pick, .room-view .comms #speed-pick, .room-view .comms #btn-del { display: none; } }
+@media (max-width: 1500px) { .room-view .comms #btn-del { display: none; } }
 @media (max-width: 1100px) { .room-view .comms #cache { display: none; } }
 .room-view .rp-stats span { white-space: nowrap; flex: none; } .room-view .rp-stats span.dim { flex: 1; }
 /* war room: collapsible boxes */
@@ -437,3 +436,12 @@ select.ghost option { background: #0b1118; color: #cfe; }
 
 /* Hayden's messages get a tinted bubble so they stand out from Claude's replies */
 .msg.user .body { background: rgba(var(--hl-rgb),.10); border-left: 3px solid rgba(var(--hl-rgb),.7); border-radius: 0 6px 6px 0; padding: 8px 12px; }
+
+#btn-vset { padding: 2px 7px; font-size: 11px; white-space: nowrap; }
+.vpop { position: fixed; z-index: 9999; min-width: 150px; padding: 6px; background: var(--bg2, #061118); border: 1px solid var(--acc, #4dabf7); border-radius: 6px; box-shadow: 0 6px 24px #000a; display: flex; flex-direction: column; gap: 2px; font-size: 12px; }
+.vpop .vp-h { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; opacity: .6; padding: 4px 4px 2px; }
+.vpop button { background: transparent; border: 1px solid transparent; color: inherit; font: inherit; text-align: left; padding: 3px 8px; border-radius: 4px; cursor: pointer; }
+.vpop button:hover { background: #ffffff14; }
+.vpop button.on { border-color: var(--acc, #4dabf7); color: var(--acc, #4dabf7); background: #ffffff0a; }
+.vpop .vp-sp { display: flex; flex-wrap: wrap; gap: 2px; }
+.vpop .vp-sp button { text-align: center; padding: 3px 6px; }

@@ -144,16 +144,25 @@ app.whenReady().then(() => {
   ipcMain.handle("busy", () => !!(chats && chats.active().length));
   // Kokoro TTS runs in a utility process so the UI never stalls; clips stream back as "tts" events.
   let ttsProc = null, ttsId = 0;
+  const ttsLog = (line) => { try { fs.appendFileSync(path.join(USER, "tts.log"), new Date().toISOString() + " " + String(line).slice(0, 600) + "\n"); } catch (e) {} };
   const ttsStart = () => {
     if (ttsProc) return ttsProc;
-    ttsProc = utilityProcess.fork(path.join(__dirname, "tts-worker.js"), [], { serviceName: "hq-tts" });
-    ttsProc.on("message", (m) => { if (m.wav) m.wav = new Uint8Array(m.wav); send("tts", m); });
-    ttsProc.on("exit", () => { ttsProc = null; send("tts", { type: "error", id: ttsId, error: "voice engine exited" }); });
+    ttsLog("spawn worker " + path.join(__dirname, "tts-worker.js") + " cache=" + path.join(USER, "kokoro-cache"));
+    ttsProc = utilityProcess.fork(path.join(__dirname, "tts-worker.js"), [], { serviceName: "hq-tts", stdio: "pipe" });
+    const pipe = (st, tag) => st && st.on("data", (d) => ttsLog(tag + " " + String(d).trim()));
+    pipe(ttsProc.stdout, "out"); pipe(ttsProc.stderr, "err");
+    ttsProc.on("spawn", () => ttsLog("worker spawned pid=" + ttsProc.pid));
+    ttsProc.on("message", (m) => {
+      if (m.type !== "progress") ttsLog("worker " + m.type + (m.id ? " id=" + m.id : "") + (m.error ? " ERROR " + m.error : "") + (m.wav ? " bytes=" + m.wav.length : ""));
+      if (m.wav) m.wav = new Uint8Array(m.wav); send("tts", m);
+    });
+    ttsProc.on("exit", (code) => { ttsLog("worker exit code=" + code); ttsProc = null; send("tts", { type: "error", id: ttsId, error: "voice engine exited (code " + code + ")" }); });
     ttsProc.postMessage({ type: "init", cache: path.join(USER, "kokoro-cache") });
     return ttsProc;
   };
-  ipcMain.handle("tts-speak", (_, { text, voice, speed }) => { const id = ++ttsId; ttsStart().postMessage({ type: "speak", id, text: String(text || "").slice(0, 2000), voice, speed, cache: path.join(USER, "kokoro-cache") }); return id; });
+  ipcMain.handle("tts-speak", (_, { text, voice, speed }) => { const id = ++ttsId; ttsLog("speak id=" + id + " voice=" + voice + " speed=" + speed + " chars=" + String(text || "").length); try { ttsStart().postMessage({ type: "speak", id, text: String(text || "").slice(0, 2000), voice, speed, cache: path.join(USER, "kokoro-cache") }); } catch (e) { ttsLog("speak failed: " + e.message); send("tts", { type: "error", id, error: e.message }); } return id; });
   ipcMain.handle("tts-stop", () => { ++ttsId; if (ttsProc) ttsProc.postMessage({ type: "stop" }); return true; });
+  ipcMain.handle("tts-log", (_, line) => { ttsLog("ui " + line); return true; });
   app.on("before-quit", () => { if (ttsProc) ttsProc.kill(); });
   ipcMain.handle("code-pending", () => codePending);
   ipcMain.handle("restart", () => { app.relaunch(); app.exit(0); });

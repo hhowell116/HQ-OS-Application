@@ -257,42 +257,78 @@ wireAttach($("#input")); wireAttach($("#console"));
 function autosize() { const ta = $("#input"); ta.style.height = "auto"; ta.style.height = Math.min(220, ta.scrollHeight + 2) + "px"; }
 function lastReplyText(c) { const m = [...(c.msgs || [])].reverse().find((x) => x.r === "asst"); if (!m) return ""; return (m.blocks || []).filter((b) => b.k === "text").map((b) => b.text).join(" "); }
 // Kokoro voice: main-process worker streams WAV clips (one per sentence); we queue and play them in order.
-const TTS = { id: 0, q: [], playing: null, ctx: null, done: false, started: false, failed: false };
+const TTS = { id: 0, q: [], playing: null, ctx: null, done: false, started: false, failed: false, dog: 0 };
+const tlog = (m) => { try { Promise.resolve(hq.ttsLog(m)).catch(() => {}); } catch {} };
 function ttsCtx() { return TTS.ctx || (TTS.ctx = new AudioContext()); }
-function stopSpeech() { TTS.id = 0; TTS.q = []; TTS.done = true; if (TTS.playing) { try { TTS.playing.onended = null; TTS.playing.stop(); } catch {} TTS.playing = null; } hq.ttsStop(); speechSynthesis.cancel(); $("#btn-voice").classList.remove("loading"); }
+function dogReset() { clearTimeout(TTS.dog); TTS.dog = TTS.started && !TTS.done ? setTimeout(() => ttsFail("no audio received from the voice engine"), 90000) : 0; }
+function stopSpeech() { clearTimeout(TTS.dog); TTS.id = 0; TTS.q = []; TTS.done = true; if (TTS.playing) { try { TTS.playing.onended = null; TTS.playing.stop(); } catch {} TTS.playing = null; } hq.ttsStop(); speechSynthesis.cancel(); $("#btn-voice").classList.remove("loading"); }
 function ttsNext() {
   if (TTS.playing) return;
   const buf = TTS.q.shift();
-  if (!buf) { if (TTS.done && TTS.started) { TTS.started = false; setMood("idle"); } return; }
-  const src = ttsCtx().createBufferSource(); src.buffer = buf; src.connect(ttsCtx().destination);
-  src.onended = () => { TTS.playing = null; ttsNext(); };
-  TTS.playing = src; src.start(); setMood("speak", "speaking");
+  if (!buf) { if (TTS.done && TTS.started) { TTS.started = false; clearTimeout(TTS.dog); setMood("idle"); } return; }
+  const ctx = ttsCtx(); TTS.playing = true; // reserve the slot while resume() settles
+  Promise.resolve(ctx.state === "running" ? 0 : ctx.resume()).then(() => {
+    tlog("play " + buf.duration.toFixed(2) + "s ctx=" + ctx.state);
+    if (ctx.state !== "running") { TTS.playing = null; return ttsFail("audio output is suspended (" + ctx.state + ")"); }
+    const src = ctx.createBufferSource(); src.buffer = buf; src.connect(ctx.destination);
+    src.onended = () => { tlog("ended"); TTS.playing = null; ttsNext(); };
+    TTS.playing = src; src.start(); setMood("speak", "speaking");
+  }).catch((e) => { TTS.playing = null; ttsFail("playback: " + e.message); });
 }
 function cleanForSpeech(text) { return text.replace(/```[\s\S]*?```/g, " code block. ").replace(/[`*#>_\[\]()]/g, "").replace(/https?:\/\/\S+/g, "link").slice(0, 600); }
 function speakFallback(clean) {
   const u = new SpeechSynthesisUtterance(clean); const v = speechSynthesis.getVoices().find((x) => /en-GB/i.test(x.lang) && /male|ryan|george/i.test(x.name)) || speechSynthesis.getVoices().find((x) => /en-GB/i.test(x.lang)) || null;
   if (v) u.voice = v; u.rate = 1.05; u.pitch = 0.9;
-  u.onstart = () => setMood("speak", "speaking"); u.onend = () => setMood("idle"); speechSynthesis.speak(u);
+  u.onstart = () => { tlog("fallback speaking"); setMood("speak", "speaking"); }; u.onend = () => setMood("idle"); u.onerror = (e) => { tlog("fallback error " + e.error); toast("System voice failed too: " + e.error, true); };
+  speechSynthesis.speak(u);
+}
+function voiceBtn() { const b = $("#btn-voice"); b.classList.remove("loading"); b.textContent = S.voice ? "🔊 voice on" : "🔈 voice off"; }
+function ttsFail(msg) {
+  tlog("FAIL " + msg); clearTimeout(TTS.dog); voiceBtn();
+  if (TTS.failed || !S.voice) return; TTS.failed = true;
+  toast("Kokoro voice failed (" + msg + "), using the system voice", true);
+  TTS.q = []; TTS.done = true; hq.ttsStop(); if (TTS.playing && TTS.playing.stop) { try { TTS.playing.onended = null; TTS.playing.stop(); } catch {} } TTS.playing = null;
+  if (TTS.clean) speakFallback(TTS.clean);
 }
 async function speak(text) {
   if (!S.voice || !text) return; stopSpeech();
   const clean = cleanForSpeech(text); TTS.q = []; TTS.done = false; TTS.started = true; TTS.failed = false; TTS.clean = clean;
+  try { ttsCtx().resume().catch(() => {}); } catch {}
   if (!TTS.ready) { $("#btn-voice").classList.add("loading"); setMood("think", "loading voice"); }
-  TTS.id = await hq.ttsSpeak({ text: clean, voice: S.voiceName, speed: S.speed });
+  tlog("speak() " + clean.length + " chars voice=" + S.voiceName + " speed=" + S.speed);
+  dogReset();
+  if (typeof hq.ttsSpeak !== "function") return ttsFail("the running HQ OS is older than the voice engine: restart HQ OS");
+  try { TTS.id = await hq.ttsSpeak({ text: clean, voice: S.voiceName, speed: S.speed }); } catch (e) { ttsFail(/No handler|not a function/.test(e.message) ? "the running HQ OS is older than the voice engine: restart HQ OS" : "ipc: " + e.message); }
 }
 hq.on("tts", async (m) => {
-  if (m.type === "progress") { $("#btn-voice").textContent = "⏳ loading voice " + m.pct + "%"; return; }
+  if (m.type === "progress") { dogReset(); $("#btn-voice").textContent = "⏳ loading voice " + m.pct + "%"; return; }
   if (m.type === "ready") { TTS.ready = true; return; }
   if (m.id && m.id !== TTS.id) return; // stale clip from a cancelled reply
   if (m.type === "chunk") {
-    TTS.ready = true; $("#btn-voice").classList.remove("loading"); $("#btn-voice").textContent = "🔊 voice on";
-    try { TTS.q.push(await ttsCtx().decodeAudioData(m.wav.buffer.slice(m.wav.byteOffset, m.wav.byteOffset + m.wav.byteLength))); ttsNext(); } catch (e) { toast("Voice playback failed: " + e.message, true); }
+    TTS.ready = true; dogReset(); voiceBtn();
+    try { const buf = await ttsCtx().decodeAudioData(m.wav.buffer.slice(m.wav.byteOffset, m.wav.byteOffset + m.wav.byteLength)); tlog("decoded " + buf.duration.toFixed(2) + "s @" + buf.sampleRate + "Hz"); TTS.q.push(buf); ttsNext(); } catch (e) { ttsFail("decode: " + e.message); }
   } else if (m.type === "done") { TTS.done = true; ttsNext(); }
-  else if (m.type === "error") {
-    $("#btn-voice").classList.remove("loading"); $("#btn-voice").textContent = S.voice ? "🔊 voice on" : "🔈 voice off";
-    if (!TTS.failed && S.voice) { TTS.failed = true; toast("Kokoro voice failed, using the system voice: " + m.error, true); TTS.q = []; TTS.done = true; if (TTS.clean) speakFallback(TTS.clean); }
-  }
+  else if (m.type === "error") ttsFail(m.error);
 });
+// compact voice settings: one button + popover (voice list, speed row), clamped to the viewport
+const VOICES = [["am_michael", "Michael (US)"], ["bm_george", "George (UK)"], ["af_heart", "Heart (US, F)"], ["bf_emma", "Emma (UK, F)"], ["am_fenrir", "Fenrir (US)"], ["bm_fable", "Fable (UK)"]], SPEEDS = [0.9, 1, 1.1, 1.25, 1.4];
+function vsetLabel() { const v = VOICES.find((x) => x[0] === S.voiceName) || VOICES[0]; $("#btn-vset").textContent = v[1][0] + "·" + (+S.speed || 1.1) + "×"; }
+function closeVpop() { const p = $("#vpop"); if (p) p.remove(); }
+function openVpop() {
+  closeVpop(); const btn = $("#btn-vset"), p = document.createElement("div"); p.id = "vpop"; p.className = "vpop";
+  const draw = () => { p.innerHTML = '<div class="vp-h">Voice</div>' + VOICES.map((v) => '<button data-v="' + v[0] + '"' + (v[0] === S.voiceName ? ' class="on"' : "") + ">" + v[1] + "</button>").join("") + '<div class="vp-h">Speed</div><div class="vp-sp">' + SPEEDS.map((x) => '<button data-s="' + x + '"' + (x === +S.speed ? ' class="on"' : "") + ">" + x + "×</button>").join("") + "</div>"; };
+  draw(); document.body.appendChild(p);
+  const place = () => { const r = btn.getBoundingClientRect(), z = parseFloat(getComputedStyle(document.documentElement).zoom) || 1, w = p.offsetWidth, h = p.offsetHeight, vw = innerWidth / z, vh = innerHeight / z, rl = r.left / z, rt = r.top / z, rb = r.bottom / z;
+    let top = rb + 4; if (top + h > vh - 6 && rt - h - 4 > 6) top = rt - h - 4; top = Math.max(6, Math.min(top, vh - h - 6)); p.style.left = Math.max(6, Math.min(rl, vw - w - 6)) + "px"; p.style.top = top + "px"; };
+  place();
+  p.onclick = (e) => { const b = e.target.closest("button"); if (!b) return;
+    if (b.dataset.v) { S.voiceName = b.dataset.v; hq.set({ voiceName: S.voiceName }); } else { S.speed = +b.dataset.s; hq.set({ speed: S.speed }); }
+    speak("Voice online."); vsetLabel(); draw(); place(); };
+  const cleanup = () => { document.removeEventListener("mousedown", off, true); document.removeEventListener("keydown", off, true); removeEventListener("resize", shut); removeEventListener("blur", shut); };
+  const shut = () => { closeVpop(); cleanup(); };
+  const off = (e) => { if (e.type === "keydown" ? e.key === "Escape" : !p.contains(e.target) && e.target !== btn) shut(); };
+  setTimeout(() => { document.addEventListener("mousedown", off, true); document.addEventListener("keydown", off, true); addEventListener("resize", shut); addEventListener("blur", shut); }, 0);
+}
 
 // ---------- wiring ----------
 hq.on("chat", async (ev) => {
@@ -326,8 +362,7 @@ $("#btn-new").onclick = newConv;
 $("#btn-del").onclick = async () => { if (!S.conv) return; const b = $("#btn-del"); if (!b.dataset.arm) { b.dataset.arm = "1"; b.textContent = "confirm?"; setTimeout(() => { delete b.dataset.arm; b.textContent = "delete"; }, 2500); return; } delete b.dataset.arm; b.textContent = "delete"; await hq.chatDelete(S.conv.id); S.conv = null; const list = await hq.chatList(S.cur); await fillConvPick(list); if (list.length) openConv(list[0].id); else renderLog(); };
 $("#conv-pick").onchange = (e) => e.target.value && openConv(e.target.value);
 $("#model-pick").onchange = (e) => S.conv && hq.chatModel({ id: S.conv.id, model: e.target.value });
-$("#voice-pick").onchange = (e) => { S.voiceName = e.target.value; hq.set({ voiceName: S.voiceName }); speak("Voice online."); };
-$("#speed-pick").onchange = (e) => { S.speed = +e.target.value; hq.set({ speed: S.speed }); speak("Voice online."); };
+$("#btn-vset").onclick = (e) => { e.stopPropagation(); if ($("#vpop")) closeVpop(); else openVpop(); };
 $("#btn-voice").onclick = () => { S.voice = !S.voice; hq.set({ voice: S.voice }); $("#btn-voice").textContent = S.voice ? "🔊 voice on" : "🔈 voice off"; if (!S.voice) stopSpeech(); else speak("Voice online."); };
 $("#btn-refresh").onclick = async () => { await loadProjects(); if (S.cur) { S.detail = await hq.project(S.cur); renderDetail(); } hq.usage(true); toast("Refreshed"); };
 $("#add-form").onsubmit = async (e) => { e.preventDefault(); const i = $("#add-input"), t = i.value.trim(); if (!t || !S.cur) return; try { S.detail = await hq.todoAdd({ id: S.cur, text: t }); i.value = ""; renderDetail(); loadProjects(); } catch (er) { toast(er.message, true); } };
@@ -482,7 +517,7 @@ $("#room-back").onclick = () => setView("hq");
   tickClock(); setInterval(tickClock, 1000);
   setMood("think", "booting");
   const init = await hq.init();
-  S.person = init.settings.person || "Hayden"; S.voice = init.settings.voice; S.voiceName = init.settings.voiceName; S.speed = init.settings.speed; $("#voice-pick").value = S.voiceName; $("#speed-pick").value = String(S.speed); S.projects = init.projects; S.archived = new Set(init.settings.archived || []);
+  S.person = init.settings.person || "Hayden"; S.voice = init.settings.voice; S.voiceName = init.settings.voiceName || "am_michael"; S.speed = +init.settings.speed || 1.1; vsetLabel(); S.projects = init.projects; S.archived = new Set(init.settings.archived || []);
   $("#btn-voice").textContent = S.voice ? "🔊 voice on" : "🔈 voice off";
   const th = fillThemes(init.settings.theme); if (th !== init.settings.theme) hq.set({ theme: th }); // removed themes fall back to Cyan
   HQTheme.setAccent(init.settings.accent); HQTheme.apply(th); paintAccentBtn(); setAudio(init.settings.audio);
