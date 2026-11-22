@@ -1,7 +1,7 @@
 // HQ OS renderer: draws state that the main process hands over. No Node here; everything goes through window.hq.
 const $ = (s) => document.querySelector(s);
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
-const S = { projects: [], cur: "", detail: null, conv: null, voice: false, person: "Hayden", agents: [], usage: null, follow: true, archived: new Set(), showArch: false };
+const S = { voiceName: "am_michael", speed: 1.1, projects: [], cur: "", detail: null, conv: null, voice: false, person: "Hayden", agents: [], usage: null, follow: true, archived: new Set(), showArch: false };
 const core = new HQCore($("#core"));
 
 // ---------- helpers ----------
@@ -255,13 +255,43 @@ function wireAttach(elm) {
 wireAttach($("#input")); wireAttach($("#console"));
 function autosize() { const ta = $("#input"); ta.style.height = "auto"; ta.style.height = Math.min(220, ta.scrollHeight + 2) + "px"; }
 function lastReplyText(c) { const m = [...(c.msgs || [])].reverse().find((x) => x.r === "asst"); if (!m) return ""; return (m.blocks || []).filter((b) => b.k === "text").map((b) => b.text).join(" "); }
-function speak(text) {
-  if (!S.voice || !text) return; speechSynthesis.cancel();
-  const clean = text.replace(/```[\s\S]*?```/g, " code block. ").replace(/[`*#>_\[\]()]/g, "").replace(/https?:\/\/\S+/g, "link").slice(0, 600);
+// Kokoro voice: main-process worker streams WAV clips (one per sentence); we queue and play them in order.
+const TTS = { id: 0, q: [], playing: null, ctx: null, done: false, started: false, failed: false };
+function ttsCtx() { return TTS.ctx || (TTS.ctx = new AudioContext()); }
+function stopSpeech() { TTS.id = 0; TTS.q = []; TTS.done = true; if (TTS.playing) { try { TTS.playing.onended = null; TTS.playing.stop(); } catch {} TTS.playing = null; } hq.ttsStop(); speechSynthesis.cancel(); $("#btn-voice").classList.remove("loading"); }
+function ttsNext() {
+  if (TTS.playing) return;
+  const buf = TTS.q.shift();
+  if (!buf) { if (TTS.done && TTS.started) { TTS.started = false; setMood("idle"); } return; }
+  const src = ttsCtx().createBufferSource(); src.buffer = buf; src.connect(ttsCtx().destination);
+  src.onended = () => { TTS.playing = null; ttsNext(); };
+  TTS.playing = src; src.start(); setMood("speak", "speaking");
+}
+function cleanForSpeech(text) { return text.replace(/```[sS]*?```/g, " code block. ").replace(/[`*#>_[]()]/g, "").replace(/https?://S+/g, "link").slice(0, 600); }
+function speakFallback(clean) {
   const u = new SpeechSynthesisUtterance(clean); const v = speechSynthesis.getVoices().find((x) => /en-GB/i.test(x.lang) && /male|ryan|george/i.test(x.name)) || speechSynthesis.getVoices().find((x) => /en-GB/i.test(x.lang)) || null;
   if (v) u.voice = v; u.rate = 1.05; u.pitch = 0.9;
   u.onstart = () => setMood("speak", "speaking"); u.onend = () => setMood("idle"); speechSynthesis.speak(u);
 }
+async function speak(text) {
+  if (!S.voice || !text) return; stopSpeech();
+  const clean = cleanForSpeech(text); TTS.q = []; TTS.done = false; TTS.started = true; TTS.failed = false; TTS.clean = clean;
+  if (!TTS.ready) { $("#btn-voice").classList.add("loading"); setMood("think", "loading voice"); }
+  TTS.id = await hq.ttsSpeak({ text: clean, voice: S.voiceName, speed: S.speed });
+}
+hq.on("tts", async (m) => {
+  if (m.type === "progress") { $("#btn-voice").textContent = "⏳ loading voice " + m.pct + "%"; return; }
+  if (m.type === "ready") { TTS.ready = true; return; }
+  if (m.id && m.id !== TTS.id) return; // stale clip from a cancelled reply
+  if (m.type === "chunk") {
+    TTS.ready = true; $("#btn-voice").classList.remove("loading"); $("#btn-voice").textContent = "🔊 voice on";
+    try { TTS.q.push(await ttsCtx().decodeAudioData(m.wav.buffer.slice(m.wav.byteOffset, m.wav.byteOffset + m.wav.byteLength))); ttsNext(); } catch (e) { toast("Voice playback failed: " + e.message, true); }
+  } else if (m.type === "done") { TTS.done = true; ttsNext(); }
+  else if (m.type === "error") {
+    $("#btn-voice").classList.remove("loading"); $("#btn-voice").textContent = S.voice ? "🔊 voice on" : "🔈 voice off";
+    if (!TTS.failed && S.voice) { TTS.failed = true; toast("Kokoro voice failed, using the system voice: " + m.error, true); TTS.q = []; TTS.done = true; if (TTS.clean) speakFallback(TTS.clean); }
+  }
+});
 
 // ---------- wiring ----------
 hq.on("chat", async (ev) => {
@@ -290,7 +320,9 @@ $("#btn-new").onclick = newConv;
 $("#btn-del").onclick = async () => { if (!S.conv) return; const b = $("#btn-del"); if (!b.dataset.arm) { b.dataset.arm = "1"; b.textContent = "confirm?"; setTimeout(() => { delete b.dataset.arm; b.textContent = "delete"; }, 2500); return; } delete b.dataset.arm; b.textContent = "delete"; await hq.chatDelete(S.conv.id); S.conv = null; const list = await hq.chatList(S.cur); await fillConvPick(list); if (list.length) openConv(list[0].id); else renderLog(); };
 $("#conv-pick").onchange = (e) => e.target.value && openConv(e.target.value);
 $("#model-pick").onchange = (e) => S.conv && hq.chatModel({ id: S.conv.id, model: e.target.value });
-$("#btn-voice").onclick = () => { S.voice = !S.voice; hq.set({ voice: S.voice }); $("#btn-voice").textContent = S.voice ? "🔊 voice on" : "🔈 voice off"; if (!S.voice) speechSynthesis.cancel(); else speak("Voice online."); };
+$("#voice-pick").onchange = (e) => { S.voiceName = e.target.value; hq.set({ voiceName: S.voiceName }); speak("Voice online."); };
+$("#speed-pick").onchange = (e) => { S.speed = +e.target.value; hq.set({ speed: S.speed }); speak("Voice online."); };
+$("#btn-voice").onclick = () => { S.voice = !S.voice; hq.set({ voice: S.voice }); $("#btn-voice").textContent = S.voice ? "🔊 voice on" : "🔈 voice off"; if (!S.voice) stopSpeech(); else speak("Voice online."); };
 $("#btn-refresh").onclick = async () => { await loadProjects(); if (S.cur) { S.detail = await hq.project(S.cur); renderDetail(); } hq.usage(true); toast("Refreshed"); };
 $("#btn-note").onclick = () => S.detail && S.detail.todoFile && hq.openPath(S.detail.todoFile);
 $("#add-form").onsubmit = async (e) => { e.preventDefault(); const i = $("#add-input"), t = i.value.trim(); if (!t || !S.cur) return; try { S.detail = await hq.todoAdd({ id: S.cur, text: t }); i.value = ""; renderDetail(); loadProjects(); } catch (er) { toast(er.message, true); } };
@@ -303,7 +335,7 @@ document.addEventListener("keydown", (e) => {
   else if (e.ctrlKey && e.key.toLowerCase() === "n") { e.preventDefault(); newConv(); }
   else if (e.ctrlKey && /^[1-9]$/.test(e.key)) { const p = activeProjects()[+e.key - 1]; if (p) { e.preventDefault(); selectProject(p.id); } }
   else if (e.key === "F5") { e.preventDefault(); $("#btn-refresh").click(); }
-  else if (e.key === "Escape" && S.conv && S.conv.busy) hq.chatStop(S.conv.id);
+  else if (e.key === "Escape") { if (TTS.started) stopSpeech(); if (S.conv && S.conv.busy) hq.chatStop(S.conv.id); }
   else if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "h") { e.preventDefault(); $("#btn-handoff").click(); }
 });
 
@@ -439,7 +471,7 @@ $("#room-back").onclick = () => setView("hq");
   tickClock(); setInterval(tickClock, 1000);
   setMood("think", "booting");
   const init = await hq.init();
-  S.person = init.settings.person || "Hayden"; S.voice = init.settings.voice; S.projects = init.projects; S.archived = new Set(init.settings.archived || []);
+  S.person = init.settings.person || "Hayden"; S.voice = init.settings.voice; S.voiceName = init.settings.voiceName; S.speed = init.settings.speed; $("#voice-pick").value = S.voiceName; $("#speed-pick").value = String(S.speed); S.projects = init.projects; S.archived = new Set(init.settings.archived || []);
   $("#btn-voice").textContent = S.voice ? "🔊 voice on" : "🔈 voice off";
   const th = fillThemes(init.settings.theme); if (th !== init.settings.theme) hq.set({ theme: th }); // removed themes fall back to Cyan
   HQTheme.setAccent(init.settings.accent); HQTheme.apply(th); paintAccentBtn(); setAudio(init.settings.audio);

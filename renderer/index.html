@@ -73,6 +73,8 @@
         <button class="ghost" id="btn-handoff" title="HANDOFF: Claude writes a detailed summary of this chat, then a NEW chat starts with it, so you continue fresh without losing context. Better than compact for long chats.">⇄ handoff</button>
         <button class="ghost" id="btn-compact" title="COMPACT: Claude Code summarizes this chat in place to shrink it (/compact). Cheaper per message afterwards, but drops some detail.">⇲ compact</button>
         <button class="ghost" id="btn-voice" title="Speak replies aloud">🔈 voice off</button>
+        <select class="ghost" id="voice-pick" title="Voice (Kokoro)"><option value="am_michael">Michael (US)</option><option value="bm_george">George (UK)</option><option value="af_heart">Heart (US, F)</option><option value="bf_emma">Emma (UK, F)</option><option value="am_fenrir">Fenrir (US)</option><option value="bm_fable">Fable (UK)</option></select>
+        <select class="ghost" id="speed-pick" title="Speech speed"><option value="0.9">0.9x</option><option value="1">1.0x</option><option value="1.1">1.1x</option><option value="1.25">1.25x</option><option value="1.4">1.4x</option></select>
         <button class="ghost hq-only" id="btn-hide" title="Hide the chat to see the main animation (sending a message shows it again)">▾ hide chat</button>
         <button class="ghost danger" id="btn-del" title="Delete this conversation">delete</button>
         <button class="ghost fold room-only" data-fold="room-comms" title="Collapse">▾</button>

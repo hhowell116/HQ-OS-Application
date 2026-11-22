@@ -1,5 +1,5 @@
 // HQ OS: Electron main process. Owns the file system, Claude processes and polling; windows only render.
-const { app, BrowserWindow, ipcMain, shell, globalShortcut, session, desktopCapturer, protocol, net } = require("electron");
+const { app, BrowserWindow, ipcMain, utilityProcess, shell, globalShortcut, session, desktopCapturer, protocol, net } = require("electron");
 const { pathToFileURL } = require("url");
 const path = require("path"), fs = require("fs");
 const D = require("./data");
@@ -128,7 +128,7 @@ app.whenReady().then(() => {
     desktopCapturer.getSources({ types: ["screen"] }).then((s) => cb(s[0] ? { video: s[0], audio: "loopback" } : {})).catch(() => cb({}));
   });
 
-  const pub = () => ({ person: settings.person, voice: !!settings.voice, last: settings.last, projectsRoot: settings.projectsRoot, theme: settings.theme || "cyan", accent: settings.accent || "", audio: settings.audio !== false, music: settings.music !== false, archived: settings.archived || [] });
+  const pub = () => ({ person: settings.person, voice: !!settings.voice, voiceName: settings.voiceName || "am_michael", speed: settings.speed || 1.1, last: settings.last, projectsRoot: settings.projectsRoot, theme: settings.theme || "cyan", accent: settings.accent || "", audio: settings.audio !== false, music: settings.music !== false, archived: settings.archived || [] });
   ipcMain.handle("init", async () => ({ settings: pub(), projects: await Promise.all(cache.projects.map(projectSummary)) }));
   ipcMain.handle("settings", () => pub());
   ipcMain.handle("projects", async () => { refreshProjects(); watchTodos(); return Promise.all(cache.projects.map(projectSummary)); });
@@ -139,6 +139,19 @@ app.whenReady().then(() => {
   ipcMain.handle("review-list", async (_, id) => { const p = projById(id); if (!p) return []; return (await D.reviewList(p)).map((i) => ({ key: i.key, title: i.title, status: i.status, created: i.created, note: i.note, video: i.video, media: i.files.map((f) => "hqreview://f/" + encodeURIComponent(f)) })); });
   ipcMain.handle("review-set", async (_, { id, key, status, comment }) => { const p = projById(id); if (!p) throw new Error("Unknown project"); await D.reviewSet(p, String(key), String(status), comment); return true; });
   ipcMain.handle("busy", () => !!(chats && chats.active().length));
+  // Kokoro TTS runs in a utility process so the UI never stalls; clips stream back as "tts" events.
+  let ttsProc = null, ttsId = 0;
+  const ttsStart = () => {
+    if (ttsProc) return ttsProc;
+    ttsProc = utilityProcess.fork(path.join(__dirname, "tts-worker.js"), [], { serviceName: "hq-tts" });
+    ttsProc.on("message", (m) => { if (m.wav) m.wav = new Uint8Array(m.wav); send("tts", m); });
+    ttsProc.on("exit", () => { ttsProc = null; send("tts", { type: "error", id: ttsId, error: "voice engine exited" }); });
+    ttsProc.postMessage({ type: "init", cache: path.join(USER, "kokoro-cache") });
+    return ttsProc;
+  };
+  ipcMain.handle("tts-speak", (_, { text, voice, speed }) => { const id = ++ttsId; ttsStart().postMessage({ type: "speak", id, text: String(text || "").slice(0, 2000), voice, speed, cache: path.join(USER, "kokoro-cache") }); return id; });
+  ipcMain.handle("tts-stop", () => { ++ttsId; if (ttsProc) ttsProc.postMessage({ type: "stop" }); return true; });
+  app.on("before-quit", () => { if (ttsProc) ttsProc.kill(); });
   ipcMain.handle("restart", () => { app.relaunch(); app.exit(0); });
   if (!app.isPackaged) {
     // Dev watchers: renderer edits reload the window; main-process edits only show a "restart to apply" chip (a restart would kill running chats).
@@ -151,7 +164,7 @@ app.whenReady().then(() => {
   ipcMain.handle("usage", async (_, force) => { await pollUsage(!!force); return { usage: cache.usage, err: cache.usageErr }; });
   ipcMain.handle("music", () => { now.start(); return cache.music; });
   ipcMain.handle("music-ctl", (_, cmd) => now.control(cmd));
-  ipcMain.handle("set", (_, kv) => { for (const k of ["voice", "person", "theme", "accent", "audio", "music"]) if (k in kv) settings[k] = kv[k]; if (Array.isArray(kv.archived)) settings.archived = kv.archived.filter((x) => typeof x === "string"); D.saveSettings(SETTINGS_FILE, settings); send("settings", pub()); if ("music" in kv) kv.music ? now.start() : (now.stop(), send("music", null)); return true; });
+  ipcMain.handle("set", (_, kv) => { for (const k of ["voice", "voiceName", "speed", "person", "theme", "accent", "audio", "music"]) if (k in kv) settings[k] = kv[k]; if (Array.isArray(kv.archived)) settings.archived = kv.archived.filter((x) => typeof x === "string"); D.saveSettings(SETTINGS_FILE, settings); send("settings", pub()); if ("music" in kv) kv.music ? now.start() : (now.stop(), send("music", null)); return true; });
   ipcMain.handle("open-path", (_, p) => { const target = p === "settings" ? SETTINGS_FILE : p; if (target && fs.existsSync(target)) shell.openPath(target); });
   ipcMain.handle("chat-list", (_, proj) => chats.list(proj));
   ipcMain.handle("chat-get", (_, id) => chats.get(id));

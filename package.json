@@ -14,5 +14,8 @@
   "devDependencies": {
     "electron": "^45.4.1",
     "rcedit": "^4.0.1"
+  },
+  "dependencies": {
+    "kokoro-js": "^1.2.1"
   }
 }

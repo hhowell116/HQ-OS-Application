@@ -421,3 +421,8 @@ body.in-room .layout { display: none; }
 .msg-imgs { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; } .msg-imgs img { height: 64px; max-width: 120px; object-fit: cover; border: 1px solid var(--line); border-radius: 4px; cursor: zoom-in; }
 .rename-in { flex: 1 1 120px; min-width: 100px; max-width: 260px; background: var(--bg2, #0a141b); color: inherit; border: 1px solid var(--line); border-radius: 4px; padding: 4px 6px; font: inherit; }
 .msg.queued { opacity: .5; } .msg.queued .qtag { font-style: italic; letter-spacing: 0; color: var(--tx3); text-transform: none; }
+select.ghost { border: 1px solid transparent; background: transparent; color: var(--tx2); padding: 2px 4px; border-radius: 2px; font: 11px var(--mono); cursor: pointer; max-width: 120px; }
+select.ghost:hover { color: var(--acc); border-color: var(--line2); }
+select.ghost option { background: #0b1118; color: #cfe; }
+#btn-voice.loading { color: var(--acc); animation: hqpulse 1.2s ease-in-out infinite; }
+@keyframes hqpulse { 50% { opacity: .45; } }
