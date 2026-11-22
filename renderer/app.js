@@ -312,7 +312,12 @@ hq.on("agents", (a) => { S.agents = a; renderAgents(); renderProjects(); });
 hq.on("usage", (u) => { S.usage = u.usage; renderUsage(u.usage, u.err); });
 hq.on("todo-changed", async (id) => { if (id === S.cur) { S.detail = await hq.project(id); renderDetail(); } loadProjects(); });
 
-$("#log").addEventListener("scroll", () => { const l = $("#log"); S.follow = l.scrollHeight - l.scrollTop - l.clientHeight < 40; });
+{ const l = $("#log"); let userScroll = 0; const mark = () => (userScroll = Date.now());
+  ["wheel", "touchmove", "mousedown", "keydown"].forEach((ev) => l.addEventListener(ev, mark, { passive: true }));
+  l.addEventListener("scroll", () => { if (Date.now() - userScroll < 800) S.follow = l.scrollHeight - l.scrollTop - l.clientHeight < 40; });
+  // any layout change (view switch, panel open, fold, resize) re-pins to the bottom while following
+  new ResizeObserver(() => { if (S.follow) l.scrollTop = l.scrollHeight; }).observe(l);
+  window.HQPinLog = () => { S.follow = true; l.scrollTop = l.scrollHeight; }; }
 $("#input").addEventListener("input", autosize);
 $("#input").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendInput(); } });
 $("#btn-send").onclick = sendInput;
@@ -387,7 +392,10 @@ function renderCache() {
   chip.className = "cache " + st;
   chip.textContent = st === "cold" ? "❄ cache cold · next msg re-reads " + kfmt(c.ctx) : st === "warn" ? "⚠ cache cold in " + left + "m" : "● cache warm · " + left + "m · " + kfmt(c.ctx) + " ctx";
   chip.title = "Claude keeps this chat cached for about an hour after each message. After that the next message re-reads all " + kfmt(c.ctx) + " tokens at full price.";
-  ho.classList.toggle("hot", c.ctx > 250000 || (st === "cold" && c.ctx > 60000));
+  const big = c.ctx > 120000, coldHot = st === "cold" && c.ctx > 20000;
+  ho.classList.toggle("hot", big || coldHot);
+  ho.dataset.why = big ? "Context is high (" + kfmt(c.ctx) + "): hand off to a fresh chat." : coldHot ? "Cache is cold: the next message re-reads " + kfmt(c.ctx) + ". A handoff starts fresh and cheaper." : "";
+  ho.title = (ho.dataset.why ? ho.dataset.why + "\n\n" : "") + "HANDOFF: Claude writes a detailed summary of this chat, then a NEW chat starts with it.";
   $("#btn-compact").classList.toggle("hot", c.ctx > 150000 && st !== "cold");
 }
 setInterval(renderCache, 15000);
@@ -458,6 +466,7 @@ function setView(v) {
   document.querySelectorAll("#tabs button").forEach((b) => b.classList.toggle("on", b.dataset.view === v));
   // the one console moves between views, so the chat, handoff and compact work the same in both
   const con = $("#console"); if (room) $("#room-comms").append(con); else $(".col.center").append(con);
+  requestAnimationFrame(() => window.HQPinLog && window.HQPinLog());
   if (room) renderRoomProj();
   if (room && window.HQRoom) window.HQRoom.shown();
   $("#input").focus();
