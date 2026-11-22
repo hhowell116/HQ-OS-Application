@@ -448,7 +448,7 @@ select.ghost option { background: #0b1118; color: #cfe; }
 
 /* audio visualizer strip (viz.js) */
 .viz { position: absolute; left: 50%; bottom: 0; transform: translateX(-50%); width: min(720px, 56%); height: 68px; z-index: 1; opacity: 0; pointer-events: none; transition: opacity .6s ease; }
-.viz.on { opacity: 1; pointer-events: auto; cursor: pointer; }
+.viz.on { opacity: 1; }
 .core-wrap.viz-on:not(.small) .core-label { bottom: 68px; }
 .core-wrap.small .viz { left: auto; right: 380px; transform: none; width: 220px; height: 44px; bottom: auto; top: 50%; margin-top: -22px; }
 .room-view .viz { display: none; }

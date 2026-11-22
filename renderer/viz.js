@@ -4,8 +4,8 @@
 (() => {
   const cv = document.getElementById("viz"); if (!cv) return;
   const wrap = cv.parentElement, ctx = cv.getContext("2d"), N = 56, TAU = Math.PI * 2;
-  const MODES = ["spectrum", "radial", "wave", "burst"];
-  let mode = localStorage.getItem("hq-viz-mode") ? Math.max(0, MODES.indexOf(localStorage.getItem("hq-viz-mode"))) : MODES.indexOf("wave");
+  const MODES = ["wave"]; // only the wave style (Hayden 2026-11-22)
+  let mode = 0;
   let wGain = 0.15; // auto-gain so quiet music still moves the wave
   const bars = new Float32Array(N), peaks = new Float32Array(N), pv = new Float32Array(N), pts = [];
   let raf = 0, poll = 0, quietSince = 0, shown = false, lastT = 0, W = 0, H = 0, dpr = 1, ph = 0, bassEnv = 0, lastBurst = 0;
@@ -28,31 +28,6 @@
   }
   const grad = (c1, c2) => { const g = ctx.createLinearGradient(0, 0, W, 0); g.addColorStop(0, `rgb(${c1})`); g.addColorStop(0.5, `rgb(${c2})`); g.addColorStop(1, `rgb(${c1})`); return g; };
 
-  function spectrum(c1, c2) {
-    const mid = H / 2, slot = W / 2 / N, w = Math.max(2 * dpr, slot * 0.72), maxh = H / 2 - 3 * dpr;
-    ctx.lineCap = "round"; ctx.lineWidth = w; ctx.strokeStyle = grad(c2, c1); ctx.shadowColor = `rgba(${c1},.55)`; ctx.shadowBlur = 8 * dpr;
-    for (const side of [-1, 1]) for (let i = 0; i < N; i++) {
-      const x = W / 2 + side * (i + 0.5) * slot, h = Math.max(w / 2, bars[i] * maxh);
-      ctx.beginPath(); ctx.moveTo(x, mid - h); ctx.lineTo(x, mid + h); ctx.stroke();
-    }
-    ctx.shadowBlur = 0; ctx.fillStyle = `rgba(${c2},.9)`;
-    for (let i = 0; i < N; i++) {
-      if (peaks[i] < 0.04) continue; const y = peaks[i] * maxh + 3 * dpr, r = w * 0.4;
-      for (const side of [-1, 1]) { const x = W / 2 + side * (i + 0.5) * slot; ctx.beginPath(); ctx.arc(x, mid - y, r, 0, TAU); ctx.arc(x, mid + y, r, 0, TAU); ctx.fill(); }
-    }
-  }
-  // elliptical halo of bars, rotating slowly, bass breathes the ring
-  function radial(c1, c2, dt) {
-    ph += dt * 0.35; const cx = W / 2, cy = H / 2, ry0 = H * 0.26, rx0 = ry0 * 2.4, M = 96;
-    ctx.lineCap = "round"; ctx.lineWidth = 2.2 * dpr; ctx.shadowColor = `rgba(${c1},.5)`; ctx.shadowBlur = 6 * dpr;
-    for (let i = 0; i < M; i++) {
-      const u = i / M, m = u < 0.5 ? u * 2 : (1 - u) * 2, v = bars[Math.min(N - 1, Math.floor(m * (N - 1)))];
-      const ang = u * TAU + ph, ca = Math.cos(ang), sa = Math.sin(ang), br = 1 + bassEnv * 0.12, l = H * 0.05 + v * H * 0.3;
-      ctx.strokeStyle = `rgba(${m > 0.55 ? c2 : c1},${0.35 + v * 0.65})`;
-      ctx.beginPath(); ctx.moveTo(cx + ca * rx0 * br, cy + sa * ry0 * br); ctx.lineTo(cx + ca * (rx0 * br + l * 2.6), cy + sa * (ry0 * br + l)); ctx.stroke();
-    }
-    ctx.shadowBlur = 0; ctx.strokeStyle = `rgba(${c1},.25)`; ctx.lineWidth = dpr; ctx.beginPath(); ctx.ellipse(cx, cy, rx0 * 0.92, ry0 * 0.92, 0, 0, TAU); ctx.stroke();
-  }
   // flowing oscilloscope ribbon built from the bands (band-driven sine partials) with ghost layers
   function wave(c1, c2, dt) {
     ph += dt * 2.2; const mid = H / 2, amp = H * 0.42, S = 160;
@@ -69,23 +44,7 @@
     }
     ctx.shadowBlur = 0;
   }
-  // bass-triggered particle fountains with gravity
-  function burst(c1, c2, dt, now) {
-    let lvl = 0; for (let i = 0; i < N; i++) lvl += bars[i]; lvl /= N;
-    if (bassEnv > 0.45 && now - lastBurst > 140 && pts.length < 260) {
-      lastBurst = now; const n = 14 + Math.floor(bassEnv * 22), ox = W / 2 + (Math.random() - 0.5) * W * 0.5;
-      for (let i = 0; i < n; i++) { const a = -Math.PI / 2 + (Math.random() - 0.5) * 2.4, sp = (0.5 + Math.random()) * H * (0.9 + bassEnv); pts.push({ x: ox, y: H * 0.92, vx: Math.cos(a) * sp * 1.6, vy: Math.sin(a) * sp, life: 1, hue: Math.random() < 0.4 }); }
-    }
-    ctx.strokeStyle = `rgba(${c1},${0.2 + lvl * 0.6})`; ctx.lineWidth = 1.5 * dpr; ctx.beginPath(); ctx.moveTo(W * 0.1, H * 0.92); ctx.lineTo(W * 0.9, H * 0.92); ctx.stroke();
-    ctx.shadowColor = `rgba(${c2},.6)`; ctx.shadowBlur = 6 * dpr;
-    for (let i = pts.length - 1; i >= 0; i--) {
-      const p = pts[i]; p.vy += H * 2.4 * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt * 0.9;
-      if (p.life <= 0 || p.y > H) { pts.splice(i, 1); continue; }
-      ctx.fillStyle = `rgba(${p.hue ? c2 : c1},${p.life})`; ctx.beginPath(); ctx.arc(p.x, p.y, (1 + p.life * 1.6) * dpr, 0, TAU); ctx.fill();
-    }
-    ctx.shadowBlur = 0;
-  }
-  const DRAW = { spectrum, radial, wave, burst };
+  const DRAW = { wave };
 
   function draw(now) {
     raf = 0;
@@ -121,7 +80,6 @@
   }
   function wake() { clearInterval(poll); poll = 0; quietSince = 0; lastT = 0; if (!raf) raf = requestAnimationFrame(draw); }
   document.addEventListener("visibilitychange", () => { if (document.hidden) idle(); else if (window.HQAudio && window.HQAudio.on) wake(); });
-  cv.addEventListener("click", () => setMode((mode + 1) % MODES.length));
   function setMode(m) { mode = typeof m === "string" ? Math.max(0, MODES.indexOf(m)) : m; localStorage.setItem("hq-viz-mode", MODES[mode]); pts.length = 0; cv.title = "Visualizer: " + MODES[mode] + " (click to change)"; }
   setMode(mode); idle();
   window.HQViz = { wake, setMode, modes: MODES };
