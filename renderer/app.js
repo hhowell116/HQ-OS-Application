@@ -462,6 +462,8 @@ function setView(v) {
   if (room && window.HQRoom) window.HQRoom.shown();
   $("#input").focus();
 }
+// the war room scene is sized to the space above the console strip (folds change its height)
+(function () { const rv = document.getElementById("room-view"), rc = document.getElementById("room-comms"); if (!rv || !rc || !window.ResizeObserver) return; new ResizeObserver(() => { rv.style.setProperty("--strip", (rc.offsetHeight + 24) + "px"); }).observe(rc); })();
 window.HQView = setView;
 document.querySelectorAll("#tabs button").forEach((b) => (b.onclick = () => setView(b.dataset.view)));
 $("#room-back").onclick = () => setView("hq");
