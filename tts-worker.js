@@ -29,7 +29,7 @@ async function speak(m) {
     const k = await load(m.cache);
     for (const s of split(m.text)) {
       if (my !== gen) return;
-      const a = await k.generate(s, { voice: m.voice || "am_michael", speed: m.speed || 1.1 });
+      const a = await k.generate(s, { voice: m.voice || "af_heart", speed: m.speed || 1.1 });
       if (my !== gen) return;
       send({ type: "chunk", id: m.id, wav: wav(a) });
     }

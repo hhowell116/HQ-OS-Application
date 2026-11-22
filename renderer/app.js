@@ -1,7 +1,7 @@
 // HQ OS renderer: draws state that the main process hands over. No Node here; everything goes through window.hq.
 const $ = (s) => document.querySelector(s);
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
-const S = { voiceName: "am_michael", speed: 1.1, projects: [], cur: "", detail: null, conv: null, voice: false, person: "Hayden", agents: [], usage: null, follow: true, archived: new Set(), showArch: false };
+const S = { voiceName: "af_heart", speed: 1.1, projects: [], cur: "", detail: null, conv: null, voice: false, person: "Hayden", agents: [], usage: null, follow: true, archived: new Set(), showArch: false };
 const core = new HQCore($("#core"));
 
 // ---------- helpers ----------
