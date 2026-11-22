@@ -480,3 +480,7 @@ select.ghost option { background: #0b1118; color: #cfe; }
 .rl-doc hr { border: 0; border-top: 1px solid var(--line2); margin: 22px 0; }
 .rl-doc blockquote { margin: 8px 0; padding: 4px 14px; border-left: 3px solid var(--acc2); color: var(--tx2); background: rgba(var(--acc-rgb),.04); }
 mark.rl-hit { background: rgba(var(--hl-rgb),.35); color: #fff; border-radius: 2px; } mark.rl-hit.cur { background: var(--hl); color: #000; }
+/* chat open: wave sits directly under the music box (right side), not behind the usage stats */
+.core-wrap.small.viz-on .music { top: 8px; transform: none; }
+.core-wrap.small .viz { left: auto; right: 0; top: 66px; margin-top: 0; bottom: auto; transform: none; width: 320px; height: 44px; }
+@media (max-width: 1500px) { .core-wrap.small .viz { display: block; width: 260px; } }
