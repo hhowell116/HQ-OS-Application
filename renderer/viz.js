@@ -5,7 +5,8 @@
   const cv = document.getElementById("viz"); if (!cv) return;
   const wrap = cv.parentElement, ctx = cv.getContext("2d"), N = 56, TAU = Math.PI * 2;
   const MODES = ["spectrum", "radial", "wave", "burst"];
-  let mode = Math.max(0, MODES.indexOf(localStorage.getItem("hq-viz-mode")));
+  let mode = localStorage.getItem("hq-viz-mode") ? Math.max(0, MODES.indexOf(localStorage.getItem("hq-viz-mode"))) : MODES.indexOf("wave");
+  let wGain = 0.15; // auto-gain so quiet music still moves the wave
   const bars = new Float32Array(N), peaks = new Float32Array(N), pv = new Float32Array(N), pts = [];
   let raf = 0, poll = 0, quietSince = 0, shown = false, lastT = 0, W = 0, H = 0, dpr = 1, ph = 0, bassEnv = 0, lastBurst = 0;
   const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
@@ -55,12 +56,13 @@
   // flowing oscilloscope ribbon built from the bands (band-driven sine partials) with ghost layers
   function wave(c1, c2, dt) {
     ph += dt * 2.2; const mid = H / 2, amp = H * 0.42, S = 160;
+    let pk = 0; for (let i = 0; i < bars.length; i++) pk = Math.max(pk, bars[i]); wGain = Math.max(wGain * Math.pow(0.6, dt), pk, 0.06); const g = 1 / wGain;
     for (let layer = 0; layer < 3; layer++) {
       ctx.beginPath();
       for (let s = 0; s <= S; s++) {
         const x = (s / S) * W, u = s / S, env = Math.sin(u * Math.PI); let y = 0;
         for (let k = 0; k < 8; k++) y += bars[k * 6 + 1] * Math.sin(u * TAU * (k + 1) * 0.9 + ph * (1 + k * 0.35) + layer * 0.8) / (1 + k * 0.25);
-        y = (y / 1.5) * amp * env; if (s) ctx.lineTo(x, mid + y); else ctx.moveTo(x, mid + y);
+        y = Math.max(-amp, Math.min(amp, (y / 1.5) * g * amp * env)); if (s) ctx.lineTo(x, mid + y); else ctx.moveTo(x, mid + y);
       }
       ctx.lineJoin = "round"; ctx.lineWidth = (layer === 0 ? 2.4 : 1.2) * dpr; ctx.strokeStyle = layer === 0 ? grad(c1, c2) : `rgba(${layer === 1 ? c2 : c1},${0.28 - layer * 0.08})`;
       ctx.shadowColor = `rgba(${c1},.6)`; ctx.shadowBlur = layer === 0 ? 10 * dpr : 0; ctx.stroke();
