@@ -42,7 +42,10 @@
       g.addColorStop(0, this.colour(0.28 + e * 0.25)); g.addColorStop(0.35, this.colour(0.08 + e * 0.08)); g.addColorStop(1, this.colour(0));
       c.fillStyle = g; c.beginPath(); c.arc(cx, cy, R * 2.4, 0, TAU); c.fill();
       // particle sphere
-      const rotY = t * (0.25 + e * 0.9), rotX = Math.sin(t * 0.3) * 0.35, cyR = Math.cos(rotY), syR = Math.sin(rotY), cxR = Math.cos(rotX), sxR = Math.sin(rotX);
+      // integrate the spin so audio changes the speed gently (t * speed made the angle jump with every beat)
+      const dt = Math.min(0.1, (now - (this.lastNow || now)) / 1000); this.lastNow = now;
+      this.rotY = (this.rotY || 0) + dt * (0.25 + this.energy * 0.6 + lvl * 0.15);
+      const rotY = this.rotY, rotX = Math.sin(t * 0.3) * 0.35, cyR = Math.cos(rotY), syR = Math.sin(rotY), cxR = Math.cos(rotX), sxR = Math.sin(rotX);
       for (const p of this.pts) {
         let x = p.x * cyR - p.z * syR, z = p.x * syR + p.z * cyR, y = p.y * cxR - z * sxR; z = p.y * sxR + z * cxR;
         const wob = 1 + Math.sin(t * 2 + p.s * 12) * 0.03 * (1 + e * 2) + speak * 0.08 * p.s;

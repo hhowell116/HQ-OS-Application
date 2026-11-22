@@ -175,7 +175,8 @@ async function openConv(id) { S.conv = await hq.chatGet(id); $("#conv-pick").val
 function renderLog() {
   const log = $("#log"), c = S.conv; log.textContent = "";
   const has = c && c.msgs && c.msgs.length;
-  $("#core-wrap").classList.toggle("small", !!has);
+  $("#core-wrap").classList.toggle("small", !!has && !S.hideChat);
+  $("#console").classList.toggle("collapsed", !!S.hideChat); $("#btn-hide").textContent = S.hideChat ? "▴ show chat" : "▾ hide chat";
   $("#btn-del").classList.toggle("hidden", !c);
   if (!has) {
     const p = S.projects.find((x) => x.id === S.cur);
@@ -201,7 +202,9 @@ function renderMsg(m) {
   d.append(body); return d;
 }
 async function newConv() { if (!S.cur) return toast("Pick a project first", true); S.conv = await hq.chatNew({ proj: S.cur, model: $("#model-pick").value }); await fillConvPick(await hq.chatList(S.cur)); renderLog(); $("#input").focus(); }
+$("#btn-hide").onclick = () => { S.hideChat = !S.hideChat; renderLog(); };
 async function sendInput() {
+  if (S.hideChat) { S.hideChat = false; renderLog(); }
   const ta = $("#input"), text = ta.value.trim(); if (!text) return;
   if (!S.conv) await newConv(); if (!S.conv) return;
   ta.value = ""; autosize(); S.follow = true; await hq.chatSend({ id: S.conv.id, text });
