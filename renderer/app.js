@@ -108,10 +108,9 @@ function renderDetail() {
   };
   const wait = d.todo.wait.filter((x) => !x.done), next = d.todo.next.filter((x) => !x.done);
   const pw = $("#p-wait"); pw.textContent = ""; wait.forEach((x) => pw.append(row(x, "wait"))); if (!wait.length) pw.append(el("div", "none", "Nothing waiting on you."));
-  const pn = $("#p-next"); pn.textContent = ""; next.forEach((x) => pn.append(row(x, ""))); if (!next.length) pn.append(el("div", "none", d.todo.missing ? "No To-Do note found in Notes\\." : "Next list is clear."));
+  const pn = $("#p-next"); pn.textContent = ""; next.forEach((x) => pn.append(row(x, ""))); if (!next.length) pn.append(el("div", "none", d.todo.missing ? "No tasks yet. Add one below." : "Next list is clear."));
   $("#c-wait").textContent = wait.length; $("#c-wait").classList.toggle("zero", !wait.length);
   $("#c-next").textContent = next.length; $("#c-next").classList.toggle("zero", !next.length);
-  $("#add-form").classList.toggle("hidden", !!d.todo.missing);
   const pb = $("#p-board"); pb.textContent = "";
   d.board.forEach((a) => { const b = el("div", "brd" + (a.working ? " on" : "")); b.append(el("span", "at", a.updated), el("div", "an", a.name), el("div", "", a.working ? a.task : a.last)); pb.append(b); });
   if (!d.board.length) pb.append(el("div", "none", "No Agent Activity board."));
@@ -326,7 +325,6 @@ $("#voice-pick").onchange = (e) => { S.voiceName = e.target.value; hq.set({ voic
 $("#speed-pick").onchange = (e) => { S.speed = +e.target.value; hq.set({ speed: S.speed }); speak("Voice online."); };
 $("#btn-voice").onclick = () => { S.voice = !S.voice; hq.set({ voice: S.voice }); $("#btn-voice").textContent = S.voice ? "🔊 voice on" : "🔈 voice off"; if (!S.voice) stopSpeech(); else speak("Voice online."); };
 $("#btn-refresh").onclick = async () => { await loadProjects(); if (S.cur) { S.detail = await hq.project(S.cur); renderDetail(); } hq.usage(true); toast("Refreshed"); };
-$("#btn-note").onclick = () => S.detail && S.detail.todoFile && hq.openPath(S.detail.todoFile);
 $("#add-form").onsubmit = async (e) => { e.preventDefault(); const i = $("#add-input"), t = i.value.trim(); if (!t || !S.cur) return; try { S.detail = await hq.todoAdd({ id: S.cur, text: t }); i.value = ""; renderDetail(); loadProjects(); } catch (er) { toast(er.message, true); } };
 document.querySelectorAll(".winbtns button").forEach((b) => (b.onclick = () => hq.win(b.dataset.w)));
 document.addEventListener("keydown", (e) => {
