@@ -267,7 +267,7 @@ function ttsNext() {
   src.onended = () => { TTS.playing = null; ttsNext(); };
   TTS.playing = src; src.start(); setMood("speak", "speaking");
 }
-function cleanForSpeech(text) { return text.replace(/```[sS]*?```/g, " code block. ").replace(/[`*#>_[]()]/g, "").replace(/https?://S+/g, "link").slice(0, 600); }
+function cleanForSpeech(text) { return text.replace(/```[\s\S]*?```/g, " code block. ").replace(/[`*#>_\[\]()]/g, "").replace(/https?:\/\/\S+/g, "link").slice(0, 600); }
 function speakFallback(clean) {
   const u = new SpeechSynthesisUtterance(clean); const v = speechSynthesis.getVoices().find((x) => /en-GB/i.test(x.lang) && /male|ryan|george/i.test(x.name)) || speechSynthesis.getVoices().find((x) => /en-GB/i.test(x.lang)) || null;
   if (v) u.voice = v; u.rate = 1.05; u.pitch = 0.9;
