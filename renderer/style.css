@@ -433,5 +433,4 @@ select.ghost option { background: #0b1118; color: #cfe; }
 @keyframes hqpulse { 50% { opacity: .45; } }
 
 /* handoff button glows when the cache is cold or the context is high */
-@keyframes ho-pulse { 0%,100% { box-shadow: 0 0 6px rgba(255,176,46,.25); } 50% { box-shadow: 0 0 16px rgba(255,176,46,.7); } }
-#btn-handoff.hot { color: var(--warn); border-color: rgba(255,176,46,.8); background: rgba(255,176,46,.12); animation: ho-pulse 1.6s ease-in-out infinite; }
+#btn-handoff.hot { color: var(--warn); border-color: rgba(255,176,46,.8); background: rgba(255,176,46,.12); box-shadow: none; }
