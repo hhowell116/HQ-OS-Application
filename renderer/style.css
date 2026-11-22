@@ -487,3 +487,6 @@ mark.rl-hit { background: rgba(var(--hl-rgb),.35); color: #fff; border-radius: 2
 /* chat open: centre the music box and the wave in the middle of the strip */
 .core-wrap.small.viz-on .music, .core-wrap.small .music { left: 50%; right: auto; top: 8px; transform: translateX(-50%); }
 .core-wrap.small .viz { left: 50%; right: auto; transform: translateX(-50%); }
+/* chat open: centre music + wave in the free space right of the SYSTEM/CLAUDE stats (they end at ~790px) */
+.core-wrap.small.viz-on .music, .core-wrap.small .music, .core-wrap.small .viz { left: calc(50% + 400px); }
+.core-wrap.small .viz { width: min(320px, calc(100% - 820px)); }
