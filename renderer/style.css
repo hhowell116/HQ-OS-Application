@@ -393,3 +393,5 @@ body.in-room .layout, body.in-room .ticker { display: none; }
 /* HQ view: hide the chat log so the core animation gets the full space */
 .console.collapsed { flex: none; } .console.collapsed .log { display: none; }
 .room-view .hq-only { display: none; }
+.console.collapsed { margin-top: auto; }
+.center:has(.console.collapsed) .core-wrap { flex: 1 1 auto; height: auto; }
