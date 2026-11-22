@@ -25,13 +25,7 @@
       if (document.hidden || !this.cv.offsetParent) return; // paused while the war room view is showing
       const c = this.ctx, W = this.cv.width, H = this.cv.height, d = this.dpr, t = (now - this.t0) / 1000;
       this.energy += (this.target - this.energy) * 0.04;
-      // Audio is heavily smoothed and only drives glow + the equalizer ring, never the sphere's size (no shaking).
-      const A = window.HQAudio; if (A) A.read();
-      this.lvl = (this.lvl || 0) + (((A && A.level) || 0) - (this.lvl || 0)) * 0.05;
-      if (!this.bars) this.bars = new Float32Array(32);
-      for (let i = 0; i < 32; i++) { const v = A ? A.bands[i] : 0, b = this.bars[i]; this.bars[i] = v > b ? b + (v - b) * 0.18 : b + (v - b) * 0.06; }
-      const lvl = this.lvl;
-      const e = Math.min(1, this.energy + lvl * 0.35), speak = this.mood === "speak" ? (Math.sin(t * 9) * .5 + .5) * (Math.sin(t * 3.7) * .5 + .5) : 0;
+      const e = Math.min(1, this.energy), speak = this.mood === "speak" ? (Math.sin(t * 9) * .5 + .5) * (Math.sin(t * 3.7) * .5 + .5) : 0;
       c.clearRect(0, 0, W, H);
       const small = this.cv.parentElement.classList.contains("small"), mus = !small && this.cv.parentElement.classList.contains("has-music");
       // with the now-playing bar centred on top, the orb sits a little lower and smaller
@@ -44,7 +38,7 @@
       // particle sphere
       // integrate the spin so audio changes the speed gently (t * speed made the angle jump with every beat)
       const dt = Math.min(0.1, (now - (this.lastNow || now)) / 1000); this.lastNow = now;
-      this.rotY = (this.rotY || 0) + dt * (0.25 + this.energy * 0.6 + lvl * 0.15);
+      this.rotY = (this.rotY || 0) + dt * (0.25 + this.energy * 0.6);
       const rotY = this.rotY, rotX = Math.sin(t * 0.3) * 0.35, cyR = Math.cos(rotY), syR = Math.sin(rotY), cxR = Math.cos(rotX), sxR = Math.sin(rotX);
       for (const p of this.pts) {
         let x = p.x * cyR - p.z * syR, z = p.x * syR + p.z * cyR, y = p.y * cxR - z * sxR; z = p.y * sxR + z * cxR;
@@ -58,15 +52,6 @@
       if (small) return;
       // tell the page how far the rings reach, so the side text sits just outside them
       const reach = Math.round((R * 2.1) / d); if (reach !== this.reach) { this.reach = reach; this.cv.parentElement.style.setProperty("--orb", reach + "px"); }
-      // audio equalizer: 64 radial bars (32 bands mirrored) just outside the sphere
-      if (A && A.on && lvl > 0.005) {
-        c.lineWidth = 2 * d; c.lineCap = "round";
-        for (let i = 0; i < 64; i++) {
-          const band = this.bars[i < 32 ? i : 63 - i], ang = (i / 64) * TAU - Math.PI / 2, r0 = R * 1.14, r1 = r0 + band * R * 0.4;
-          c.strokeStyle = (i % 32) > 20 ? this.colour2(0.25 + band * 0.7) : this.colour(0.25 + band * 0.7);
-          c.beginPath(); c.moveTo(cx + Math.cos(ang) * r0, cy + Math.sin(ang) * r0); c.lineTo(cx + Math.cos(ang) * r1, cy + Math.sin(ang) * r1); c.stroke();
-        }
-      }
       // rings
       this.rings.forEach((rg, ri) => {
         const rr = R * rg.r, rot = t * rg.spd * (1 + e * 2.2), al = rg.faint ? 0.12 : 0.35 + e * 0.35;
