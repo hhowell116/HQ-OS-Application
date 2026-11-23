@@ -106,7 +106,7 @@
     S.glass = hm(new T.CylinderGeometry(0.52, 0.6, 0.95, 40, 1, true), basic(col.clone(), 0.09 * E, { side: T.DoubleSide }), 0.63);
     for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2, r = hm(new T.CylinderGeometry(0.012, 0.012, 0.95, 4), basic(col.clone().multiplyScalar(1.3), 0.5 * E), 0.63); r.position.x = Math.cos(a) * 0.56; r.position.z = Math.sin(a) * 0.56; }
     hm(new T.TorusGeometry(0.52, 0.02, 6, 48).rotateX(Math.PI / 2), basic(col.clone().multiplyScalar(1.6), 0.8 * E), 1.11); S.hubTop = hm(new T.CircleGeometry(0.5, 32).rotateX(-Math.PI / 2), basic(col.clone(), 0.07 * E), 1.1);
-    const hl = spriteOf(K, S, 256, 48, 0.9, 0.17); hl.draw("h", (c, w, h) => { c.font = "700 26px Consolas, monospace"; c.textAlign = "center"; c.textBaseline = "middle"; c.fillStyle = "#" + col.clone().multiplyScalar(1.1).getHexString(); c.fillText("LEAD HUB", w / 2, h / 2); }); hl.sp.position.set(0, 2.25, 0); g.add(hl.sp);
+    const hl = spriteOf(K, S, 256, 48, 0.9, 0.17); hl.draw("h", (c, w, h) => { c.font = "700 26px Consolas, monospace"; c.textAlign = "center"; c.textBaseline = "middle"; c.fillStyle = "#" + col.clone().multiplyScalar(1.1).getHexString(); c.fillText("LEAD HUB", w / 2, h / 2); }); hl.sp.position.set(0, 2.25, 0); g.add(hl.sp); S.lbl = { hub: hl.sp };
     // spokes: every desk connects to the hub (faint; brighten when a packet uses them)
     for (const id of Object.keys(S.node)) { if (id === "hub") continue; const pts = new Float32Array((SPOKE_N + 1) * 3); leg(S.node[id], S.node.hub, pts, 0, SPOKE_N); const geo = new T.BufferGeometry(); geo.setAttribute("position", new T.BufferAttribute(pts, 3));
       const m = new T.LineBasicMaterial(Object.assign({ color: new T.Color(hueOf(id)), opacity: 0.1 * E }, add)); g.add(new T.Line(geo, m)); S.spoke[id] = m; S.boost[id] = 0; }
@@ -128,7 +128,7 @@
       fg.rotation.y = side === "bull" ? Math.PI / 2 : -Math.PI / 2; S.fig[side] = { g: fg, mats: [bm, wm] };
     }
     S.pitTxt = spriteOf(K, S, 640, 170, 2.5, 0.664); S.pitTxt.sp.position.set(0, 1.75, 0); pit.add(S.pitTxt.sp);
-    const pl2 = spriteOf(K, S, 320, 48, 1.3, 0.2); pl2.draw("p", (c, w, h) => { c.font = "700 24px Consolas, monospace"; c.textAlign = "center"; c.textBaseline = "middle"; c.fillStyle = "#c8d4de"; c.fillText("BULL vs BEAR PIT", w / 2, h / 2); }); pl2.sp.position.set(0, 0.2, 1.15); pit.add(pl2.sp);
+    const pl2 = spriteOf(K, S, 320, 48, 1.3, 0.2); pl2.draw("p", (c, w, h) => { c.font = "700 24px Consolas, monospace"; c.textAlign = "center"; c.textBaseline = "middle"; c.fillStyle = "#c8d4de"; c.fillText("BULL vs BEAR PIT", w / 2, h / 2); }); pl2.sp.position.set(0, 0.2, 1.15); pit.add(pl2.sp); S.lbl.debate = pl2.sp;
     // ---- Steady desk (right front) ----
     const kio = grp(kx, 0, pz); S.kioG = kio; const kc = new T.Color("#4aa8ff");
     const km = (geo, mat, y) => { const m = new T.Mesh(geo, mat); m.position.y = y; kio.add(m); return m; };
@@ -136,7 +136,7 @@
     const kcv = document.createElement("canvas"); kcv.width = 320; kcv.height = 200; const ktex = new T.CanvasTexture(kcv); ktex.colorSpace = T.SRGBColorSpace; S.tex.push(ktex);
     const plane = new T.Mesh(new T.PlaneGeometry(0.96, 0.6), new T.MeshBasicMaterial({ map: ktex, toneMapped: false })); plane.position.set(0, 1.05, 0); plane.rotation.y = -Math.sign(kx) * 0.22; plane.rotation.x = -0.05; kio.add(plane);
     const fr = new T.Mesh(new T.PlaneGeometry(1.0, 0.64), basic(kc, 0.6 * E)); fr.position.z = -0.01; plane.add(fr); S.kscr = { ctx: kcv.getContext("2d"), tex: ktex, key: "" };
-    const kl = spriteOf(K, S, 320, 48, 1.3, 0.2); kl.draw("k", (c, w, h) => { c.font = "700 24px Consolas, monospace"; c.textAlign = "center"; c.textBaseline = "middle"; c.fillStyle = "#8ec3ff"; c.fillText("STEADY DESK", w / 2, h / 2); }); kl.sp.position.set(0, 0.2, 0.95); kio.add(kl.sp);
+    const kl = spriteOf(K, S, 320, 48, 1.3, 0.2); kl.draw("k", (c, w, h) => { c.font = "700 24px Consolas, monospace"; c.textAlign = "center"; c.textBaseline = "middle"; c.fillStyle = "#8ec3ff"; c.fillText("STEADY DESK", w / 2, h / 2); }); kl.sp.position.set(0, 0.2, 0.95); kio.add(kl.sp); S.lbl.steady = kl.sp; S.cm = 0;
     // ---- 3. Ticker ring ----
     const R = 2.55, BH = (2 * Math.PI * R) / 48, tr = new T.Group(); tr.position.y = 2.1; g.add(tr); S.tring = tr;
     const tcv = document.createElement("canvas"); tcv.width = 3072; tcv.height = 64; const ttex = new T.CanvasTexture(tcv); ttex.colorSpace = T.SRGBColorSpace; ttex.anisotropy = 4; S.tex.push(ttex); S.tick = { cv: tcv, ctx: tcv.getContext("2d"), tex: ttex, sig: "" };
@@ -232,13 +232,16 @@
   function animExtras(I, K, t, dt) {
     const S = I.stonks, f = F(), V = f.desks(), D = f.data(), E = emis(K), T = K.THREE; if (!S.node || S.dead) return;
     pump(I, K, t);
+    // calm by default: ticker ring, debate pit, spokes and desk names fade back unless a run is going or replaying
+    S.cm += ((f.busy && f.busy() ? 1 : 0) - S.cm) * Math.min(1, dt * 2.5); const CM = S.cm, CK = 0.12 + 0.88 * CM, PK = 0.3 + 0.7 * CM;
+    for (const id in S.lbl) S.lbl[id].material.opacity = Math.max(CM * 0.85, S.hov === id || S.focus === id ? 1 : 0);
     if (S.md && S.cam) { S.md = false; S.hov = I.g.parent ? pick(I) : ""; if (S.cv) S.cv.style.cursor = S.hov ? "pointer" : ""; }
     S.fk += (S.fgoal - S.fk) * Math.min(1, dt * 4.5); if (Math.abs(S.fgoal - S.fk) < 0.002) S.fk = S.fgoal;
     // hub: glass breathes, flashes on handoffs and vetoes
     S.hubFlash = Math.max(0, S.hubFlash - dt * 1.6); const vetoing = S.stamp && t - S.stamp.t0 < 1.2;
     S.glass.material.opacity = (0.08 + 0.02 * Math.sin(t * 1.6) + 0.12 * S.hubFlash + (V.running ? 0.03 : 0)) * E; S.hubTop.material.opacity = (0.06 + 0.1 * S.hubFlash) * E;
     S.glass.material.color.copy(vetoing ? K.red : I.f.color); S.globe.material.color.copy(vetoing ? K.red : S.hubFlash > 0.3 ? K.amber : I.f.color);
-    for (const id in S.spoke) { S.boost[id] = Math.max(0, S.boost[id] - dt * 1.1); S.spoke[id].opacity = (0.09 + 0.7 * S.boost[id] + (S.hov === id ? 0.25 : 0)) * E; }
+    for (const id in S.spoke) { S.boost[id] = Math.max(0, S.boost[id] - dt * 1.1); S.spoke[id].opacity = (0.09 * (0.25 + 0.75 * CM) + 0.7 * S.boost[id] + (S.hov === id ? 0.25 : 0)) * E; }
     for (const id in S.led) {
       const st = id === "steady" ? (t < S.steadyUntil ? "working" : "idle") : V.st[id] ? V.st[id].status : "idle", m = S.led[id];
       if (st === "working") m.color.set(amb).multiplyScalar(0.7 + 0.5 * Math.sin(t * 7 + id.length)); else if (st === "done") m.color.set(hueOf(id)).multiplyScalar(0.85); else if (st === "error") m.color.set(dn); else m.color.set(0x25323f);
@@ -262,9 +265,9 @@
     const spk = recent ? S.spk : pitOn ? (Math.floor(t / 1.5) % 2 ? "bear" : "bull") : "", vd = S.verd && t - S.verd.t0 < 4 ? S.verd : null;
     for (const side of ["bull", "bear"]) {
       const fg = S.fig[side], talking = spk === side, lvl = talking ? 1.5 + 0.3 * Math.sin(t * 14) : pitOn ? 0.6 : V.st[side] && V.st[side].status === "done" ? 0.45 : 0.25, dir = side === "bull" ? 1 : -1;
-      fg.mats[0].opacity = 0.55 * E * lvl; fg.mats[1].opacity = 0.7 * E * lvl; fg.g.position.y = 0.07 + (talking ? 0.03 * Math.abs(Math.sin(t * 9)) : 0); fg.g.rotation.z = talking ? -dir * 0.18 : 0; fg.g.scale.y = talking ? 1.04 : 1;
+      fg.mats[0].opacity = 0.55 * E * lvl * PK; fg.mats[1].opacity = 0.7 * E * lvl * PK; fg.g.position.y = 0.07 + (talking ? 0.03 * Math.abs(Math.sin(t * 9)) : 0); fg.g.rotation.z = talking ? -dir * 0.18 : 0; fg.g.scale.y = talking ? 1.04 : 1;
     }
-    const hp = S.hov === "debate" ? 0.2 : 0; S.pitBull.material.opacity = (0.35 + (spk === "bull" ? 0.5 : 0) + hp) * E; S.pitBear.material.opacity = (0.35 + (spk === "bear" ? 0.5 : 0) + hp) * E;
+    const hp = S.hov === "debate" ? 0.2 : 0; S.pitBull.material.opacity = (0.35 + (spk === "bull" ? 0.5 : 0) + hp) * E * PK; S.pitBear.material.opacity = (0.35 + (spk === "bear" ? 0.5 : 0) + hp) * E * PK;
     let head = "", body = "", hc = "#fff";
     if (vd) { head = "VERDICT " + vd.word + " (" + vd.conv + ")" + (vd.tick ? "  " + vd.tick : ""); hc = vd.col; } else if (spk) { head = spk.toUpperCase() + (recent && S.spkTick ? "  " + S.spkTick : ""); body = recent ? S.spkText : (V.st.bear && V.st.bear.text) || ""; hc = hueOf(spk); }
     S.pitTxt.sp.visible = !!head; if (head) S.pitTxt.draw(head + "|" + short(body, 110) + "|" + hc, (c, w, h) => { c.fillStyle = "rgba(4,9,15,.82)"; c.fillRect(0, 0, w, h); c.strokeStyle = hc; c.lineWidth = 3; c.strokeRect(2, 2, w - 4, h - 4); c.textAlign = "left"; c.textBaseline = "middle"; c.font = "800 30px Consolas, monospace"; c.fillStyle = hc; c.fillText(head, 20, 32); c.font = "600 24px Consolas, monospace"; c.fillStyle = "#d3dde6"; wrap(c, short(body, 110), w - 40, 3).forEach((l, i) => c.fillText(l, 20, 72 + i * 30)); });
@@ -274,8 +277,8 @@
       const a = t - st.t0; S.stampS.draw("v" + st.tick, (c, w, h) => { c.fillStyle = "rgba(40,4,12,.8)"; c.fillRect(0, 0, w, h); c.strokeStyle = dn; c.lineWidth = 8; c.strokeRect(8, 8, w - 16, h - 16); c.shadowColor = dn; c.shadowBlur = 18; c.fillStyle = dn; c.textAlign = "center"; c.textBaseline = "middle"; c.font = "800 78px Consolas, monospace"; c.fillText("VETOED", w / 2, st.tick ? 66 : 80); c.shadowBlur = 0; if (st.tick) { c.font = "700 34px Consolas, monospace"; c.fillText(st.tick + "  ·  RISK MANAGER", w / 2, 126); } });
       const slam = a < 0.18 ? 3 - 2 * ease(a / 0.18) : 1, jit = a < 0.35 ? (1 - a / 0.35) * 0.06 : 0; sp.visible = true; sp.scale.set(2.3 * slam, 0.72 * slam, 1); sp.position.set((Math.random() - 0.5) * jit, 2.55 + (Math.random() - 0.5) * jit, 0); sp.material.rotation = -0.2; sp.material.opacity = a < 3 ? 1 : Math.max(0, 1 - (a - 3) / 0.8);
     } else sp.visible = false;
-    drawKiosk(I, t); S.kRing.material.opacity = (0.4 + (t < S.steadyUntil ? 0.4 : 0) + (S.hov === "steady" ? 0.25 : 0)) * E;
-    S.tring.rotation.y = -t * 0.09; for (const m of S.tring.children) if (m.material && m.material.map) m.material.opacity = 0.95 * (1 - 0.9 * ease(S.fk)); drawRing(I, D.tape && D.tape.length ? D.tape : [{ s: "SPY", px: 0, chg: 0 }]);
+    drawKiosk(I, t); S.kRing.material.opacity = PK * (0.4 + (t < S.steadyUntil ? 0.4 : 0) + (S.hov === "steady" ? 0.25 : 0)) * E;
+    S.tring.rotation.y = -t * 0.09; for (const m of S.tring.children) if (m.material && m.material.map) m.material.opacity = 0.95 * CK * (1 - 0.9 * ease(S.fk)); drawRing(I, D.tape && D.tape.length ? D.tape : [{ s: "SPY", px: 0, chg: 0 }]);
   }
 
   function drawScreens(I, K) {
@@ -329,9 +332,9 @@
     const f = F(); if (!f || !I.stonks) return; const V = f.desks(), curAg = V.cur && V.cur.text ? V.cur.agent : "";
     for (const o of I.members.values()) {
       const id = o.m && o.m.desk; if (!id) continue; const s = V.st[id] || { status: "idle", text: "" }, isCur = !!curAg && (curAg === id || (curAg === "debate" && (id === "bull" || id === "bear")));
-      const working = s.status === "working", done = s.status === "done", text = working || isCur ? short(s.text, 110) : "", sig = s.status + "|" + text + "|" + (f.selected() === id);
-      o.working = working; o.done = done; o.text = text; o.sel = f.selected() === id;
-      if (o.sig !== sig) { o.sig = sig; o.tag.classList.toggle("on", working); o.tag.classList.toggle("sel", o.sel); o.tag.classList.toggle("done", done); o.bub.textContent = text; o.bub.classList.toggle("hidden", !text); const st = o.tag.querySelector("span"); if (st) st.textContent = s.status; }
+      const working = s.status === "working", done = s.status === "done", text = working || isCur ? short(s.text, 110) : "", sig = s.status + "|" + text + "|" + (f.selected() === id) + "|" + (I.stonks.hov === id);
+      o.tag.classList.add("dk"); const hv = I.stonks.hov === id; o.working = working; o.done = done; o.text = text; o.sel = f.selected() === id;
+      if (o.sig !== sig) { o.sig = sig; o.tag.classList.toggle("on", working); o.tag.classList.toggle("sel", o.sel); o.tag.classList.toggle("done", done); o.tag.classList.toggle("hov", hv); o.bub.textContent = text; o.bub.classList.toggle("hidden", !text); const st = o.tag.querySelector("span"); if (st) st.textContent = s.status; }
     }
   }
   const cur = () => { const I = window.HQTower && HQTower.state && HQTower.state.interior; return I && I.stonks && !I.stonks.dead ? I : null; };

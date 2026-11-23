@@ -159,3 +159,38 @@
 .fl-drawer .tk.ag { font-size: 20px; color: var(--h, var(--fg)); } .fl-drawer .dst { font-size: 10px; letter-spacing: .18em; padding: 2px 8px; border-radius: 2px; border: 1px solid var(--line); color: var(--mut); }
 .fl-drawer .dst.working { color: var(--amb); border-color: var(--amb); } .fl-drawer .dst.done { color: var(--up); border-color: var(--up); } .fl-drawer .dst.error { color: var(--dn); border-color: var(--dn); } .fl-drawer .dst.routing { color: var(--h); border-color: var(--h); }
 .fl-drawer .dtxt { white-space: pre-wrap; border-left: 2px solid var(--h, var(--amb)); padding-left: 10px; }
+
+/* ===== Declutter pass (2026-11-23): Today's Move first, ranked board, calm 3D, folding book/safety ===== */
+.fl-board { width: 372px; padding: 10px 8px 4px 12px; gap: 8px; } .fl-bot { left: 398px; } .fl-drawer { width: min(440px, calc(100% - 800px)); }
+@media (max-width: 1300px) { .fl-board { width: 300px; } .fl-bot { left: 326px; } }
+.fl-hero { flex: none; border-radius: 12px; padding: 12px 14px 12px; background: linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.03)); border: 1px solid var(--line); border-top: 3px solid var(--c, var(--mut)); display: grid; gap: 6px; }
+.fl-hero.BUY { --c: var(--up); background: linear-gradient(180deg, color-mix(in srgb, var(--up) 14%, transparent), rgba(255,255,255,.03)); box-shadow: 0 0 0 1px color-mix(in srgb, var(--up) 35%, transparent), 0 8px 26px rgba(0,0,0,.35); }
+.fl-hero.SELL { --c: var(--dn); background: linear-gradient(180deg, color-mix(in srgb, var(--dn) 14%, transparent), rgba(255,255,255,.03)); } .fl-hero.calm { --c: var(--mut); }
+.fl-hero.clk { cursor: pointer; } .fl-hero.clk:hover { border-color: color-mix(in srgb, var(--c) 60%, transparent); }
+.fl-hero .hh { display: flex; align-items: center; gap: 10px; } .fl-hero .ht { font-size: 10px; font-weight: 800; letter-spacing: .26em; color: var(--c, var(--mut)); flex: 1; }
+.fl-hero .hb { display: flex; align-items: baseline; gap: 10px; } .fl-hero .hact { font: 800 13px var(--mono); letter-spacing: .14em; padding: 3px 10px; border-radius: 6px; color: #04100a; background: var(--c); } .fl-hero .htk { font: 800 34px var(--mono); color: var(--fg); letter-spacing: .04em; }
+.fl-hero .hsay { font-size: 15px; font-weight: 600; color: var(--fg); line-height: 1.35; } .fl-hero.calm .hsay { font-size: 13.5px; font-weight: 500; color: #c3ced9; }
+.fl-hero .hcalm { font-size: 19px; font-weight: 700; color: var(--fg); }
+.fl-hero .hk { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; } .fl-hero .hk div { background: rgba(255,255,255,.05); border-radius: 8px; padding: 6px 8px; font: 700 14px var(--mono); color: var(--fg); } .fl-hero .hk small { display: block; font: 600 8.5px var(--mono); letter-spacing: .15em; color: var(--mut); margin-bottom: 1px; }
+.fl-hero .hk .s small { color: var(--dn); } .fl-hero .hk .t small { color: var(--up); }
+.fl-hero .hsub { font-size: 11.5px; color: var(--mut); line-height: 1.4; } .fl-hero .hwhy { font-size: 12.5px; color: #c3ced9; line-height: 1.45; }
+.fl-hero .hrun { font-size: 11.5px; color: var(--mut); padding: 4px 8px; border-radius: 6px; background: rgba(255,255,255,.04); cursor: pointer; } .fl-hero .hrun b { color: var(--fg); } .fl-hero .hrun:hover { background: rgba(255,255,255,.09); }
+.fl-hero .hhold { border-left: 3px solid var(--amb); background: rgba(245,185,74,.09); border-radius: 0 8px 8px 0; padding: 6px 10px; font-size: 12px; color: var(--fg); display: grid; gap: 2px; } .fl-hero .hhold small { font: 800 9px var(--mono); letter-spacing: .2em; color: var(--amb); }
+.fl-q { margin-left: 6px; width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--line); background: rgba(255,255,255,.05); color: var(--mut); font: 700 11px var(--mono); cursor: pointer; padding: 0; } .fl-q:hover, .fl-q:focus-visible { color: var(--amb); border-color: var(--amb); outline: 0; }
+.fl-legend { flex: none; font-size: 11.5px; line-height: 1.45; color: #c3ced9; background: rgba(255,255,255,.05); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; display: grid; gap: 3px; } .fl-legend b { color: var(--amb); font: 700 10px var(--mono); letter-spacing: .1em; } .fl-legend.hidden { display: none; }
+.fl-board .fl-alerts { gap: 8px; }
+.fl-card .rk { font: 800 12px var(--mono); color: var(--mut); } .fl-card.top1 .rk { color: var(--c); }
+.fl-card .stline { margin-top: 5px; font-size: 11.5px; font-weight: 600; color: color-mix(in srgb, var(--c) 80%, #fff); } .fl-card.compact .stline { color: var(--mut); font-weight: 500; }
+.fl-card .thesis { margin: 4px 0 7px; } .fl-card.compact { padding: 7px 12px; box-shadow: none; opacity: .75; } .fl-card.compact .tk { font-size: 15px; } .fl-card.compact .px { font-size: 11px; } .fl-card.compact::before { display: none; }
+.fl-fold { all: unset; cursor: pointer; font: 700 10.5px var(--mono); letter-spacing: .16em; color: var(--mut); padding: 6px 4px; text-transform: uppercase; } .fl-fold:hover, .fl-fold:focus-visible { color: var(--fg); }
+.fl-hero:focus-visible, .fl-card:focus-visible { outline: 2px solid var(--amb); }
+/* book and safety: compact, fold by clicking the header */
+.fl-sc > .fl-h.fold { cursor: pointer; user-select: none; } .fl-sc > .fl-h.fold::after { content: "▾"; color: var(--mut); font-size: 10px; } .fl-sc.collapsed > .fl-h.fold::after { content: "▸"; }
+.fl-sc.collapsed > :not(.fl-h:first-child) { display: none; } .fl-sc.collapsed { padding-bottom: 2px; } .fl-sc.collapsed .fl-h { margin-bottom: 4px; }
+.fl-sc > .fl-h.fold:hover { color: var(--fg); }
+/* 3D desk names: only on hover, while working, or when selected */
+.tower-view[data-fl="stonks"] .tw-tag.dk { opacity: 0; pointer-events: none; transition: opacity .25s; }
+.tower-view[data-fl="stonks"] .tw-tag.dk.on, .tower-view[data-fl="stonks"] .tw-tag.dk.sel, .tower-view[data-fl="stonks"] .tw-tag.dk.hov { opacity: 1; pointer-events: auto; }
+/* transcript: collapsed to the scrubber while idle; opens on hover or during a run/replay */
+.fl-bot .fl-log { display: none; } #tw-stonks.fl-busy .fl-bot .fl-log, .fl-bot:hover .fl-log, .fl-bot:focus-within .fl-log { display: flex; }
+#tw-stonks:not(.fl-busy) .fl-bot .fl-step { opacity: .55; }

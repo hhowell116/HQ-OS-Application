@@ -43,6 +43,7 @@
 
   const matchSel = (m) => !S.sel || seatsFor(m.agent).includes(S.sel) || seatsFor(m.to || "").includes(S.sel);
   function renderAgents() {
+    syncBusy();
     const ev = events(), n = ev.length; if (S.follow || S.cur >= n) S.cur = n - 1;
     const cur = S.cur, { st } = derive(ev, cur);
     notify(); const stp = $("#fl-stepper"); stp.textContent = "";
@@ -72,26 +73,76 @@
     const t = S.tape.length ? S.tape : [{ s: "SPY", px: 0, chg: 0 }]; const inn = $("#fl-tape-in"); inn.textContent = "";
     for (const x of [...t, ...t]) { const s = mk("span", "fl-tk " + cls(x.chg)); s.append(mk("b", "", x.s), document.createTextNode((x.chg > 0 ? "▲ " : x.chg < 0 ? "▼ " : "") + (x.px ? x.px + " " : "") + sgn(x.chg) + "%")); inn.append(s); }
   }
-  function card(a) {
-    const c = mk("div", "fl-card " + a.action), top = mk("div", "top"), px = mk("div", "px");
-    px.append(mk("div", "", a.px ? "$" + a.px : ""), mk("div", cls(a.chg), a.chg != null ? sgn(a.chg) + "% today" : ""));
-    top.append(mk("span", "act", a.action), mk("span", "tk", a.ticker), mk("span", "fl-strat " + (a.strategy || "Scanner"), (a.strategy || "Scanner").toUpperCase()), px); c.append(top, mk("div", "thesis", a.thesis || ""));
-    if (a.confidence != null) { const cf = mk("div", "fl-conf"), bar = mk("i"), fill = mk("b"); fill.style.width = Math.max(0, Math.min(100, a.confidence || 0)) + "%"; bar.append(fill); cf.append(mk("span", "", "CONFIDENCE " + (a.confidence || 0)), bar); c.append(cf); }
-    if (a.plan) {
-      const l = mk("div", "fl-lad"); [["ENTRY", a.plan.entry, ""], ["STOP", a.plan.stop, "s"], [a.strategy === "Steady" ? "52W HIGH" : "TARGET 1", a.plan.t1, "t"], ["TARGET 2", a.plan.t2, "t"]].filter((x) => x[1] != null).forEach(([k, v, z]) => { const d = mk("div", z); d.append(mk("small", "", k), document.createTextNode("$" + v)); l.append(d); }); c.append(l);
-      c.append(mk("div", "sz", "size " + a.plan.shares + " sh" + (a.plan.riskUsd != null ? " · risk $" + a.plan.riskUsd : "") + (a.positionId ? " · paper position " + a.positionId : "")));
-    }
-    if (a.vetoWhy && a.vetoWhy.length) c.append(mk("div", "veto", "Risk: " + a.vetoWhy.join("; ")));
-    const ul = mk("ul"); (a.reasons || []).forEach((r) => ul.append(mk("li", "", r))); c.append(ul);
-    const ch = mk("div", "fl-chips"); (a.signals || []).forEach((s) => ch.append(mk("span", "sg", s))); (a.sources || []).forEach((s) => { const e = mk("span", "", s); e.title = s; ch.append(e); }); c.append(ch);
-    c.onclick = () => openDrawer(a); return c;
+  // ---------- plain-English ranking: actionable BUY/SELL, then WATCH, then "Passed on" ----------
+  const vetoed = (a) => !!(a.vetoWhy && a.vetoWhy.length);
+  const actionable = (a) => !vetoed(a) && ((a.action === "BUY" && a.plan && a.plan.shares > 0) || a.action === "SELL");
+  const byConf = (x, y) => (y.confidence || 0) - (x.confidence || 0);
+  function ranked() {
+    const g = { act: [], watch: [], passed: [] };
+    for (const a of S.alerts) (actionable(a) ? g.act : vetoed(a) ? g.passed : g.watch).push(a);
+    g.act.sort(byConf); g.watch.sort(byConf); g.passed.sort(byConf); return g;
   }
-  const RANK = { BUY: 0, SELL: 1, WATCH: 2 };
+  function statusLine(a) {
+    if (actionable(a)) return a.action === "BUY" ? "Buy: the team approved this one" : "Sell: the team says take it off";
+    if (vetoed(a)) { const w = a.vetoWhy.join(" ").toLowerCase(); return "Not buying: " + (/no edge|conviction|confidence/.test(w) ? "no clear edge" : /size|share|fits/.test(w) ? "too small to size safely" : /data/.test(w) ? "data looked unreliable" : "risk too high"); }
+    return "Watching: interesting, not ready yet";
+  }
+  function card(a, rank, compact) {
+    const c = mk("div", "fl-card " + a.action + (compact ? " compact" : "") + (rank === 1 ? " top1" : "")), top = mk("div", "top"), px = mk("div", "px");
+    px.append(mk("div", "", a.px ? "$" + a.px : ""), mk("div", cls(a.chg), a.chg != null ? sgn(a.chg) + "% today" : ""));
+    top.append(...(rank ? [mk("span", "rk", "#" + rank)] : []), mk("span", "act", a.action), mk("span", "tk", a.ticker), mk("span", "fl-strat " + (a.strategy || "Scanner"), (a.strategy || "Scanner").toUpperCase()), px); c.append(top, mk("div", "stline", statusLine(a)));
+    if (!compact) c.append(mk("div", "thesis", short(a.thesis, 120)));
+    if (!compact && a.confidence != null) { const cf = mk("div", "fl-conf"), bar = mk("i"), fill = mk("b"); fill.style.width = Math.max(0, Math.min(100, a.confidence || 0)) + "%"; bar.append(fill); cf.append(mk("span", "", "CONFIDENCE " + (a.confidence || 0) + "/100"), bar); c.append(cf); }
+    if (!compact && a.plan && a.plan.shares > 0) {
+      const l = mk("div", "fl-lad"); [["BUY NEAR", a.plan.entry, ""], ["STOP-LOSS", a.plan.stop, "s"], [a.strategy === "Steady" ? "52W HIGH" : "TAKE PROFIT", a.plan.t1, "t"]].filter((x) => x[1] != null).forEach(([k, v, z]) => { const d = mk("div", z); d.append(mk("small", "", k), document.createTextNode("$" + v)); l.append(d); }); c.append(l);
+    }
+    c.title = "Click for the full reasoning"; c.onclick = () => openDrawer(a); return c;
+  }
+  // holds (Steady / Mirror / Scanner) that hit their target or stop-loss
+  function holdsNeedingAction() {
+    const out = []; for (const p of (S.stats && S.stats.positions) || []) { if (p.status !== "open" || p.last == null) continue; const st = p.strat || "Scanner";
+      if (p.t1 != null && p.last >= p.t1) out.push({ p, txt: st + ": sell " + p.ticker + (st === "Steady" ? " - hit a new high ($" + p.last + ")" : " - hit its profit target ($" + p.last + ")") });
+      else if (p.stop != null && p.last <= p.stop) out.push({ p, txt: st + ": sell " + p.ticker + " - fell to its stop-loss ($" + p.last + ")" }); }
+    return out;
+  }
+  function ensureHero() {
+    let h = $("#fl-hero"); if (h) return h; const board = $(".fl-board"); if (!board) return null;
+    h = mk("section", "fl-hero"); h.id = "fl-hero"; board.insertBefore(h, board.firstChild);
+    const hd = board.querySelector(".fl-h"), q = mk("button", "fl-q", "?"); q.title = "What do these words mean?"; q.setAttribute("aria-label", "Explain the signal words");
+    const lg = mk("div", "fl-legend hidden"); lg.id = "fl-legend";
+    [["BUY", "The team thinks this is worth buying now."], ["WATCH", "Interesting, but not ready. Do nothing yet."], ["PASSED", "The Risk Manager said no. Skipped."], ["BUY NEAR", "The price to buy at."], ["STOP-LOSS", "An automatic sell if the price falls here. It caps your loss."], ["TAKE PROFIT", "The price to sell and bank the gain."], ["CONFIDENCE", "0 to 100. How sure the team is. Under 60 never trades."]].forEach(([k, v]) => { const d = mk("div"); d.append(mk("b", "", k), document.createTextNode(" " + v)); lg.append(d); });
+    q.onclick = () => lg.classList.toggle("hidden"); hd.append(q); hd.after(lg); return h;
+  }
+  function renderHero() {
+    const h = ensureHero(); if (!h) return; h.textContent = ""; const g = ranked(), holds = holdsNeedingAction(), pick = g.act[0];
+    h.className = "fl-hero " + (pick ? pick.action : "calm");
+    const head = mk("div", "hh"); head.append(mk("span", "ht", "TODAY'S MOVE")); if (pick) head.append(mk("span", "fl-strat " + (pick.strategy || "Scanner"), (pick.strategy || "Scanner").toUpperCase())); h.append(head);
+    if (pick) {
+      const p = pick.plan, big = mk("div", "hb"); big.append(mk("span", "hact " + pick.action, pick.action), mk("span", "htk", pick.ticker)); h.append(big);
+      h.append(mk("div", "hsay", pick.action === "BUY" ? "Buy " + p.shares + " share" + (p.shares === 1 ? "" : "s") + " of " + pick.ticker + " at about $" + p.entry : "Sell " + pick.ticker + (pick.px ? " at about $" + pick.px : "")));
+      const k = mk("div", "hk"); const kv = (lab, val, c, tip) => { const d = mk("div", c); d.append(mk("small", "", lab), document.createTextNode(val)); if (tip) d.title = tip; k.append(d); };
+      if (p) { kv("STOP-LOSS", "$" + p.stop, "s", "Sell if it falls here"); if (p.t1 != null) kv("TAKE PROFIT", "$" + p.t1, "t", "Sell here to bank the gain"); }
+      kv("CONFIDENCE", (pick.confidence || 0) + "/100", ""); h.append(k);
+      if (p) h.append(mk("div", "hsub", "Stop-loss: sell if it falls to $" + p.stop + (p.t1 != null ? ". Take profit: sell at $" + p.t1 + "." : ".")));
+      h.append(mk("div", "hwhy", "Why: " + short(pick.thesis, 150)));
+      h.onclick = () => openDrawer(pick); h.title = "Click for the full reasoning"; h.classList.add("clk");
+      g.act.slice(1, 3).forEach((a, i) => { const r = mk("div", "hrun"); r.append(mk("b", "", "#" + (i + 2) + " " + a.action + " " + a.ticker), document.createTextNode(" " + (a.confidence || 0) + "/100 " + (a.strategy || "Scanner"))); r.onclick = (e) => { e.stopPropagation(); openDrawer(a); }; h.append(r); });
+    } else {
+      h.onclick = null; h.title = ""; h.classList.remove("clk");
+      h.append(mk("div", "hcalm", "No trade right now"), mk("div", "hsay", "The team found nothing worth the risk. Sitting out is a valid move."), mk("div", "hsub", (S.finishedAt ? "Last checked " + new Date(S.finishedAt).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" }) + " (" + ago(S.finishedAt) + ")" : "Not checked yet") + ". Press GO to scan again."));
+    }
+    if (holds.length) { const hb = mk("div", "hhold"); hb.append(mk("small", "", "NEEDS ACTION")); holds.slice(0, 3).forEach((x) => hb.append(mk("div", "", x.txt))); h.append(hb); }
+  }
   function renderAlerts() {
-    const box = $("#fl-alerts"); box.textContent = "";
+    renderHero(); const box = $("#fl-alerts"); box.textContent = "";
     if (!S.alerts.length) { box.append(mk("div", "fl-empty", "No alerts yet. Hit GO to send the desks to work.")); $("#fl-when").textContent = ""; return; }
-    [...S.alerts].sort((a, b) => (RANK[a.action] - RANK[b.action]) || b.confidence - a.confidence).forEach((a) => box.append(card(a)));
-    const t = S.alerts[0] && S.alerts[0].ts; $("#fl-when").textContent = t ? new Date(t).toLocaleString() : "";
+    const g = ranked(); let n = 0;
+    [...g.act, ...g.watch].forEach((a) => box.append(card(a, ++n)));
+    if (g.passed.length) {
+      const f = mk("button", "fl-fold", (S.passedOpen ? "▾ " : "▸ ") + "Passed on (" + g.passed.length + ")"); f.onclick = () => { S.passedOpen = !S.passedOpen; renderAlerts(); }; box.append(f);
+      if (S.passedOpen) g.passed.forEach((a) => box.append(card(a, 0, true)));
+    }
+    const t = S.alerts[0] && S.alerts[0].ts; $("#fl-when").textContent = t ? new Date(t).toLocaleString([], { hour: "numeric", minute: "2-digit" }) : "";
   }
   function renderBook() {
     const s = S.stats, box = $("#fl-stats"); box.textContent = "";
@@ -190,6 +241,7 @@
 
   // ---------- Header: equity, usage meter, run state ----------
   function renderHead() {
+    syncBusy();
     const s = S.stats, eq = s && (s.totalEquity != null ? s.totalEquity : s.equity), cap = s && (s.capital || 0);
     $("#fl-eq").textContent = eq == null ? "--" : usd(eq);
     const ret = eq != null && cap ? Math.round((eq / cap - 1) * 10000) / 100 : null, spy = s && s.spy && s.spy.retPct;
@@ -234,7 +286,14 @@
     if (S.running && S.follow) for (const id in S.desks) { const k = S.desks[id]; if (k && k.status === "working") seatsFor(id).forEach((x) => { if (st[x]) { st[x].status = "working"; if (!st[x].text) st[x].text = k.step || ""; } }); }
     return (dv = { st, cur, veto: d.veto, running: S.running });
   }
-  const all = () => { renderSafety(); renderCmp(); renderHead(); renderTape(); renderAlerts(); renderBook(); renderSig(); renderCurve(); renderAgents(); };
+  const all = () => { collapsibles(); renderSafety(); renderCmp(); renderHead(); renderTape(); renderAlerts(); renderBook(); renderSig(); renderCurve(); renderAgents(); };
+  const busy = () => !!(S.running || S.play);
+  function syncBusy() { const t = $("#tw-stonks"); if (t) t.classList.toggle("fl-busy", busy()); }
+  function collapsibles() { // book/safety panels: compact, click a header to fold; Paper Book open by default
+    if (S.coll) return; S.coll = true; let saved = {}; try { saved = JSON.parse(localStorage.getItem("flcoll") || "{}"); } catch (e) {}
+    document.querySelectorAll(".fl-rcol > .fl-sc").forEach((p, i) => { const hd = p.querySelector(".fl-h"); if (!hd) return; const key = (hd.textContent || "").trim().slice(0, 12) || "p" + i; hd.classList.add("fold"); p.classList.toggle("collapsed", key in saved ? !!saved[key] : i > 0);
+      hd.onclick = () => { const c = p.classList.toggle("collapsed"); saved[key] = c; try { localStorage.setItem("flcoll", JSON.stringify(saved)); } catch (e) {} }; });
+  }
   function load(r) {
     const st = r.state; if (st) { S.desks = st.desks || {}; S.alerts = st.alerts || []; S.tape = st.tape || []; S.finishedAt = st.finishedAt || 0; S.flag = st.flag || ""; }
     S.health = r.health || { ok: true, why: [] }; S.running = !!r.running; S.stats = r.stats; S.sig = r.journal || {}; S.equity = r.equity || []; all();
@@ -260,7 +319,7 @@
   window.HQFloor = {
     shown: (on) => { S.active = on !== false; if (S.active) { S.autoPlay = true; refresh(); } else { stopPlay(); closeCard(); } },
     events: () => events(), cur: () => S.cur, active: () => !!S.active, agentCard, agentClose,
-    running: () => S.running, desks: deskView, onChange: (f) => listeners.push(f), NAME, HUE, ANG, SEATS,
+    running: () => S.running, busy, desks: deskView, onChange: (f) => listeners.push(f), NAME, HUE, ANG, SEATS,
     data: () => ({ tape: S.tape, equity: S.equity, alerts: S.alerts, stats: S.stats }),
     select: (seat) => { S.sel = S.sel === seat ? "" : seat; renderAgents(); }, selected: () => S.sel,
     escape: () => { if (S.card) { closeCard(); return true; } const d = $("#fl-drawer"); if (!d.classList.contains("hidden")) { d.classList.add("hidden"); return true; } if (S.sel) { S.sel = ""; renderAgents(); return true; } return false; },
