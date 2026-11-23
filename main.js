@@ -130,8 +130,9 @@ app.whenReady().then(() => {
   });
 
   { const own = (wc) => !!wc && !!win && !win.isDestroyed() && wc === win.webContents;
-    session.defaultSession.setPermissionRequestHandler((wc, perm, cb, det) => cb(perm === "media" && own(wc) && !(det && det.mediaTypes && det.mediaTypes.some((t) => t !== "audio"))));
-    session.defaultSession.setPermissionCheckHandler((wc, perm) => perm === "media" && own(wc)); }
+    // Only the app's own window gets permissions: mic (voice input) and display-capture/loopback (visualizer) both need "media".
+    session.defaultSession.setPermissionRequestHandler((wc, perm, cb) => cb(own(wc)));
+    session.defaultSession.setPermissionCheckHandler((wc) => own(wc)); }
   const pub = () => ({ person: settings.person, voice: !!settings.voice, voiceName: settings.voiceName || "af_heart", speed: settings.speed || 1.1, last: settings.last, projectsRoot: settings.projectsRoot, theme: settings.theme || "cyan", accent: settings.accent || "", audio: settings.audio !== false, autoSend: !!settings.autoSend, music: settings.music !== false, archived: settings.archived || [] });
   ipcMain.handle("init", async () => ({ settings: pub(), projects: await Promise.all(cache.projects.map(projectSummary)) }));
   ipcMain.handle("settings", () => pub());
