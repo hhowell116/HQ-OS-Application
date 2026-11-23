@@ -393,6 +393,7 @@
     const f = I.f, hw = I.hw; let x, z, sw, tilt = 0.16, stand = false;
     if (f.kind === "deck") { x = -4.1; z = -hw + 1.3; sw = 2.8; stand = true; }
     else if (f.stonks) { x = -hw + 1.0; z = -0.3; sw = 1.7; stand = true; tilt = 0.5; }
+    else if (hw < 6.4) { x = hw - 3.2; z = hw - 3.6; sw = 1.1; } // narrow floors: further into the right-front corner so 10 desks (2 rows of 5) are not covered
     else { x = Math.min(hw - 2.5, 2.9); z = hw - 4.3; sw = 1.4; } // right edge, clear of the 2-row desk block (6+ agents)
     const cam = intCam(f).pos; return { x, z, sw, tilt, stand, yaw: Math.atan2(cam.x - x, cam.z - z) };
   }
@@ -615,9 +616,9 @@
 
   function makeDesks(I, n) {
     for (const d of I.desks) { I.g.remove(d.g); disposeGroup(d.g); } I.desks = []; I.nDesks = n;
-    const rows = n > 5 ? 2 : 1, cols = Math.ceil(n / rows), sp = Math.min(2.5, (I.hw * 2 - 1.8) / cols);
+    const rows = n > 5 ? 2 : 1, cols = Math.ceil(n / rows), sp = Math.min(2.5, (I.hw * 2 - 1.8 - (n > 5 && I.hw < 6.4 ? 1.4 : 0)) / cols);
     for (let i = 0; i < n; i++) {
-      const row = Math.floor(i / cols), c = i % cols, inRow = row === 0 ? Math.min(n, cols) : n - cols, x = (c - (inRow - 1) / 2) * sp, seatZ = -I.hw + (rows === 1 ? 1.9 : 1.2) + row * 3.1;
+      const row = Math.floor(i / cols), c = i % cols, inRow = row === 0 ? Math.min(n, cols) : n - cols, x = (c - (inRow - 1) / 2) * sp - (rows === 2 && I.hw < 6.4 ? 0.7 : 0), seatZ = -I.hw + (rows === 1 ? 1.9 : 1.2) + row * 3.1;
       const g = new THREE.Group(); g.position.set(x, 0, seatZ); I.g.add(g);
       const top = new THREE.MeshStandardMaterial({ color: 0x33475c, roughness: 0.4, metalness: 0.3 }), edge = new THREE.MeshBasicMaterial({ color: I.f.color.clone() });
       box(g, 1.75, 0.06, 0.8, top, 0, 0.78, 0.95); box(g, 1.75, 0.04, 0.05, edge, 0, 0.77, 1.35);

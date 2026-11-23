@@ -15,7 +15,7 @@
 
 <header class="titlebar">
   <div class="brand"><span class="glyph">◈</span><span>HQ<b>OS</b></span><span class="ver">v2.1</span></div>
-  <div class="tabs" id="tabs"><button data-view="home" title="Home: the nebula (F5, Esc)">HOME</button><button data-view="hq" class="on" title="Command center (F1)">HQ</button><button data-view="tower" title="Tower: a floor per project, live activity (F2)">TOWER</button></div>
+  <div class="tabs" id="tabs"><button data-view="home" title="Home: the nebula (F5, Esc)">HOME</button><button data-view="hq" title="Command center (F1)">HQ</button><button data-view="tower" title="Tower: a floor per project, live activity (F2)">TOWER</button></div>
   <div class="status" id="status">
     <span class="chip warn hidden" id="restart-chip" style="cursor:pointer" title="Main-process code changed. Click to restart HQ OS.">⟳ restart to apply</span>
     <span class="chip" id="chip-agents">0 agents</span>
@@ -163,7 +163,7 @@
   <div class="nb-bar"><span class="nb-ttl">&#9672; HOME</span><span class="nb-sub" id="nb-count">scanning…</span><span class="spacer"></span>
     <div class="nb-sw"><input id="nb-search" type="text" placeholder="fly to a note…" spellcheck="false" autocomplete="off"><div class="nb-results hidden" id="nb-results"></div></div>
     <button class="ghost on" id="nb-mode" title="Layout: brain shape or free graph">&#9673; brain</button>
-    <button class="ghost on" id="nb-ghosts" title="Show unresolved [[links]] as dim ghost nodes">◌ ghosts</button>
+    <button class="ghost" id="nb-ghosts" title="Show unresolved [[links]] as dim ghost nodes">◌ ghosts</button>
     <button class="ghost" id="nb-refresh" title="Rescan all notes">⟳</button>
     <button class="ghost" id="nb-back" title="Open HQ (F1)">open HQ</button></div>
   <div class="hm-greet" id="hm-greet"></div>

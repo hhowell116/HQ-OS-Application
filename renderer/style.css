@@ -471,3 +471,9 @@ mark.rl-hit { background: rgba(var(--hl-rgb),.35); color: #fff; border-radius: 2
 
 /* Startup: hide everything under the title bar until the start view is picked, so HQ does not flash before the home nebula */
 body.booting .layout, body.booting #console, body.booting .viz, body.booting .music { visibility: hidden; }
+
+/* Chat toolbar: wrap instead of clipping when the files panel narrows the console */
+.console-h { flex-wrap: wrap; row-gap: 6px; }
+.console-h select { min-width: 0; max-width: 200px; }
+.console-h .spacer { flex: 1 1 0; min-width: 0; }
+.console-h button { white-space: nowrap; flex: 0 0 auto; }

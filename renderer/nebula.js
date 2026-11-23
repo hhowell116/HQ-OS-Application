@@ -6,7 +6,7 @@
   if (!view || !window.NebulaLib) return;
   const { ForceGraph3D, THREE, UnrealBloomPass } = window.NebulaLib;
 
-  const N = { data: null, g: null, objs: new Map(), hidden: new Set(), ghosts: true, sel: null, hover: null, on: false, scanAt: 0, rotTimer: 0, nb: new Map(), loading: false, mode: null, tw: null, dust: null, dustA: 0, raf: 0, gather: 0 };
+  const N = { data: null, g: null, objs: new Map(), hidden: new Set(), ghosts: false, sel: null, hover: null, on: false, scanAt: 0, rotTimer: 0, nb: new Map(), loading: false, mode: null, tw: null, dust: null, dustA: 0, raf: 0, gather: 0 };
   const saveMode = (m) => { try { localStorage.setItem("nbMode", m); } catch (e) {} try { hq.set({ nebulaMode: m }); } catch (e) {} };
   N.mode = (() => { try { return localStorage.getItem("nbMode") === "graph" ? "graph" : "brain"; } catch (e) { return "brain"; } })();
   const hue = (id) => { let h = 0; for (const c of id) h = (h * 31 + c.charCodeAt(0)) >>> 0; return (h * 137.508) % 360; };
