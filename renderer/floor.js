@@ -136,7 +136,7 @@
   // ---------- Agent card: click a desk in the 3D room (stonks3d.js) -> the drawer shows that agent's latest output ----------
   const AG_NAME = Object.assign({}, NAME, { steady: "Steady Desk", hub: "Lead Hub", debate: "Bull vs Bear" });
   function closeCard() { if (window.HQStonks3D && HQStonks3D.focused()) HQStonks3D.unfocus(); else agentClose(); }
-  function agentClose() { if (!S.card) return; S.card = null; $("#fl-drawer").classList.add("hidden"); }
+  function agentClose() { if (!S.card) return; const id = S.card; S.card = null; $("#fl-drawer").classList.add("hidden"); if (S.sel === id) { S.sel = ""; renderAgents(); } }
   function agentCard(id) { S.card = id; S.sel = ANG[id] != null ? id : ""; renderAgents(); }
   function renderCard() {
     const id = S.card, d = $("#fl-drawer"), ev = events(), cur = Math.min(S.cur, ev.length - 1); d.textContent = ""; d.classList.remove("hidden");
