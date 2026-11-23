@@ -160,12 +160,7 @@
   }
 
   function hookRenderer(I, K, rd, cam) {
-    const S = I.stonks, T = K.THREE, cv = rd.domElement, proto = Object.getPrototypeOf(cam).lookAt, tgt = new T.Vector3(), tmp = new T.Vector3(); S.cam = cam; S.cv = cv;
-    cam.lookAt = function (x, y, z) { // blends the tower's fixed interior pose toward the focused desk (no hook in tower.js needed)
-      const v = x && x.isVector3 ? x : tmp.set(x, y, z);
-      if (!I.g.parent || S.fk <= 0.001) return proto.call(this, v);
-      const k = ease(S.fk); this.position.lerp(S.fpos, k); this.fov += (S.ffov - this.fov) * k; tgt.copy(v).lerp(S.flook, k); return proto.call(this, tgt);
-    };
+    const S = I.stonks, T = K.THREE, cv = rd.domElement; S.cam = cam; S.cv = cv;
     S.ray = new T.Raycaster();
     const rel = (e) => { const b = cv.getBoundingClientRect(); S.mouse.set(((e.clientX - b.left) / b.width) * 2 - 1, -((e.clientY - b.top) / b.height) * 2 + 1, 0); S.md = true; };
     let down = null; const on = (n, fn) => { cv.addEventListener(n, fn); S.hooks.push([n, fn]); };
@@ -177,7 +172,7 @@
   function cleanup(I) {
     const S = I.stonks; if (!S || S.dead) return; S.dead = true; clearInterval(S.watch);
     if (S.cv) { for (const [n, fn] of S.hooks) S.cv.removeEventListener(n, fn); S.cv.style.cursor = ""; }
-    if (S.cam && Object.prototype.hasOwnProperty.call(S.cam, "lookAt")) delete S.cam.lookAt;
+    if (S.focus && window.HQTower && HQTower.clearFocus) HQTower.clearFocus();
     for (const t of S.tex) t.dispose(); S.tex.length = 0; if (window.HQFloor && HQFloor.agentClose) HQFloor.agentClose();
   }
   function focusI(I, K, id) {
@@ -185,10 +180,10 @@
     let tx = 0, tz = 0, ty = 1.3, d = 0, cy = 0, side = false;
     if (id === "debate" || id === "steady") { const n = id === "debate" ? S.pit : S.kiosk; tx = n.x; tz = n.z; ty = id === "debate" ? 0.7 : 0.95; side = true; } else if (id !== "hub") { const p = S.seat[id]; tx = p.x; tz = p.z; ty = 1.1; d = 2.3; cy = 3.1; }
     const L = Math.hypot(tx, tz) || 1, ux = tx / L, uz = tz / L, cp = id === "hub" ? new T.Vector3(0, 3.7, 4.1) : side ? new T.Vector3(tx * 0.8, 2.9, tz + 3.1) : new T.Vector3(tx - ux * d, cy, tz - uz * d), lk = new T.Vector3(tx, ty, tz);
-    S.fpos = I.g.localToWorld(cp); S.flook = I.g.localToWorld(lk); S.ffov = id === "hub" ? 62 : 56;
+    const wp = I.g.localToWorld(cp), wl = I.g.localToWorld(lk); if (window.HQTower && HQTower.setFocus) HQTower.setFocus({ pos: { x: wp.x, y: wp.y, z: wp.z }, target: { x: wl.x, y: wl.y, z: wl.z }, fov: id === "hub" ? 62 : 56 });
     if (window.HQFloor && HQFloor.agentCard) HQFloor.agentCard(id);
   }
-  function unfocusI(I) { const S = I.stonks; if (!S) return; S.focus = ""; S.fgoal = 0; if (window.HQFloor && HQFloor.agentClose) HQFloor.agentClose(); }
+  function unfocusI(I) { const S = I.stonks; if (!S) return; S.focus = ""; S.fgoal = 0; if (window.HQTower && HQTower.clearFocus) HQTower.clearFocus(); if (window.HQFloor && HQFloor.agentClose) HQFloor.agentClose(); }
 
   // ---- event pump: packets / speech / verdict / veto, from the (replayed or live) event stream ----
   function packet(I, K, t, from, to, colHex) {
