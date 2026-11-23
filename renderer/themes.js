@@ -20,18 +20,22 @@
     curTheme = id || curTheme; const t = THEMES.find((x) => x.id === curTheme) || THEMES[0];
     const mix = (a, b, k) => a.map((v, i) => Math.round(v * (1 - k) + b[i] * k));
     const art = t.dynamic && musicRGB;
-    const acc = art ? musicRGB : hex(accentOverride || t.acc), bg = hex(t.bg), pn = hex(t.panel), r = document.documentElement.style;
+    const acc = art ? musicRGB : hex(accentOverride || t.acc), r = document.documentElement.style;
+    // Album theme: the whole palette comes from the cover. Background and panels are dark tints of its main colour, text is tinted too.
+    const bg = art ? mix([2, 4, 6], acc, 0.09) : hex(t.bg), pn = art ? mix([6, 9, 12], acc, 0.17) : hex(t.panel);
+    const tx2Hex = art ? "#" + mix([150, 165, 170], acc, 0.3).map((v) => v.toString(16).padStart(2, "0")).join("") : t.tx2, bgHex = "#" + bg.map((v) => v.toString(16).padStart(2, "0")).join("");
     // accent = the opposite colour (or the cover's own second colour for the album theme); mono themes stay one colour
-    const sec = t.mono ? acc : art && musicSec ? musicSec : hueRot(acc, 180);
+    // album theme: the cover's own second colour, or a lighter shade of its main colour (never an invented opposite)
+    const sec = t.mono ? acc : art ? (musicSec || mix(acc, [255, 255, 255], 0.45)) : hueRot(acc, 180);
     const hl = t.mono ? mix(acc, [255, 255, 255], 0.35) : mix(sec, [255, 255, 255], 0.3);
     r.setProperty("--sec", `rgb(${sec})`); r.setProperty("--sec-rgb", sec.join(","));
     r.setProperty("--hl", `rgb(${hl})`); r.setProperty("--hl-rgb", hl.join(","));
     r.setProperty("--acc", `rgb(${acc})`); r.setProperty("--acc-rgb", acc.join(","));
     r.setProperty("--acc2", `rgb(${mix(acc, [0, 0, 0], 0.25)})`); r.setProperty("--acc-glow", `rgba(${acc},.45)`);
     r.setProperty("--line", `rgba(${acc},.18)`); r.setProperty("--line2", `rgba(${acc},.4)`);
-    r.setProperty("--bg", t.bg); r.setProperty("--bg-rgb", bg.join(",")); r.setProperty("--bg2", `rgb(${mix(bg, pn, 0.6)})`);
-    r.setProperty("--panel-rgb", pn.join(",")); r.setProperty("--tx2", t.tx2); r.setProperty("--tx", `rgb(${mix(hex(t.tx2), [240, 250, 250], 0.6)})`);
-    r.setProperty("--tx3", `rgb(${mix(hex(t.tx2), bg, 0.45)})`);
+    r.setProperty("--bg", bgHex); r.setProperty("--bg-rgb", bg.join(",")); r.setProperty("--bg2", `rgb(${mix(bg, pn, 0.6)})`);
+    r.setProperty("--panel-rgb", pn.join(",")); r.setProperty("--tx2", tx2Hex); r.setProperty("--tx", `rgb(${mix(hex(tx2Hex), [240, 250, 250], 0.6)})`);
+    r.setProperty("--tx3", `rgb(${mix(hex(tx2Hex), bg, 0.45)})`);
     subs.forEach((f) => f(acc, sec, hl));
   }
   // Pick a vivid, common colour from the cover; brighten it so it reads as an accent on dark panels.

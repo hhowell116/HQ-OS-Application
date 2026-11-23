@@ -509,3 +509,6 @@ mark.rl-hit { background: rgba(var(--hl-rgb),.35); color: #fff; border-radius: 2
 .newproj input { width: 100%; box-sizing: border-box; background: transparent; color: inherit; border: 1px solid var(--acc, #4dabf7); border-radius: 4px; padding: 4px 6px; font: inherit; font-size: 12px; outline: none; }
 .np-err { color: #ff6b6b; font-size: 11px; min-height: 0; }
 .np-err:not(:empty) { margin-top: 3px; }
+
+/* Album theme tints everything: war room background follows the theme background */
+.room-view { background: var(--bg); }
