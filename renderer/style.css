@@ -450,3 +450,10 @@ mark.rl-hit { background: rgba(var(--hl-rgb),.35); color: #fff; border-radius: 2
 .np-err { color: #ff6b6b; font-size: 11px; min-height: 0; }
 .np-err:not(:empty) { margin-top: 3px; }
 
+
+/* project rename */
+.proj .ren { width: 100%; }
+.proj .ren-in { width: 100%; box-sizing: border-box; background: transparent; color: inherit; border: 1px solid var(--acc, #4dabf7); border-radius: 4px; padding: 2px 6px; font: inherit; font-size: 12px; outline: none; }
+.projmenu { position: fixed; z-index: 60; background: var(--panel, #0b1b24); border: 1px solid var(--acc, #4dabf7); border-radius: 6px; padding: 3px; box-shadow: 0 6px 20px #0008; }
+.projmenu button { display: block; background: transparent; color: inherit; border: 0; padding: 5px 14px; font: inherit; font-size: 12px; cursor: pointer; border-radius: 4px; }
+.projmenu button:hover { background: rgba(77,171,247,.2); }

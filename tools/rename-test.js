@@ -1,0 +1,52 @@
+// Tests project rename against a TEMP projects root. Run: electron.exe tools/rename-test.js <outDir>
+const { app, BrowserWindow } = require("electron");
+const fs = require("fs"), os = require("os"), path = require("path");
+const out = process.argv[2] || path.join(__dirname, "shots");
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "hqos-rn-")), root = path.join(tmp, "Projects");
+const mk = (n) => { fs.mkdirSync(path.join(root, n, "Notes", "Claude"), { recursive: true }); fs.writeFileSync(path.join(root, n, "Notes", n + " To-Do.md"), "# " + n + " To-Do\n\n## Now\n\n## Next\n1. [ ] first\n\n## Waiting on Hayden\n\n## Done\n"); };
+mk("Alpha Proj"); mk("Beta"); mk("Busy One");
+fs.writeFileSync(path.join(tmp, "settings.json"), JSON.stringify({ projectsRoot: root, last: "alpha-proj", archived: ["beta"], projects: [{ id: "alpha-proj", name: "Alpha Proj", folder: "Alpha Proj", todo: "Alpha Proj/Notes/Alpha Proj To-Do.md" }] }));
+fs.mkdirSync(path.join(tmp, "chats"));
+const cf = path.join(tmp, "chats", "c1.json");
+fs.writeFileSync(cf, JSON.stringify({ id: "c1", title: "t", proj: "alpha-proj", projName: "Alpha Proj", cwd: path.join(root, "Alpha Proj"), msgs: [], created: 1, updated: 1 }));
+app.setPath("userData", tmp);
+process.on("uncaughtException", (e) => console.log("UNCAUGHT", e && e.stack));
+const { Chats } = require("../chat.js");
+const realBusy = Chats.prototype.busyIn;
+Chats.prototype.busyIn = function (f) { return /busy one/i.test(f) ? [{}] : realBusy.call(this, f); };
+require("../main.js");
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+app.whenReady().then(async () => {
+  await sleep(1500);
+  const win = BrowserWindow.getAllWindows()[0]; win.setOpacity(0); win.setBounds({ x: -4000, y: 0, width: 1600, height: 900 }); win.showInactive(); const wc = win.webContents;
+  const errs = []; wc.on("console-message", (e, lvl, msg) => { if (lvl >= 3) errs.push(msg); });
+  await sleep(1500);
+  const ev = (s) => wc.executeJavaScript(s).catch((e) => { console.log("EVFAIL", s.slice(0, 80), e.message.slice(0, 200)); return null; });
+  fs.mkdirSync(out, { recursive: true });
+  const rn = async (id, n) => console.log("rename", id, "->", JSON.stringify(n), JSON.stringify(await ev(`hq.projectRename({id:${JSON.stringify(id)},name:${JSON.stringify(n)}})`)));
+  await rn("busy-one", "Busy Two");
+  await rn("alpha-proj", "Beta");
+  await rn("alpha-proj", "BETA");
+  await rn("alpha-proj", "a/b");
+  await rn("alpha-proj", "CON");
+  await rn("alpha-proj", "bad.");
+  console.log("list:", await ev(`[...document.querySelectorAll("#projects .proj")].map(e=>e.textContent.slice(0,25)).join(" | ")`)); console.log("projs:", JSON.stringify(await ev(`hq.projects().then(a=>a.map(p=>p.id+":"+p.name))`)));
+  // inline UI: dblclick the name, type a clashing name, screenshot
+  await ev(`(()=>{const s=[...document.querySelectorAll('#projects .proj .n span')].find(x=>x.textContent==='Alpha Proj'); s.dispatchEvent(new MouseEvent("dblclick",{bubbles:true}))})()`); console.log("A", await ev(`typeof startProjRename+" "+(startProjRename("alpha-proj"),String(S.renId)+document.querySelectorAll(".ren-in").length)`)); await sleep(300);
+  await ev(`(()=>{const i=document.querySelector('.ren-in');i.value='Beta';i.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}))})()`); await sleep(500);
+  console.log("DBG", JSON.stringify(errs), await ev(`String(S.renId)+" "+document.querySelectorAll(".ren-in").length+" "+document.querySelector("#projects").innerHTML.slice(0,300)`));
+  console.log("inline err:", await ev(`document.querySelector('#projects .np-err').textContent`));
+  fs.writeFileSync(path.join(out, "project-rename.png"), (await wc.capturePage()).toPNG());
+  await ev(`(()=>{const i=document.querySelector('.ren-in');i.value='Alpha Renamed';i.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}))})()`); await sleep(1500);
+  console.log("selected:", await ev(`document.querySelector('#p-name').textContent`));
+  console.log("folders:", JSON.stringify(fs.readdirSync(root)));
+  console.log("notes:", JSON.stringify(fs.readdirSync(path.join(root, "Alpha Renamed", "Notes"))), JSON.stringify(fs.readFileSync(path.join(root, "Alpha Renamed", "Notes", "Alpha Renamed To-Do.md"), "utf8").split("\n")[0]));
+  console.log("todo items:", await ev(`document.querySelector('#projects .proj.on')?.textContent`));
+  await sleep(800);
+  console.log("chat:", fs.readFileSync(cf, "utf8").replace(/"msgs".*/, ""));
+  console.log("settings:", fs.readFileSync(path.join(tmp, "settings.json"), "utf8").replace(/\s+/g, " "));
+  await rn("alpha-renamed", "alpha renamed"); // case-only
+  console.log("folders:", JSON.stringify(fs.readdirSync(root)), JSON.stringify(fs.readdirSync(path.join(root, "alpha renamed", "Notes"))));
+  console.log("console errors:", JSON.stringify(errs));
+  app.exit(0);
+});

@@ -29,6 +29,19 @@ class Chats {
   exe() { const s = this.getSettings(); return (s.claudePath || "").trim() || path.join(os.homedir(), ".local", "bin", "claude.exe"); }
   log(m) { try { fs.appendFileSync(this.logFile, new Date().toISOString() + " " + redact(String(m)).slice(0, 1500) + "\n"); } catch (e) {} }
   view(c) { const o = {}; for (const k of ["id", "title", "model", "proj", "projName", "created", "updated", "busy", "msgs", "ctx", "lastAt", "sessionId"]) o[k] = c[k]; o.queue = (c.queue || []).map((q) => ({ text: q.text, imgs: (q.files || []).map((f) => f.path) })); o.handingOff = !!c.handingOff; return o; }
+  _under(c, folder) { const a = String(c.cwd || "").toLowerCase(), b = String(folder).toLowerCase(); return !!a && (a === b || a.startsWith(b + path.sep)); }
+  busyIn(folder) { return [...this.convs.values()].filter((c) => c.busy && this._under(c, folder)); }
+  // Project rename: point saved/in-memory chats at the new folder and id. Idle processes are stopped so they respawn in the new cwd.
+  moveProject(oldFolder, newFolder, oldId, newId, newName) {
+    for (const c of this.convs.values()) {
+      const inFolder = this._under(c, oldFolder);
+      if (!inFolder && !(c.proj && c.proj === oldId)) continue;
+      if (inFolder) c.cwd = newFolder + String(c.cwd).slice(oldFolder.length);
+      c.proj = newId; c.projName = newName;
+      if (c.proc && !c.busy) this.kill(c, "project renamed");
+      this.save(c);
+    }
+  }
   // Busy console chats, for the agent tracker.
   active() { return [...this.convs.values()].filter((c) => c.busy).map((c) => { const cur = c.cur, b = cur && cur.blocks[cur.blocks.length - 1]; const say = cur && [...cur.blocks].reverse().find((x) => x.k === "text" && x.text); return { id: c.id, title: c.title, proj: c.projName, model: c.model, start: cur ? cur.at : Date.now(), step: b ? (b.k === "tool" ? b.name + (b.target ? " · " + b.target : "") : b.k === "think" ? "thinking" : (b.text || "").slice(-140)) : "starting", say: say ? say.text.slice(-160) : "", files: cur ? cur.blocks.filter((x) => x.k === "tool" && /^(Edit|Write|Read|MultiEdit)$/.test(x.name) && x.target).map((x) => ({ p: x.target, op: x.name === "Read" ? "read" : "edit", t: Date.now() })).slice(-8) : [] }; }); }
   // Send a prompt and resolve with the reply text when the turn ends.

@@ -50,14 +50,42 @@ function greet() { const h = new Date().getHours(); return (h < 5 ? "Working lat
 function setMood(m, text) { core.setMood(m); $("#mood").textContent = text || { idle: "standing by", think: "processing", speak: "responding", alert: "attention needed" }[m]; }
 
 // ---------- projects ----------
+// inline project rename (right-click a card or double-click its name); Enter saves, Esc cancels
+function startProjRename(id) { S.renId = id; S.renErr = ""; renderProjects(); const i = document.querySelector("#projects .ren-in"); if (i) { i.focus(); i.select(); } }
+function renameBox(p) {
+  const w = el("div", "ren"), inp = el("input", "ren-in"), er = el("div", "np-err", S.renErr || ""); let busy = false;
+  inp.type = "text"; inp.maxLength = 60; inp.spellcheck = false; inp.value = p.name;
+  const done = () => { S.renId = null; S.renErr = ""; renderProjects(); };
+  inp.onclick = (e) => e.stopPropagation(); inp.ondblclick = (e) => e.stopPropagation();
+  inp.addEventListener("input", () => (er.textContent = ""));
+  inp.addEventListener("blur", () => setTimeout(() => { if (S.renId === p.id && !busy) done(); }, 150));
+  inp.addEventListener("keydown", async (e) => {
+    e.stopPropagation();
+    if (e.key === "Escape") { e.preventDefault(); done(); }
+    else if (e.key === "Enter") { e.preventDefault(); if (busy) return; const v = inp.value.trim(); if (v === p.name) return done(); busy = true;
+      try { const r = await hq.projectRename({ id: p.id, name: v }); if (!r.ok) er.textContent = r.err; else { S.renId = null; await loadProjects(); await selectProject(r.id); toast("Renamed to " + r.name); } }
+      catch (x) { er.textContent = /No handler/.test(x.message) ? "Restart HQ OS to use this" : x.message; } busy = false; } });
+  w.append(inp, er); return w;
+}
+function projMenu(x, y, p) {
+  document.querySelectorAll(".projmenu").forEach((m) => m.remove());
+  const m = el("div", "projmenu"); m.style.left = x + "px"; m.style.top = y + "px";
+  const b = el("button", "", "Rename…"); b.onclick = () => { m.remove(); startProjRename(p.id); }; m.append(b); document.body.append(m);
+  const off = () => { m.remove(); removeEventListener("mousedown", offd, true); removeEventListener("keydown", off, true); };
+  const offd = (e) => { if (!m.contains(e.target)) off(); }; addEventListener("mousedown", offd, true); addEventListener("keydown", off, true);
+}
 function renderProjects() {
+  if (S.renId && document.querySelector("#projects .ren-in") === document.activeElement) return; // don't wipe the box while typing
   const box = $("#projects"); box.textContent = "";
   const live = window.HQActivity ? window.HQActivity.groups(S.projects) : { byProj: new Map() };
   const active = activeProjects(), archived = S.projects.filter((p) => S.archived.has(p.id));
   active.forEach((p, i) => {
     const d = el("div", "proj" + (p.id === S.cur ? " on" : ""));
     const ab = el("button", "arch", "⊟"); ab.title = "Archive " + p.name + " (find it under ARCHIVED below)"; ab.onclick = (e) => { e.stopPropagation(); setArchived(p.id, true); }; d.append(ab); if (p.accent) d.style.setProperty("--pa", p.accent);
-    const n = el("div", "n"); n.append(el("span", "", p.name)); if (i < 9) n.append(el("span", "k", "^" + (i + 1))); d.append(n);
+    const n = el("div", "n");
+    if (S.renId === p.id) { n.append(renameBox(p)); d.classList.add("renaming"); }
+    else { const ns = el("span", "", p.name); ns.title = "Double-click to rename"; ns.ondblclick = (e) => { e.stopPropagation(); startProjRename(p.id); }; n.append(ns); if (i < 9) n.append(el("span", "k", "^" + (i + 1))); }
+    d.oncontextmenu = (e) => { e.preventDefault(); e.stopPropagation(); projMenu(e.clientX, e.clientY, p); }; d.append(n);
     const m = el("div", "m");
     m.append(el("span", "", p.hasTodo ? p.next + " next" : "no to-do"));
     if (p.wait) m.append(el("span", "w", p.wait + " need you"));

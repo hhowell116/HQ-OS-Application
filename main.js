@@ -167,6 +167,57 @@ app.whenReady().then(() => {
     const p = cache.projects.find((x) => path.basename(x.folder).toLowerCase() === name.toLowerCase());
     return { ok: true, id: p ? p.id : "", name };
   });
+  // Rename project: folder, To-Do note, settings entries, saved chats and archived list follow. Agent files keep their old slug prefix.
+  ipcMain.handle("project-rename", async (_, arg) => {
+    const id = arg && arg.id, raw = arg && arg.name;
+    const name = String(raw == null ? "" : raw).trim();
+    const old = cache.projects.find((x) => x.id === id);
+    if (!old) return { ok: false, err: "Unknown project" };
+    if (!name) return { ok: false, err: "Enter a name" };
+    if (name.length > 60) return { ok: false, err: "Name too long (60 max)" };
+    if (/[\/\\:*?"<>|\x00-\x1f]/.test(name) || name.includes("..") || /[. ]$/.test(name) || name.startsWith(".")) return { ok: false, err: "Name has characters that can't be in a folder name" };
+    if (/^(con|prn|aux|nul|com[0-9]|lpt[0-9])(\..*)?$/i.test(name)) return { ok: false, err: "That is a reserved Windows name" };
+    const root = settings.projectsRoot; if (!root || !fs.existsSync(root)) return { ok: false, err: "Projects folder not found" };
+    const oldFolder = path.resolve(old.folder), oldName = path.basename(oldFolder), newFolder = path.join(root, name);
+    if (path.dirname(oldFolder).toLowerCase() !== path.resolve(root).toLowerCase()) return { ok: false, err: "Only projects directly under the Projects folder can be renamed" };
+    if (name === oldName) return { ok: false, err: "That is already the name" };
+    const caseOnly = name.toLowerCase() === oldName.toLowerCase();
+    if (!caseOnly && (fs.existsSync(newFolder) || fs.readdirSync(root).some((n) => n.toLowerCase() === name.toLowerCase()))) return { ok: false, err: "A project with that name already exists" };
+    if (chats && chats.busyIn(oldFolder).length) return { ok: false, err: "A chat in this project is still working. Wait for it to finish, then rename." };
+    for (const [, w] of watched) try { w.close(); } catch (e) {} watched = new Map(); // release file handles before renaming
+    const busyMsg = "Something has files open in this project (an editor, terminal or git). Close it and try again.";
+    try {
+      if (caseOnly) { const tmp = oldFolder + ".hqrename-" + Date.now(); fs.renameSync(oldFolder, tmp); try { fs.renameSync(tmp, newFolder); } catch (e) { try { fs.renameSync(tmp, oldFolder); } catch (e2) {} throw e; } }
+      else fs.renameSync(oldFolder, newFolder);
+    } catch (e) { refreshProjects(); watchTodos(); return { ok: false, err: /EBUSY|EPERM|EACCES/.test(e.code || e.message) ? busyMsg : "Could not rename: " + e.message }; }
+    const slug = (x) => String(x).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "project";
+    const newId = old.id === slug(oldName) || old.id === slug(old.name) ? slug(name) : old.id;
+    const warn = [];
+    try { // To-Do note + heading
+      const nd = path.join(newFolder, "Notes"), oldTodo = path.join(nd, oldName + " To-Do.md"), newTodo = path.join(nd, name + " To-Do.md");
+      const src = fs.existsSync(oldTodo) ? oldTodo : "";
+      if (src) { let t = fs.readFileSync(src, "utf8"); t = t.replace(new RegExp("^# " + oldName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + " To-Do", "im"), "# " + name + " To-Do"); fs.writeFileSync(newTodo + ".tmp", t); if (src.toLowerCase() !== newTodo.toLowerCase() || src !== newTodo) { fs.renameSync(src, src + ".old"); } fs.renameSync(newTodo + ".tmp", newTodo); fs.unlinkSync(src + ".old"); }
+    } catch (e) { warn.push("To-Do note: " + e.message); }
+    const lc = (s) => String(s).toLowerCase(), oldTodoName = oldName + " To-Do.md";
+    const fix = (v) => { if (!v) return v; const s = String(v);
+      if (path.isAbsolute(s)) { if (lc(s) === lc(oldFolder) || lc(s).startsWith(lc(oldFolder) + path.sep)) { let r = newFolder + s.slice(oldFolder.length); if (lc(path.basename(r)) === lc(oldTodoName)) r = path.join(path.dirname(r), name + " To-Do.md"); return r; } return s; }
+      const parts = s.split(/[\\/]/); if (lc(parts[0]) === lc(oldName)) parts[0] = name; if (lc(parts[parts.length - 1]) === lc(oldTodoName)) parts[parts.length - 1] = name + " To-Do.md"; return parts.join("/"); };
+    try {
+      for (const p of settings.projects || []) if (p.id === old.id || lc(p.name) === lc(old.name) || lc(path.basename(mapAny(p.folder || p.name))) === lc(oldName)) {
+        p.name = name; p.id = newId; for (const k of ["folder", "todo", "notes", "agents", "review", "daily", "metricsCwd"]) if (p[k]) p[k] = fix(p[k]);
+        if (!p.folder) p.folder = name;
+      }
+      if (settings.last === old.id) settings.last = newId;
+      if (Array.isArray(settings.archived)) settings.archived = settings.archived.map((x) => (x === old.id ? newId : x));
+      D.saveSettings(SETTINGS_FILE, settings);
+    } catch (e) { warn.push("settings: " + e.message); }
+    try { if (chats) chats.moveProject(oldFolder, newFolder, old.id, newId, name); } catch (e) { warn.push("chats: " + e.message); }
+    refreshProjects(); watchTodos();
+    const p = cache.projects.find((x) => path.basename(x.folder).toLowerCase() === name.toLowerCase());
+    send("settings", pub());
+    return { ok: true, id: p ? p.id : newId, name, note: "Agent files in .claude/agents keep their old name prefix.", warn };
+    function mapAny(v) { return path.isAbsolute(String(v)) ? String(v) : path.join(root, String(v)); }
+  });
   ipcMain.handle("review-list", async (_, id) => { const p = projById(id); if (!p) return []; return (await D.reviewList(p)).map((i) => ({ key: i.key, title: i.title, status: i.status, created: i.created, note: i.note, video: i.video, media: i.files.map((f) => "hqreview://f/" + encodeURIComponent(f)) })); });
   ipcMain.handle("review-set", async (_, { id, key, status, comment }) => { const p = projById(id); if (!p) throw new Error("Unknown project"); await D.reviewSet(p, String(key), String(status), comment); return true; });
   ipcMain.handle("busy", () => !!(chats && chats.active().length));
