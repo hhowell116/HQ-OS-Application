@@ -163,3 +163,10 @@ body.in-floor .layout { display: none; }
 .src .ty { font-size: 9px; letter-spacing: .2em; color: var(--amb); border: 1px solid rgba(255,176,46,.4); padding: 1px 7px; border-radius: 9px; } .src .vd { font-size: 10px; font-weight: 800; letter-spacing: .16em; } .vd.up { color: var(--up); } .vd.amb { color: var(--amb); } .vd.dn { color: var(--dn); } .src time { font-size: 10px; color: var(--mut); }
 .src p { margin: 6px 0; font-size: 12px; color: #c0d2c9; line-height: 1.5; } .src .why { font-size: 11px; color: var(--amb); border-left: 2px solid var(--amb); padding-left: 8px; margin: 6px 0; } .src ul { margin: 6px 0; padding-left: 18px; font-size: 11.5px; color: #a9bdb4; line-height: 1.45; } .src li.idea { color: #7fd6b5; }
 .src .sf { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 6px; } .src .nt { font-size: 10px; color: var(--mut); } .src .url { font-size: 10px; color: var(--mut); max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* transcript is a slide-out over the table so the roundtable stays centred (Hayden 2026-11-23) */
+.fl-ag { display: block; position: relative; overflow: hidden; }
+.fl-ag .fl-stage { height: 100%; max-width: 1100px; margin: 0 auto; }
+.fl-rail { position: absolute; top: 0; right: 0; bottom: 0; width: 360px; z-index: 15; padding: 10px 12px; background: rgba(5,10,9,.97); border-left: 2px solid var(--amb); box-shadow: -20px 0 50px rgba(0,0,0,.6); transform: translateX(110%); transition: transform .25s ease-out; }
+.fl-rail.open { transform: none; }
+.fl-stamp { top: 24%; }

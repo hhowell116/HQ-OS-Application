@@ -15,10 +15,17 @@ app.whenReady().then(async () => {
   win.setBounds({ x: -2400, y: 0, width: 1600, height: 900 }); win.showInactive();
   const wc = win.webContents; fs.mkdirSync(out, { recursive: true }); wc.on("console-message", (_, lvl, msg, line, src) => { if (lvl >= 2) console.log("PAGE", lvl, msg, src.split("/").pop() + ":" + line); });
   await wc.executeJavaScript('window.HQView("floor")'); await sleep(3000);
+  if (process.env.SHOT_GO) { // click GO, grab the roundtable mid-run, wait for the run to finish
+    await wc.executeJavaScript('document.querySelector("#fl-tabs button[data-t=agents]").click(); document.querySelector("#fl-go").click()');
+    await sleep(+process.env.SHOT_GO * 1000); fs.writeFileSync(path.join(out, "trading-floor-agents-live.png"), (await wc.capturePage()).toPNG());
+    for (let i = 0; i < 90; i++) { if (await wc.executeJavaScript('!document.querySelector("#fl-go").disabled')) break; await sleep(5000); }
+    await sleep(1500);
+  }
   for (const t of tabs) {
     await wc.executeJavaScript('document.querySelector("#fl-tabs button[data-t=' + t + ']").click()'); await sleep(1200);
     if (t === "signals") { await wc.executeJavaScript('(document.querySelector(".fl-card")||{click(){}}).click()'); await sleep(500); }
     fs.writeFileSync(path.join(out, "trading-floor-" + t + ".png"), (await wc.capturePage()).toPNG());
+    if (t === "agents") { await wc.executeJavaScript('document.querySelector("#fl-tr").click()'); await sleep(700); fs.writeFileSync(path.join(out, "trading-floor-agents-transcript.png"), (await wc.capturePage()).toPNG()); await wc.executeJavaScript('document.querySelector("#fl-tr").click()'); }
     if (t === "signals") await wc.executeJavaScript('document.querySelector("#fl-drawer").classList.add("hidden")');
   }
   if (process.env.SHOT_EVAL) console.log(JSON.stringify(await wc.executeJavaScript(process.env.SHOT_EVAL)));

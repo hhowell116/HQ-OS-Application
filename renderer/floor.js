@@ -95,6 +95,7 @@
   function stopPlay() { if (S.play) { clearInterval(S.play); S.play = null; } }
   function startPlay() { const n = events().length; if (!n) return; S.follow = false; if (S.cur >= n - 1) S.cur = -1; S.play = setInterval(() => { const m = events().length; if (S.cur >= m - 1) { stopPlay(); S.follow = S.running; renderAgents(); return; } S.cur++; renderAgents(); }, 1100); renderAgents(); }
   $("#fl-play").onclick = () => (S.play ? (stopPlay(), renderAgents()) : startPlay());
+  $("#fl-tr").onclick = () => { const r = $(".fl-rail"); r.classList.toggle("open"); $("#fl-tr").classList.toggle("on", r.classList.contains("open")); renderAgents(); };
   $("#fl-live").onclick = () => { stopPlay(); S.follow = true; renderAgents(); };
   $("#fl-range").oninput = (x) => { stopPlay(); S.follow = false; S.cur = +x.target.value; renderAgents(); };
   function renderTape() {
@@ -220,9 +221,19 @@
       const reset = b.resets_at && b.resets_at * 1000 < Date.now(), p = reset ? 0 : Math.max(0, Math.min(100, Math.round(b.used_percentage)));
       bar.style.width = p + "%"; bar.className = lvl(p); t.textContent = p + "%" + (reset ? " (reset)" : b.resets_at ? " · resets " + until(b.resets_at) : "");
     }
-    $("#fl-uage").textContent = fresh ? "updated " + ago(u.updated) + (box.classList.contains("stale") ? " (stale)" : "") : "no data yet";
+    $("#fl-uage").textContent = fresh ? "updated " + ago(u.updated) + (u.via ? " via " + u.via : "") + (box.classList.contains("stale") ? " (stale)" : "") : "no data yet";
   }
-  async function refreshUsage() { try { S.usage = await hq.tfUsage(); } catch (e) { S.usage = null; } renderUsage(); }
+  async function refreshUsage() {
+    try { S.usage = await hq.tfUsage(); } catch (e) { S.usage = null; }
+    // the statusline file only updates in interactive Claude Code sessions in Stonks; HQ chats run headless, so fall back to HQ's own usage poll
+    if (!S.usage || !S.usage.updated || Date.now() - S.usage.updated > 15 * 60000) {
+      try {
+        const r = await hq.usage(false), u = r && r.usage, m = (x) => (x && x.utilization != null ? { used_percentage: x.utilization, resets_at: x.resets_at ? Math.floor(new Date(x.resets_at).getTime() / 1000) : null } : null);
+        if (u && (m(u.five_hour) || m(u.seven_day))) S.usage = { updated: Date.now(), five_hour: m(u.five_hour), seven_day: m(u.seven_day), via: "HQ usage poll" };
+      } catch (e) {}
+    }
+    renderUsage();
+  }
 
   // ---------- Knowledge ----------
   const VCOL = { legit: "up", mixed: "amb", selling: "dn" };
