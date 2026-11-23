@@ -23,7 +23,7 @@
   const ov = mk("div", "rev-ov hidden"); ov.id = "fx-ov";
   ov.innerHTML = '<div class="rl-box"><div class="rl-top"><button class="ghost" id="fx-back" title="Back">◂</button><span class="rl-ttl" id="fx-rt"></span><span class="dim small" id="fx-rm"></span><span class="spacer"></span><button class="ghost" id="fx-re">open in editor</button><button class="ghost" id="fx-rc" title="Close (Esc)">✕</button></div><div class="rl-body"><article class="rl-doc" id="fx-doc"></article></div></div>';
   const menu = mk("div", "hidden"); menu.id = "fx-menu";
-  document.body.append(rib, panel, ov, menu);
+  document.body.append(panel, ov, menu); { const tb = document.querySelector(".titlebar"); if (tb) tb.prepend(rbtn); else { rib.append(rbtn); document.body.append(rib); } } // files button lives in the title bar (Hayden 2026-11-23)
   const $f = (s) => document.querySelector(s);
 
   // ---------- layout state ----------

@@ -15,5 +15,6 @@ app.whenReady().then(async () => {
   const wc = win.webContents; fs.mkdirSync(out, { recursive: true }); await sleep(2500);
   await wc.executeJavaScript(`window.HQView && window.HQView("hq")`); await sleep(1500);
   fs.writeFileSync(path.join(out, "hq-fresh.png"), (await wc.capturePage()).toPNG());
+  if (process.argv[3] === "files") { await wc.executeJavaScript(`document.querySelector(".titlebar .fx-rb").click()`); await sleep(900); fs.writeFileSync(path.join(out, "hq-files.png"), (await wc.capturePage()).toPNG()); }
   app.exit(0);
 });

@@ -39,3 +39,9 @@ body.fx-drag .layout, body.fx-drag #fx-panel { transition: none; }
 .rl-doc a.fx-wl { color: var(--hl); text-decoration: none; border-bottom: 1px dashed var(--hl); }
 .layout > .col.center { min-width: 0; }
 #fx-ov { left: var(--fxr); } body.fx-open #fx-ov { left: calc(var(--fxr) + var(--fxw)); }
+
+/* Files button moved into the title bar; no left rail column (Hayden 2026-11-23) */
+:root { --fxr: 0px; }
+#fx-rib { display: none; }
+.titlebar .fx-rb { -webkit-app-region: no-drag; margin-right: -6px; flex: none; }
+body.fx-hide .titlebar .fx-rb { display: none; }
