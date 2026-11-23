@@ -9,13 +9,17 @@
   "scripts": {
     "start": "electron .",
     "postinstall": "node tools/brand-exe.js",
-    "brand": "node tools/brand-exe.js"
+    "brand": "node tools/brand-exe.js",
+    "build:nebula": "esbuild tools/nebula-entry.js --bundle --minify --format=iife --outfile=renderer/vendor/nebula-lib.js"
   },
   "devDependencies": {
     "electron": "^45.4.1",
+    "esbuild": "^0.28.2",
     "rcedit": "^4.0.1"
   },
   "dependencies": {
-    "kokoro-js": "^1.2.1"
+    "3d-force-graph": "^1.80.2",
+    "kokoro-js": "^1.2.1",
+    "three": "^0.187.0"
   }
 }

@@ -9,7 +9,7 @@ contextBridge.exposeInMainWorld("hq", {
   restart: inv("restart"), codePending: inv("code-pending"), busy: inv("busy"),
   agents: inv("agents"), crew: inv("crew"), usage: inv("usage"), music: inv("music"), musicCtl: inv("music-ctl"),
   ttsSpeak: inv("tts-speak"), ttsStop: inv("tts-stop"), ttsLog: inv("tts-log"), sttTranscribe: inv("stt-transcribe"), projectCreate: inv("project-create"),
-  rulesRead: inv("rules-read"), rulesOpen: inv("rules-open"), set: inv("set"), openPath: inv("open-path"),
+  rulesRead: inv("rules-read"), rulesOpen: inv("rules-open"), set: inv("set"), openPath: inv("open-path"), graphScan: inv("graph-scan"),
   chatList: inv("chat-list"), chatGet: inv("chat-get"), chatNew: inv("chat-new"), chatSend: inv("chat-send"), chatRename: inv("chat-rename"),
   chatStop: inv("chat-stop"), chatModel: inv("chat-model"), chatDelete: inv("chat-delete"), chatHandoff: inv("chat-handoff"), chatCompact: inv("chat-compact"),
   tfState: inv("tf-state"), tfGo: inv("tf-go"), tfScore: inv("tf-score"), tfStop: inv("tf-stop"), tfResume: inv("tf-resume"), tfKill: inv("tf-kill"), tfEvents: inv("tf-events"), tfUsage: inv("tf-usage"), knList: inv("kn-list"), knIngest: inv("kn-ingest"), knOpen: inv("kn-open"),

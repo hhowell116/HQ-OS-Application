@@ -240,6 +240,8 @@ app.whenReady().then(() => {
   ipcMain.handle("open-path", (_, p) => { const target = p === "settings" ? SETTINGS_FILE : p; if (target && fs.existsSync(target)) shell.openPath(target); });
   // Rules viewer: read-only, exactly one file (CLAUDE.md in the Projects root). The renderer never supplies a path.
   const rulesFile = () => path.join(settings.projectsRoot || path.join(require("os").homedir(), "Projects"), "CLAUDE.md");
+  let graphCache = null; // Nebula tab: scan on demand (graph-scan force=true) or when stale
+  ipcMain.handle("graph-scan", (_, force) => { if (!graphCache || force || Date.now() - graphCache.at > 120000) { try { graphCache = require("./graph.js").scan(settings, refreshProjects()); } catch (e) { return { nodes: [], links: [], projects: [], at: Date.now(), err: String(e.message || e) }; } } return graphCache; });
   ipcMain.handle("rules-read", () => { const f = rulesFile(); try { return { path: f, text: fs.readFileSync(f, "utf8"), mtime: fs.statSync(f).mtimeMs }; } catch (e) { return { path: f, text: "", mtime: 0, err: "Could not read " + path.basename(f) }; } });
   ipcMain.handle("rules-open", () => { const f = rulesFile(); if (fs.existsSync(f)) shell.openPath(f); });
   { let t, w; try { w = fs.watch(path.dirname(rulesFile()), (ev, name) => { if (name && name.toLowerCase() !== "claude.md") return; clearTimeout(t); t = setTimeout(() => send("rules-changed", true), 300); }); w.on("error", () => {}); } catch (e) {} }

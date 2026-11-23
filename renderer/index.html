@@ -6,13 +6,14 @@
 <title>HQ OS</title>
 <link rel="stylesheet" href="style.css">
 <link rel="stylesheet" href="floor.css">
+<link rel="stylesheet" href="nebula.css">
 </head>
 <body>
 <div class="grid-bg"></div><div class="scan"></div>
 
 <header class="titlebar">
   <div class="brand"><span class="glyph">◈</span><span>HQ<b>OS</b></span><span class="ver">v2.1</span></div>
-  <div class="tabs" id="tabs"><button data-view="hq" class="on" title="Command center (F1)">HQ</button><button data-view="room" title="War room: your agents around the table (F2)">WAR ROOM</button><button data-view="floor" title="Trading Floor: research agents, paper trades (F4)">TRADING FLOOR</button></div>
+  <div class="tabs" id="tabs"><button data-view="hq" class="on" title="Command center (F1)">HQ</button><button data-view="room" title="War room: your agents around the table (F2)">WAR ROOM</button><button data-view="floor" title="Trading Floor: research agents, paper trades (F4)">TRADING FLOOR</button><button data-view="nebula" title="Nebula: every note and how they link (F5)">NEBULA</button></div>
   <div class="status" id="status">
     <span class="chip warn hidden" id="restart-chip" style="cursor:pointer" title="Main-process code changed. Click to restart HQ OS.">⟳ restart to apply</span>
     <span class="chip" id="chip-agents">0 agents</span>
@@ -128,6 +129,16 @@
   <aside class="comms" id="room-comms"></aside>
   <div class="legend">click a seat for details · Ctrl+D demo crew · Esc back to HQ</div>
 </section>
+<section class="nebula-view hidden" id="nebula-view">
+  <div id="nb-stage"></div>
+  <div class="nb-bar"><span class="nb-ttl">&#9672; NEBULA</span><span class="nb-sub" id="nb-count">scanning…</span><span class="spacer"></span>
+    <div class="nb-sw"><input id="nb-search" type="text" placeholder="fly to a note…" spellcheck="false" autocomplete="off"><div class="nb-results hidden" id="nb-results"></div></div>
+    <button class="ghost on" id="nb-ghosts" title="Show unresolved [[links]] as dim ghost nodes">◌ ghosts</button>
+    <button class="ghost" id="nb-refresh" title="Rescan all notes">⟳</button>
+    <button class="ghost" id="nb-back" title="Back to HQ (F5)">← back to HQ</button></div>
+  <div class="nb-chips" id="nb-chips"></div>
+  <aside class="nb-panel hidden" id="nb-panel"></aside>
+</section>
 <section class="floor-view hidden" id="floor-view">
   <div class="fl-bar">
     <span class="fl-ttl">&#9672; TRADING FLOOR</span><span class="fl-sub" id="fl-sub">desks idle</span>
@@ -192,5 +203,7 @@
 <script src="rules.js"></script>
 <script src="office.js"></script>
 <script src="floor.js"></script>
+<script src="vendor/nebula-lib.js"></script>
+<script src="nebula.js"></script>
 </body>
 </html>
