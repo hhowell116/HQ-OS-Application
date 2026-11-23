@@ -2,9 +2,9 @@
 (function () {
   const $ = (s) => document.querySelector(s);
   const mk = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
-  const ORDER = ["market", "news", "sentiment", "analyst", "debate", "risk", "lead", "score", "reflect"];
-  const ICON = { market: "▦", news: "✉", sentiment: "☺", analyst: "∿", debate: "⚔", risk: "⛨", lead: "★", score: "✓", reflect: "✎" };
-  const NAME = { market: "Market Data", news: "News & Policy", sentiment: "Sentiment", analyst: "Analyst", debate: "Bull vs Bear", risk: "Risk Manager", lead: "Lead", score: "Scorekeeper", reflect: "Reflector" };
+  const ORDER = ["market", "news", "sentiment", "analyst", "debate", "backtest", "risk", "lead", "score", "reflect"];
+  const ICON = { market: "▦", news: "✉", sentiment: "☺", analyst: "∿", debate: "⚔", backtest: "⟲", risk: "⛨", lead: "★", score: "✓", reflect: "✎" };
+  const NAME = { market: "Market Data", news: "News & Policy", sentiment: "Sentiment", analyst: "Analyst", debate: "Bull vs Bear", backtest: "Backtester", risk: "Risk Manager", lead: "Lead", score: "Scorekeeper", reflect: "Reflector" };
   const S = { running: false, desks: {}, alerts: [], tape: [], stats: null, sig: {}, finishedAt: 0 };
   const sgn = (n) => (n > 0 ? "+" : "") + n;
   const cls = (n) => (n > 0 ? "up" : n < 0 ? "dn" : "");
