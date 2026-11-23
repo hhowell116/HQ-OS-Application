@@ -12,6 +12,8 @@
   const NEXT = { score: "market", market: "analyst", news: "analyst", sentiment: "analyst", mirror: "analyst", analyst: "bull", bull: "bear", bear: "backtest", debate: "backtest", backtest: "risk", risk: "lead", lead: "reflect", reflect: "" };
   const STAGES = [["SCORE", ["score"]], ["DATA", ["market", "news", "sentiment", "mirror"]], ["ANALYST", ["analyst"]], ["DEBATE", ["bull", "bear"]], ["BACKTEST", ["backtest"]], ["RISK", ["risk"]], ["LEAD", ["lead"]], ["REFLECT", ["reflect"]]];
   const S = { health: { ok: true, why: [] }, running: false, desks: {}, alerts: [], tape: [], stats: null, sig: {}, equity: [], finishedAt: 0, ev: [], cur: -1, follow: true, sel: "", play: null, usage: null };
+  // render gate: a panel only rebuilds its DOM when its inputs actually changed (rebuilding on every poll/tick made the HUD flash)
+  const memo = {}; const changed = (k, v) => { const x = JSON.stringify(v); if (memo[k] === x) return false; memo[k] = x; return true; };
   const sgn = (n) => (n > 0 ? "+" : "") + n;
   const cls = (n) => (n > 0 ? "up" : n < 0 ? "dn" : "");
   const usd = (n) => (n < 0 ? "-$" : "$") + Math.abs(n).toLocaleString(undefined, { maximumFractionDigits: 2 });
@@ -46,7 +48,8 @@
     syncBusy();
     const ev = events(), n = ev.length; if (S.follow || S.cur >= n) S.cur = n - 1;
     const cur = S.cur, { st } = derive(ev, cur);
-    notify(); const stp = $("#fl-stepper"); stp.textContent = "";
+    notify(); const lastE = ev[n - 1] || {}; if (!changed("ag", [n, cur, lastE.ts, lastE.seq, S.follow, !!S.play, S.sel, S.kind, !!S.dv, S.card, S.running, !!S.cardOpen, Object.keys(S.desks).map((k) => k + ":" + (S.desks[k] && S.desks[k].status))])) return;
+    const stp = $("#fl-stepper"); stp.textContent = "";
     STAGES.forEach(([label, ids], i) => { const ss = ids.map((x) => st[x].status), c = ss.includes("working") ? "working" : ss.includes("error") ? "error" : ss.every((x) => x === "done") ? "done" : ss.includes("done") ? "working" : ""; stp.append(mk("span", "stp " + c, label)); if (i < STAGES.length - 1) stp.append(mk("i")); });
     // scrubber
     const r = $("#fl-range"); r.max = Math.max(0, n - 1); r.value = Math.max(0, cur); $("#fl-spos").textContent = n ? (cur + 1) + "/" + n : "0/0";
@@ -135,7 +138,8 @@
     if (holds.length) { const hb = mk("div", "hhold"); hb.append(mk("small", "", "NEEDS ACTION")); holds.slice(0, 3).forEach((x) => hb.append(mk("div", "", x.txt))); h.append(hb); }
   }
   function renderAlerts() {
-    renderHero(); const box = $("#fl-alerts"); box.textContent = "";
+    if (!changed("al", [S.alerts, S.passedOpen, S.finishedAt, S.stats && S.stats.positions, Math.floor(Date.now() / 60000)])) return;
+    renderHero(); const box = $("#fl-alerts"), keepTop = box.scrollTop; box.textContent = "";
     if (!S.alerts.length) { box.append(mk("div", "fl-empty", "No alerts yet. Hit GO to send the desks to work.")); $("#fl-when").textContent = ""; return; }
     const g = ranked(); let n = 0;
     [...g.act, ...g.watch].forEach((a) => box.append(card(a, ++n)));
@@ -143,9 +147,10 @@
       const f = mk("button", "fl-fold", (S.passedOpen ? "▾ " : "▸ ") + "Passed on (" + g.passed.length + ")"); f.onclick = () => { S.passedOpen = !S.passedOpen; renderAlerts(); }; box.append(f);
       if (S.passedOpen) g.passed.forEach((a) => box.append(card(a, 0, true)));
     }
-    const t = S.alerts[0] && S.alerts[0].ts; $("#fl-when").textContent = t ? new Date(t).toLocaleString([], { hour: "numeric", minute: "2-digit" }) : "";
+    const t = S.alerts[0] && S.alerts[0].ts; $("#fl-when").textContent = t ? new Date(t).toLocaleString([], { hour: "numeric", minute: "2-digit" }) : ""; box.scrollTop = keepTop;
   }
   function renderBook() {
+    if (!changed("bk", S.stats)) return;
     const s = S.stats, box = $("#fl-stats"); box.textContent = "";
     if (!s) { box.append(mk("div", "fl-empty", "No ledger yet.")); return; }
     const ring = mk("div", "fl-ring"), b = mk("b", "", s.winRate == null ? "--" : s.winRate + "%"); b.append(mk("small", "", "WIN RATE")); ring.append(b);
@@ -161,6 +166,7 @@
     }
   }
   function renderSafety() {
+    if (!changed("sf", [S.stats && S.stats.safety, S.stats && S.stats.limits, S.health, S.flag])) return;
     const sf = (S.stats && S.stats.safety) || {}, paused = sf.status === "PAUSED", h = S.health || { ok: true, why: [] }, fl = S.flag;
     const pill = $("#fl-pill"); pill.textContent = paused ? "PAUSED" : "ACTIVE"; pill.className = "fl-pill " + (paused ? "paused" : "active"); pill.title = paused ? (sf.reason || "paused") : "Agent is allowed to trade";
     $("#fl-resume").classList.toggle("hidden", !paused);
@@ -174,12 +180,14 @@
     if (sf.peak) box.append(Object.assign(mk("span", "pk", ""), { textContent: "PEAK $" + Math.round(sf.peak) }));
   }
   function renderCmp() {
+    if (!changed("cmp", S.stats)) return;
     const s = S.stats, box = $("#fl-cmp"); box.textContent = ""; if (!s || !s.steady) return;
     const rows = [["SCANNER", s.retPct, s.trades + " closed · " + s.open + " open"], ["STEADY", s.steady.retPct, s.steady.trades + " closed · " + s.steady.open + " open"], ...(s.mirror ? [["MIRROR", s.mirror.retPct, s.mirror.trades + " closed · " + s.mirror.open + " open"]] : []), ["SPY", s.spy && s.spy.retPct, s.spy && s.spy.since ? "since " + new Date(s.spy.since).toLocaleDateString() : "benchmark"]];
     for (const [k, v, n] of rows) { const d = mk("div", "t " + k); d.append(mk("small", "", k), mk("b", cls(v), v == null ? "--" : sgn(v) + "%"), mk("em", "", n)); box.append(d); }
     if (s.review && s.review.due) box.append(mk("div", "rev", "Steady watchlist review due (every " + s.review.every + " days)"));
   }
   function renderSig() {
+    if (!changed("sig", S.sig)) return;
     const box = $("#fl-sig"); box.textContent = ""; const e = Object.entries(S.sig).sort((a, b) => b[1].n - a[1].n);
     if (!e.length) { box.append(mk("div", "fl-empty", "Signals are scored once trades close.")); return; }
     for (const [k, v] of e) { const r = mk("div", "fl-row"), n = mk("span", "", k); if (v.demoted) n.append(mk("span", "dem", "DEMOTED")); r.append(n, mk("span", "pl " + cls(v.pnl), Math.round(v.winRate * 100) + "% · " + v.n + " · " + usd(v.pnl))); box.append(r); }
@@ -189,7 +197,7 @@
   const AG_NAME = Object.assign({}, NAME, { steady: "Steady Desk", hub: "Lead Hub", debate: "Bull vs Bear" });
   function closeCard() { if (window.HQStocks3D && HQStocks3D.focused()) HQStocks3D.unfocus(); else agentClose(); }
   function agentClose() { if (!S.card) return; const id = S.card; S.card = null; $("#fl-drawer").classList.add("hidden"); if (S.sel === id) { S.sel = ""; renderAgents(); } }
-  function agentCard(id) { S.card = id; S.sel = ANG[id] != null ? id : ""; renderAgents(); }
+  function agentCard(id) { delete memo.ag; S.card = id; S.sel = ANG[id] != null ? id : ""; renderAgents(); }
   function renderCard() {
     const id = S.card, d = $("#fl-drawer"), ev = events(), cur = Math.min(S.cur, ev.length - 1); d.textContent = ""; d.classList.remove("hidden");
     const mine = (e) => (id === "hub" ? !!e.to : id === "steady" ? /steady/i.test(e.text || "") : id === "debate" ? ["debate", "bull", "bear"].includes(e.agent) : e.agent === id), upto = ev.slice(0, cur + 1), list = upto.filter(mine), last = list[list.length - 1], st = derive(ev, cur).st;
@@ -223,6 +231,7 @@
 
   // ---------- Book: equity curve (inline SVG) ----------
   function renderCurve() {
+    if (!changed("cv", [S.equity, S.stats && S.stats.capital, S.stats && S.stats.sleeves])) return;
     const box = $("#fl-curve"); box.textContent = ""; const h = S.equity || [], s = S.stats;
 
     if (h.length < 2) { box.append(mk("div", "fl-empty", "The curve fills in as runs finish. Each GO or SCORE adds a point.")); return; }
@@ -244,6 +253,7 @@
   function renderHead() {
     syncBusy();
     const s = S.stats, eq = s && (s.totalEquity != null ? s.totalEquity : s.equity), cap = s && (s.capital || 0);
+    if (!changed("hd", [eq, cap, s && s.spy, S.running, S.finishedAt, Object.values(S.desks).filter((d) => d.status === "working").map((d) => d.name)])) { notify(); return; }
     $("#fl-eq").textContent = eq == null ? "--" : usd(eq);
     const ret = eq != null && cap ? Math.round((eq / cap - 1) * 10000) / 100 : null, spy = s && s.spy && s.spy.retPct;
     const r = $("#fl-ret"); r.textContent = ret == null ? "--" : sgn(ret) + "%"; r.className = cls(ret);
@@ -255,6 +265,7 @@
   const lvl = (p) => (p >= 80 ? "r" : p >= 50 ? "a" : "g");
   const until = (sec) => { const m = Math.max(0, Math.round((sec * 1000 - Date.now()) / 60000)), d = Math.floor(m / 1440), h = Math.floor((m % 1440) / 60); return d ? d + "d " + h + "h" : h ? h + "h " + (m % 60) + "m" : (m % 60) + "m"; };
   function renderUsage() {
+    if (!changed("use", [S.usage, Math.floor(Date.now() / 60000)])) return;
     const u = S.usage, box = $("#fl-use"), fresh = u && u.updated && Date.now() - u.updated < 7 * 86400000;
     box.classList.toggle("none", !fresh); box.classList.toggle("stale", !!fresh && Date.now() - u.updated > 15 * 60000);
     for (const [id, key] of [["#fl-u5", "five_hour"], ["#fl-u7", "seven_day"]]) {
@@ -349,6 +360,11 @@
   $("#fl-resume").onclick = () => { if (confirm("Resume trading? The peak resets to current equity.")) start(() => hq.tfResume()); };
   $("#fl-kill").onclick = () => { if (confirm("KILL: close ALL paper positions and pause the agent?")) start(() => hq.tfKill()); };
   $("#fl-score").onclick = () => start(() => hq.tfScore());
+  // CHAT: opens HQ's own chat panel for this floor's project (tower-chat.js: HQTowerChat.open / .close, fallback = click its own toggle)
+  { const b = mk("button", "fl-btn ghost", "CHAT"); b.id = "fl-chat"; b.title = "Chat with Claude about the Stocks project (C)"; const r = $("#fl-resume"); r.parentNode.insertBefore(b, r.nextSibling);
+    b.onclick = () => { const C = window.HQTowerChat; if (C && C.open) { C.isOpen() ? C.close() : C.open(true); } else { const t = document.getElementById("tw-chatbtn"); if (t) t.click(); else toast("Chat is not available here"); } };
+    const dvb = mk("button", "fl-btn ghost", "DATA VIEW"); dvb.id = "fl-dvbtn"; dvb.title = "Dense dashboard view (also the DATA VIEW button on the wall)"; dvb.onclick = () => dvEnter(); b.after(dvb);
+    setInterval(() => { const on = !!(window.HQTowerChat && HQTowerChat.isOpen && HQTowerChat.isOpen()); if (b.classList.contains("on") !== on) b.classList.toggle("on", on); dvb.classList.toggle("hidden", !!S.dv); }, 500); }
   const clk = () => { $("#fl-clock").textContent = new Date().toLocaleTimeString([], { hour12: false }); };
   clk(); setInterval(clk, 1000);
   window.HQFloor = {

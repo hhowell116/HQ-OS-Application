@@ -21,16 +21,17 @@
   // a canvas-textured wall screen; draw(ctx, w, h) is re-run only when sig() changes
   function screen(K, I, w, h, cw, chh, x, y, z, rotY, frame) {
     const cv = document.createElement("canvas"); cv.width = cw; cv.height = chh; const ctx = cv.getContext("2d"), T = K.THREE;
-    const tex = new T.CanvasTexture(cv); tex.colorSpace = T.SRGBColorSpace; tex.anisotropy = 4;
-    const m = new T.Mesh(new T.PlaneGeometry(w, h), new T.MeshBasicMaterial({ map: tex, toneMapped: false })); m.position.set(x, y, z); m.rotation.y = rotY || 0; I.g.add(m);
+    const tex = new T.CanvasTexture(cv); tex.colorSpace = T.SRGBColorSpace; tex.anisotropy = 16; tex.generateMipmaps = true; tex.minFilter = T.LinearMipmapLinearFilter; tex.magFilter = T.LinearFilter;
+    // linear x0.5 keeps the brightest text under the bloom threshold (0.55): glow halos on thin text flip on/off with the camera sway = shimmer
+    const m = new T.Mesh(new T.PlaneGeometry(w, h), new T.MeshBasicMaterial({ map: tex, toneMapped: false, color: 0xbbbbbb })); m.position.set(x, y, z); m.rotation.y = rotY || 0; I.g.add(m);
     const fm = new T.MeshBasicMaterial({ color: frame, toneMapped: false });
     for (const [bw, bh, bx, by] of [[w + 0.12, 0.05, 0, h / 2], [w + 0.12, 0.05, 0, -h / 2], [0.05, h, -w / 2, 0], [0.05, h, w / 2, 0]]) { const b = new T.Mesh(new T.BoxGeometry(bw, bh, 0.04), fm); b.position.set(bx, by, -0.03); m.add(b); }
     return { m, tex, ctx, cw, ch: chh, sig: "" };
   }
   function lineChart(c, x, y, w, h, vals, col) {
     if (vals.length < 2) { c.strokeStyle = "rgba(255,255,255,.18)"; c.setLineDash([8, 8]); c.beginPath(); c.moveTo(x, y + h / 2); c.lineTo(x + w, y + h / 2); c.stroke(); c.setLineDash([]); return; }
-    const lo = Math.min(...vals), hi = Math.max(...vals), sp = hi - lo || 1; c.strokeStyle = col; c.lineWidth = 5; c.shadowColor = col; c.shadowBlur = 16; c.beginPath();
-    vals.forEach((v, i) => { const px = x + (i / (vals.length - 1)) * w, py = y + h - ((v - lo) / sp) * h; i ? c.lineTo(px, py) : c.moveTo(px, py); }); c.stroke(); c.shadowBlur = 0;
+    const lo = Math.min(...vals), hi = Math.max(...vals), sp = hi - lo || 1; c.strokeStyle = col; c.lineWidth = 5; c.beginPath();
+    vals.forEach((v, i) => { const px = x + (i / (vals.length - 1)) * w, py = y + h - ((v - lo) / sp) * h; i ? c.lineTo(px, py) : c.moveTo(px, py); }); c.stroke();
   }
 
   function build(I, K) {
@@ -70,7 +71,7 @@
     sc.sig = screen(K, I, 3.5, 1.95, 768, 428, hw * 0.62, 2.0, z, 0, fc);
     const stripM = new T.MeshBasicMaterial({ color: col.clone().multiplyScalar(0.8), toneMapped: false }); for (const x of [-hw + 0.1, hw - 0.1]) K.box(g, 0.06, 3.0, 0.06, stripM, x, 1.5, -hw + 0.12);
     // DATA VIEW button on the back wall (below the big screen): raycast-clickable, gentle hover
-    const bd = (S.dvBtn = screen(K, I, 1.8, 0.45, 384, 96, 0, 3.6, z + 0.03, 0, col.clone().multiplyScalar(0.55))); bd.hov = null;
+    const bd = (S.dvBtn = screen(K, I, 1.8, 0.45, 384, 96, 0, 3.28, z + 0.03, 0, col.clone().multiplyScalar(0.55))); bd.hov = null;
     bd.draw = (h) => { if (bd.hov === h) return; bd.hov = h; const c = bd.ctx; c.clearRect(0, 0, 384, 96); c.fillStyle = h ? "rgba(26,20,8,.96)" : "rgba(5,9,14,.94)"; c.fillRect(0, 0, 384, 96); c.strokeStyle = h ? "#f5b94acc" : "#f5b94a66"; c.lineWidth = 3; c.strokeRect(6, 6, 372, 84); c.font = "700 36px Consolas, monospace"; c.textAlign = "center"; c.textBaseline = "middle"; c.fillStyle = h ? "#f2d79a" : "#b8955a"; c.fillText("▤  DATA VIEW", 192, 50); bd.tex.needsUpdate = true; }; bd.draw(false);
     buildExtras(I, K); bd.m.userData.id = "dataview"; S.prox.push(bd.m);
     I.anim = (t, dt) => anim(I, K, t, dt);
@@ -279,20 +280,20 @@
   function drawScreens(I, K) {
     const S = I.stonks, f = F(), D = f.data(), V = f.desks(), st = D.stats || {}, sf = st.safety || {}, paused = sf.status === "PAUSED", run = V.running, eq = (D.equity || []).map((p) => p.total).filter((v) => v != null);
     const sg = (name, sig, fn) => { const s = S.screens[name]; if (s.sig === sig) return; s.sig = sig; const c = s.ctx; c.clearRect(0, 0, s.cw, s.ch); c.fillStyle = "rgba(3,9,14,.96)"; c.fillRect(0, 0, s.cw, s.ch); fn(c, s.cw, s.ch); s.tex.needsUpdate = true; };
-    const head = (c, w, txt, col) => { c.textBaseline = "middle"; c.textAlign = "left"; c.font = "700 34px Consolas, monospace"; c.shadowColor = col; c.shadowBlur = 14; c.fillStyle = col; c.fillText(txt, 28, 38); c.shadowBlur = 0; c.fillStyle = "rgba(255,255,255,.1)"; c.fillRect(24, 68, w - 48, 2); };
+    const head = (c, w, txt, col) => { c.textBaseline = "middle"; c.textAlign = "left"; c.font = "700 34px Consolas, monospace"; c.fillStyle = col; c.fillText(txt, 28, 38); c.fillStyle = "rgba(255,255,255,.1)"; c.fillRect(24, 68, w - 48, 2); };
     sg("eq", "e" + eq.length + "|" + (eq[eq.length - 1] || 0), (c, w, h) => { head(c, w, "EQUITY CURVE", amb); lineChart(c, 40, 100, w - 80, h - 150, eq, up); c.font = "600 24px Consolas, monospace"; c.fillStyle = "#8fa3b0"; c.textAlign = "right"; c.fillText(eq.length ? usd(eq[eq.length - 1]) : "no ledger yet", w - 30, h - 24); });
     const total = st.totalEquity != null ? st.totalEquity : st.equity, ret = st.retPct, label = paused ? "PAUSED" : run ? "RUNNING" : "IDLE", lc = paused ? dn : run ? amb : "#5eead4";
     sg("main", label + "|" + total + "|" + ret + "|" + (run ? Math.floor(performance.now() / 700) % 2 : 0), (c, w, h) => {
-      c.textAlign = "center"; c.textBaseline = "middle"; c.shadowColor = lc; c.shadowBlur = 24; c.fillStyle = lc; c.font = "800 64px Consolas, monospace"; c.fillText("STOCKS FLOOR", w / 2, 78); c.shadowBlur = 0;
+      c.textAlign = "center"; c.textBaseline = "middle"; c.fillStyle = lc; c.font = "800 64px Consolas, monospace"; c.fillText("STOCKS FLOOR", w / 2, 78);
       c.font = "700 44px Consolas, monospace"; c.fillStyle = lc; c.fillText((run && Math.floor(performance.now() / 700) % 2 ? "● " : "○ ") + label, w / 2, 160);
-      c.font = "800 92px Consolas, monospace"; c.fillStyle = "#e6edf3"; c.shadowColor = "#5eead4"; c.shadowBlur = 18; c.fillText(total != null ? usd(total) : "--", w / 2, 292); c.shadowBlur = 0;
+      c.font = "800 92px Consolas, monospace"; c.fillStyle = "#e6edf3"; c.fillText(total != null ? usd(total) : "--", w / 2, 292);
       c.font = "700 46px Consolas, monospace"; c.fillStyle = ret > 0 ? up : ret < 0 ? dn : "#8fa3b0"; c.fillText(ret != null ? (ret > 0 ? "+" : "") + ret + "% since start" : "paper book", w / 2, 392);
       c.font = "600 24px Consolas, monospace"; c.fillStyle = "#6b7d8a"; c.fillText("PAPER TRADING · research only", w / 2, 462);
     });
     const al = (D.alerts || []).slice().sort((a, b) => ({ BUY: 0, SELL: 1, WATCH: 2 }[a.action] - { BUY: 0, SELL: 1, WATCH: 2 }[b.action]) || b.confidence - a.confidence).slice(0, 6);
     sg("sig", "s" + al.map((a) => a.ticker + a.action + a.confidence).join(","), (c, w, h) => {
       head(c, w, "SIGNAL BOARD", amb); if (!al.length) { c.font = "600 26px Consolas, monospace"; c.fillStyle = "#6b7d8a"; c.fillText("no alerts yet", 40, 140); }
-      al.forEach((a, i) => { const y = 112 + i * 52, cc = a.action === "BUY" ? up : a.action === "SELL" ? dn : amb; c.fillStyle = cc; c.fillRect(30, y - 18, 6, 38); c.textAlign = "left"; c.font = "700 32px Consolas, monospace"; c.shadowColor = cc; c.shadowBlur = 10; c.fillText(a.action, 50, y); c.fillStyle = "#e6edf3"; c.shadowBlur = 0; c.fillText(a.ticker, 190, y); c.textAlign = "right"; c.fillStyle = "#8fa3b0"; c.fillText(String(a.confidence != null ? a.confidence : ""), w - 30, y); });
+      al.forEach((a, i) => { const y = 112 + i * 52, cc = a.action === "BUY" ? up : a.action === "SELL" ? dn : amb; c.fillStyle = cc; c.fillRect(30, y - 18, 6, 38); c.textAlign = "left"; c.font = "700 32px Consolas, monospace"; c.fillText(a.action, 50, y); c.fillStyle = "#e6edf3"; c.fillText(a.ticker, 190, y); c.textAlign = "right"; c.fillStyle = "#8fa3b0"; c.fillText(String(a.confidence != null ? a.confidence : ""), w - 30, y); });
     });
   }
 
