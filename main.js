@@ -19,7 +19,7 @@ const LEGACY = path.join(__dirname, "..", "data.json"); // the Obsidian plugin's
 const ICON = path.join(__dirname, "renderer", "icon.ico");
 const ELECTRON = process.execPath;
 let settings = D.loadSettings(SETTINGS_FILE, LEGACY);
-let win = null, chats = null, now = null, tfProc = null;
+let win = null, chats = null, now = null, tfProc = null, FX = null;
 const cache = { projects: [], agents: [], boards: [], usage: null, usageErr: "", usageAt: 0, music: null, vit: [] };
 
 // Read-only hqreview://f/<encoded path>: serves only media inside a project's Review folder.
@@ -134,7 +134,7 @@ app.whenReady().then(() => {
     session.defaultSession.setPermissionRequestHandler((wc, perm, cb) => cb(own(wc)));
     session.defaultSession.setPermissionCheckHandler((wc) => own(wc)); }
   const pub = () => ({ person: settings.person, voice: !!settings.voice, voiceName: settings.voiceName || "af_heart", speed: settings.speed || 1.1, last: settings.last, projectsRoot: settings.projectsRoot, theme: settings.theme || "cyan", accent: settings.accent || "", audio: settings.audio !== false, autoSend: !!settings.autoSend, music: settings.music !== false, archived: settings.archived || [], startView: settings.startView || "home", nebulaMode: settings.nebulaMode || "" });
-  require("./files-ipc.js")({ ipcMain, shell, settings, send, save: () => D.saveSettings(SETTINGS_FILE, settings) }); // file explorer (files-ipc.js)
+  FX = require("./files-ipc.js")({ ipcMain, shell, settings, send, save: () => D.saveSettings(SETTINGS_FILE, settings) }); // file explorer (files-ipc.js)
   ipcMain.handle("init", async () => ({ settings: pub(), projects: await Promise.all(cache.projects.map(projectSummary)) }));
   ipcMain.handle("settings", () => pub());
   ipcMain.handle("projects", async () => { refreshProjects(); watchTodos(); return Promise.all(cache.projects.map(projectSummary)); });
@@ -185,6 +185,8 @@ app.whenReady().then(() => {
     if (!caseOnly && (fs.existsSync(newFolder) || fs.readdirSync(root).some((n) => n.toLowerCase() === name.toLowerCase()))) return { ok: false, err: "A project with that name already exists" };
     if (chats && chats.busyIn(oldFolder).length) return { ok: false, err: "A chat in this project is still working. Wait for it to finish, then rename." };
     for (const [, w] of watched) try { w.close(); } catch (e) {} watched = new Map(); // release file handles before renaming
+    try { if (FX && FX.unwatchUnder) FX.unwatchUnder(oldFolder); } catch (e) {}
+    try { if (chats && chats.stopIdleIn) { const n = await chats.stopIdleIn(oldFolder); if (n) await new Promise((r) => setTimeout(r, 400)); } } catch (e) {}
     const busyMsg = "Something has files open in this project (an editor, terminal or git). Close it and try again.";
     try {
       if (caseOnly) { const tmp = oldFolder + ".hqrename-" + Date.now(); fs.renameSync(oldFolder, tmp); try { fs.renameSync(tmp, newFolder); } catch (e) { try { fs.renameSync(tmp, oldFolder); } catch (e2) {} throw e; } }

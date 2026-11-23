@@ -31,6 +31,12 @@ class Chats {
   view(c) { const o = {}; for (const k of ["id", "title", "model", "proj", "projName", "created", "updated", "busy", "msgs", "ctx", "lastAt", "sessionId"]) o[k] = c[k]; o.queue = (c.queue || []).map((q) => ({ text: q.text, imgs: (q.files || []).map((f) => f.path) })); o.handingOff = !!c.handingOff; return o; }
   _under(c, folder) { const a = String(c.cwd || "").toLowerCase(), b = String(folder).toLowerCase(); return !!a && (a === b || a.startsWith(b + path.sep)); }
   busyIn(folder) { return [...this.convs.values()].filter((c) => c.busy && this._under(c, folder)); }
+  // Project rename (before fs.rename): an idle chat's claude.exe keeps the project as its cwd, which locks the folder on Windows. Stop them and wait for exit.
+  stopIdleIn(folder) {
+    const ps = [];
+    for (const c of this.convs.values()) if (c.proc && !c.busy && this._under(c, folder)) { const p = c.proc; ps.push(new Promise((res) => { if (p.exitCode !== null) return res(); p.once("exit", res); setTimeout(res, 4000); })); this.kill(c, "project rename"); }
+    return Promise.all(ps).then(() => ps.length);
+  }
   // Project rename: point saved/in-memory chats at the new folder and id. Idle processes are stopped so they respawn in the new cwd.
   moveProject(oldFolder, newFolder, oldId, newId, newName) {
     for (const c of this.convs.values()) {

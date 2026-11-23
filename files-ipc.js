@@ -131,5 +131,7 @@ module.exports = function init({ ipcMain, shell, settings, save, send, root: roo
   ipcMain.handle("files-watch", (_, dirs) => watch(dirs));
   ipcMain.handle("files-pref", (_, o) => { if (o && typeof o.open === "boolean") settings.filesOpen = o.open; if (o && Number.isFinite(o.w)) settings.filesW = Math.max(200, Math.min(560, Math.round(o.w))); save(); return { open: !!settings.filesOpen, w: settings.filesW || 280 }; });
   ipcMain.handle("files-state", () => ({ open: !!settings.filesOpen, w: settings.filesW || 280, root: root() }));
-  return { list, rename, newNote, safe, validName, search, resolve };
+  // Project rename: Windows can't rename a folder while fs.watch handles are open inside it.
+  function unwatchUnder(folder) { const f = String(folder).toLowerCase(); for (const [d, w] of watchers) if (d.toLowerCase() === f || d.toLowerCase().startsWith(f + path.sep)) { try { w.close(); } catch (e) {} watchers.delete(d); } }
+  return { list, rename, newNote, safe, validName, search, resolve, unwatchUnder };
 };
