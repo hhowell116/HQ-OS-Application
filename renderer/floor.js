@@ -65,12 +65,15 @@
       row.append(h, mk("div", "lt", m.text)); row.onclick = () => { S.follow = false; S.cur = i; stopPlay(); renderAgents(); }; log.append(row);
     });
     if (S.card) renderCard(); renderDv();
-    if (S.follow || atEnd) { const c = log.querySelector(".cur"); if (c) log.scrollTop = c.offsetTop - log.clientHeight + c.offsetHeight + 8; else log.scrollTop = log.scrollHeight; } else log.scrollTop = keep;
+    if (S.hold) log.scrollTop = keep; else if (S.follow || atEnd) { const c = log.querySelector(".cur"); if (c) log.scrollTop = c.offsetTop - log.clientHeight + c.offsetHeight + 8; else log.scrollTop = log.scrollHeight; } else log.scrollTop = keep;
   }
   function stopPlay() { if (S.play) { clearInterval(S.play); S.play = null; } }
   function startPlay() { const n = events().length; if (!n) return; S.follow = false; if (S.cur >= n - 1) S.cur = -1; S.play = setInterval(() => { const m = events().length; if (S.cur >= m - 1) { stopPlay(); S.follow = S.running; renderAgents(); return; } S.cur++; renderAgents(); }, 1400); renderAgents(); }
   $("#fl-play").onclick = () => (S.play ? (stopPlay(), renderAgents()) : startPlay());
-  $("#fl-live").onclick = () => { stopPlay(); S.follow = true; renderAgents(); };
+  $("#fl-live").onclick = () => { stopPlay(); S.follow = true; S.hold = false; renderAgents(); };
+  { const l = $("#fl-log"); let us = 0; const mk_ = () => (us = Date.now()); // user scrolled up in the transcript: stop auto-scrolling (replay/live) until they return to the bottom or press LIVE
+    ["wheel", "touchmove", "mousedown", "keydown"].forEach((e) => l.addEventListener(e, mk_, { passive: true }));
+    l.addEventListener("scroll", () => { if (Date.now() - us < 800) S.hold = l.scrollHeight - l.scrollTop - l.clientHeight > 40; }); }
   $("#fl-range").oninput = (x) => { stopPlay(); S.follow = false; S.cur = +x.target.value; renderAgents(); };
   function renderTape() {
     const sig = JSON.stringify(S.tape); if (S.tapeSig === sig) return; S.tapeSig = sig;
@@ -360,7 +363,7 @@
   hq.on("tf", async (m) => {
     if (m.t === "desk") { S.desks[m.id] = m.desk; renderHead(); if (m.id === "market" && m.desk.status === "done") { try { load(await hq.tfState()); } catch (e) {} } }
     else if (m.t === "msg" && m.ev) { if (m.ev.seq === 1) { S.ev = []; S.cur = -1; S.follow = true; } if (!S.ev.some((x) => x.seq === m.ev.seq && x.ts === m.ev.ts)) S.ev.push(m.ev); if (S.follow) renderAgents(); }
-    else if (m.t === "start") { stopPlay(); S.autoPlay = false; S.running = true; S.alerts = []; S.ev = []; S.cur = -1; S.follow = true; renderAlerts(); renderHead(); renderAgents(); }
+    else if (m.t === "start") { stopPlay(); S.autoPlay = false; S.running = true; S.alerts = []; S.ev = []; S.cur = -1; S.follow = true; S.hold = false; renderAlerts(); renderHead(); renderAgents(); }
     else if (m.t === "done") { S.running = false; await refresh(); }
   });
   async function start(fn) { try { S.running = true; renderHead(); if ((await fn()) === false) await refresh(); } catch (e) { S.running = false; renderHead(); toast(e.message); } }
