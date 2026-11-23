@@ -52,7 +52,7 @@ function setMood(m, text) { core.setMood(m); $("#mood").textContent = text || { 
 // ---------- projects ----------
 function renderProjects() {
   const box = $("#projects"); box.textContent = "";
-  const running = new Set(S.agents.filter((a) => a.status === "running").map((a) => a.proj.toLowerCase()));
+  const live = window.HQActivity ? window.HQActivity.groups(S.projects) : { byProj: new Map() };
   const active = activeProjects(), archived = S.projects.filter((p) => S.archived.has(p.id));
   active.forEach((p, i) => {
     const d = el("div", "proj" + (p.id === S.cur ? " on" : ""));
@@ -62,8 +62,8 @@ function renderProjects() {
     m.append(el("span", "", p.hasTodo ? p.next + " next" : "no to-do"));
     if (p.wait) m.append(el("span", "w", p.wait + " need you"));
     if (p.review) m.append(el("span", "", p.review + " review"));
-    const folderKey = p.folder.replace(/[^a-z0-9]/gi, "-").toLowerCase();
-    if ([...running].some((r) => r.endsWith(folderKey.slice(-24)))) m.append(el("span", "busy", "● agents"));
+    const wn = (live.byProj.get(p.id) || []).length;
+    if (wn) { m.append(el("span", "busy", "● " + wn + " working")); d.classList.add("plive"); }
     d.append(m);
     const sv = document.createElementNS("http://www.w3.org/2000/svg", "svg"); sv.setAttribute("viewBox", "0 0 140 14"); sv.setAttribute("preserveAspectRatio", "none"); d.append(sv); spark(sv, p.git);
     d.onclick = () => selectProject(p.id);
@@ -346,6 +346,7 @@ hq.on("chat", async (ev) => {
   } else if (ev.what === "done") toast("Claude finished: " + ev.conv.title);
 });
 hq.on("agents", (a) => { S.agents = a; renderAgents(); renderProjects(); });
+if (window.HQActivity) window.HQActivity.onCounts(() => renderProjects());
 hq.on("usage", (u) => { S.usage = u.usage; renderUsage(u.usage, u.err); });
 hq.on("todo-changed", async (id) => { if (id === S.cur) { S.detail = await hq.project(id); renderDetail(); } loadProjects(); });
 
@@ -419,8 +420,8 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "F1") { e.preventDefault(); return setView("hq"); }
   if (e.key === "F4") { e.preventDefault(); return setView(document.body.classList.contains("in-floor") ? "hq" : "floor"); }
   if (e.key === "F5") { e.preventDefault(); return setView(document.body.classList.contains("in-nebula") ? "hq" : "home"); }
-  if (e.key === "F2") { e.preventDefault(); return setView(document.body.classList.contains("in-room") ? "hq" : "room"); }
-  if (document.body.classList.contains("in-room")) return; // the war room handles its own keys
+  if (e.key === "F2") { e.preventDefault(); return setView(document.body.classList.contains("in-tower") ? "hq" : "tower"); }
+  if (document.body.classList.contains("in-room") || document.body.classList.contains("in-tower")) return; // the war room and tower handle their own keys
   if (e.ctrlKey && e.key.toLowerCase() === "k") { e.preventDefault(); $("#input").focus(); }
   else if (e.ctrlKey && e.key.toLowerCase() === "n") { e.preventDefault(); newConv(); }
   else if (e.ctrlKey && /^[1-9]$/.test(e.key)) { const p = activeProjects()[+e.key - 1]; if (p) { e.preventDefault(); selectProject(p.id); } }
@@ -554,6 +555,7 @@ function setView(v, welcome) {
   if (v === "nebula") v = "home";
   const floor = v === "floor"; document.body.classList.toggle("in-floor", floor); $("#floor-view").classList.toggle("hidden", !floor); if (floor && window.HQFloor) window.HQFloor.shown();
   const neb = v === "home"; document.body.classList.toggle("in-nebula", neb); $("#nebula-view").classList.toggle("hidden", !neb); if (window.HQNebula) window.HQNebula.show(neb); if (window.HQHome) window.HQHome.show(neb, neb && !!welcome);
+  const tw = v === "tower"; document.body.classList.toggle("in-tower", tw); $("#tower-view").classList.toggle("hidden", !tw); if (window.HQTower) window.HQTower.show(tw);
   const room = v === "room"; document.body.classList.toggle("in-room", room);
   $("#room-view").classList.toggle("hidden", !room);
   document.querySelectorAll("#tabs button").forEach((b) => b.classList.toggle("on", b.dataset.view === v));
@@ -565,7 +567,7 @@ function setView(v, welcome) {
   requestAnimationFrame(() => window.HQPinLog && window.HQPinLog());
   if (room) renderRoomProj();
   if (room && window.HQRoom) window.HQRoom.shown();
-  $("#input").focus();
+  if (tw) { const ae = document.activeElement; if (ae && ae.blur) ae.blur(); } else $("#input").focus();
 }
 // the war room scene is sized to the space above the console strip (folds change its height)
 (function () { const rv = document.getElementById("room-view"), rc = document.getElementById("room-comms"); if (!rv || !rc || !window.ResizeObserver) return; new ResizeObserver(() => { rv.style.setProperty("--strip", (rc.offsetHeight + 24) + "px"); }).observe(rc); })();
@@ -590,7 +592,7 @@ $("#room-back").onclick = () => setView("hq");
   const start = S.projects.find((p) => p.id === (ui.proj || init.settings.last)) || S.projects.find((p) => p.id === init.settings.last) || activeProjects()[0] || S.projects[0];
   if (start) await selectProject(start.id);
   if (ui.conv && ui.proj === S.cur) { try { await openConv(ui.conv); } catch (e) {} }
-  if (ui.view === "room") setView("room"); else if (ui.view === "floor") setView("floor"); else if (ui.view === "home" || ui.view === "nebula") setView("home"); else if (!ui.view && (init.settings.startView || "home") === "home") setView("home", true);
+  if (ui.view === "room") setView("room"); else if (ui.view === "tower") setView("tower"); else if (ui.view === "floor") setView("floor"); else if (ui.view === "home" || ui.view === "nebula") setView("home"); else if (!ui.view && (init.settings.startView || "home") === "home") setView("home", true);
   hq.agents().then((a) => { S.agents = a; renderAgents(); renderProjects(); });
   hq.usage(false).then((u) => renderUsage(u.usage, u.err));
   setTimeout(() => setMood("idle"), 900);
@@ -640,7 +642,7 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape" && REV.cur)
 window.addEventListener("focus", loadReview); setInterval(loadReview, 45000);
 
 // ---------- reload state + dev watchers ----------
-window.addEventListener("beforeunload", () => sessionStorage.setItem("hqui", JSON.stringify({ proj: S.cur, conv: S.conv && S.conv.id, view: document.body.classList.contains("in-room") ? "room" : document.body.classList.contains("in-floor") ? "floor" : document.body.classList.contains("in-nebula") ? "home" : "hq", hide: !!S.hideChat })));
+window.addEventListener("beforeunload", () => sessionStorage.setItem("hqui", JSON.stringify({ proj: S.cur, conv: S.conv && S.conv.id, view: document.body.classList.contains("in-tower") ? "tower" : document.body.classList.contains("in-room") ? "room" : document.body.classList.contains("in-floor") ? "floor" : document.body.classList.contains("in-nebula") ? "home" : "hq", hide: !!S.hideChat })));
 hq.on("code-changed", () => $("#restart-chip").classList.remove("hidden"));
 hq.codePending().then((f) => f && $("#restart-chip").classList.remove("hidden")).catch(() => {});
 $("#restart-chip").onclick = async () => { const busy = await hq.busy(); if (busy && !confirm("A chat is still running, restart anyway?")) return; hq.restart(); };

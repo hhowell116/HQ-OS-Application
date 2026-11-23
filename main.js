@@ -237,6 +237,12 @@ app.whenReady().then(() => {
   }
   ipcMain.handle("agents", async () => { await pollAgents(); return cache.agents; });
   ipcMain.handle("crew", () => crew());
+  // Tower: specialist teams per project (<folder>/.claude/agents/*.md) plus the shared core agents (Agent Team/Agents).
+  ipcMain.handle("team-list", () => {
+    const read = (dir) => { try { return fs.readdirSync(dir).filter((n) => /\.md$/i.test(n)).slice(0, 24).map((n) => { const t = fs.readFileSync(path.join(dir, n), "utf8").slice(0, 1500), g = (k) => { const x = new RegExp("^" + k + ":\s*(.+)$", "mi").exec(t); return x ? x[1].trim().replace(/^["']|["']$/g, "") : ""; }; return { name: g("name") || n.replace(/\.md$/i, ""), desc: g("description").slice(0, 160), model: g("model") }; }); } catch (e) { return []; } };
+    const projects = {}; for (const p of cache.projects) projects[p.id] = read(path.join(p.folder, ".claude", "agents"));
+    return { projects, core: read(path.join(settings.projectsRoot, "Agent Team", "Agents")) };
+  });
   ipcMain.handle("usage", async (_, force) => { await pollUsage(!!force); return { usage: cache.usage, err: cache.usageErr }; });
   ipcMain.handle("music", () => { now.start(); return cache.music; });
   ipcMain.handle("music-ctl", (_, cmd) => now.control(cmd));

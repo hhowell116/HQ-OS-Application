@@ -8,13 +8,14 @@
 <link rel="stylesheet" href="floor.css">
 <link rel="stylesheet" href="nebula.css">
 <link rel="stylesheet" href="files.css">
+<link rel="stylesheet" href="tower.css">
 </head>
 <body>
 <div class="grid-bg"></div><div class="scan"></div>
 
 <header class="titlebar">
   <div class="brand"><span class="glyph">◈</span><span>HQ<b>OS</b></span><span class="ver">v2.1</span></div>
-  <div class="tabs" id="tabs"><button data-view="home" title="Home: the nebula (F5, Esc)">HOME</button><button data-view="hq" class="on" title="Command center (F1)">HQ</button><button data-view="room" title="War room: your agents around the table (F2)">WAR ROOM</button><button data-view="floor" title="Trading Floor: research agents, paper trades (F4)">TRADING FLOOR</button></div>
+  <div class="tabs" id="tabs"><button data-view="home" title="Home: the nebula (F5, Esc)">HOME</button><button data-view="hq" class="on" title="Command center (F1)">HQ</button><button data-view="tower" title="Tower: a floor per project, live activity (F2)">TOWER</button><button data-view="floor" title="Trading Floor: research agents, paper trades (F4)">TRADING FLOOR</button></div>
   <div class="status" id="status">
     <span class="chip warn hidden" id="restart-chip" style="cursor:pointer" title="Main-process code changed. Click to restart HQ OS.">⟳ restart to apply</span>
     <span class="chip" id="chip-agents">0 agents</span>
@@ -131,6 +132,16 @@
   <aside class="comms" id="room-comms"></aside>
   <div class="legend">click a seat for details · Ctrl+D demo crew · Esc back to HQ</div>
 </section>
+<section class="tower-view hidden" id="tower-view">
+  <div id="tw-stage"></div>
+  <svg id="tw-lines"></svg>
+  <div id="tw-labels"></div>
+  <div class="tw-bar"><span class="tw-ttl">&#9670; ARASAKA TOWER</span><span class="tw-sub" id="tw-sub">building…</span><span class="spacer"></span><button class="ghost" id="tw-back" title="Back (Esc)">&#9666; back</button></div>
+  <div class="tw-hud hidden" id="tw-hud"><div id="tw-htitle"></div><div id="tw-hstat"></div></div>
+  <aside class="tw-roster" id="tw-roster"></aside>
+  <div id="tw-tags"></div>
+  <div class="tw-hint" id="tw-hint"></div>
+</section>
 <section class="nebula-view hidden" id="nebula-view">
   <div id="nb-stage"></div>
   <div class="nb-bar"><span class="nb-ttl">&#9672; HOME</span><span class="nb-sub" id="nb-count">scanning…</span><span class="spacer"></span>
@@ -203,6 +214,7 @@
 <script src="themes.js"></script>
 <script src="core.js"></script>
 <script src="viz.js"></script>
+<script src="activity.js"></script>
 <script src="app.js"></script>
 <script src="room.js"></script>
 <script src="rules.js"></script>
@@ -213,5 +225,6 @@
 <script src="brain.js"></script>
 <script src="nebula.js"></script>
 <script src="home.js"></script>
+<script src="tower.js"></script>
 </body>
 </html>

@@ -6,9 +6,8 @@
   const H = { typer: 0, settle: 0, needs: null, running: null };
   const CARDS = [
     { id: "hq", name: "HQ", sub: () => (H.needs == null ? "command center" : H.needs + (H.needs === 1 ? " item needs you" : " items need you")), hot: () => H.needs > 0 },
-    { id: "room", name: "WAR ROOM", sub: () => (H.running == null ? "your agents" : H.running + (H.running === 1 ? " agent working" : " agents working")), hot: () => H.running > 0 },
+    { id: "tower", name: "TOWER", sub: () => (H.running == null ? "a floor per project" : H.running + " working"), hot: () => H.running > 0 },
     { id: "floor", name: "TRADING FLOOR", sub: () => "research desks" },
-    { id: "tower", name: "TOWER", sub: () => "coming soon", off: true },
   ];
   CARDS.forEach((c) => {
     const b = document.createElement("button"); b.className = "hm-card" + (c.off ? " off" : ""); b.dataset.id = c.id; b.disabled = !!c.off;
@@ -18,10 +17,11 @@
   function paint() { for (const c of CARDS) { c.el.querySelector(".hm-s").textContent = c.sub(); c.el.classList.toggle("hot", !!(c.hot && c.hot())); } }
   async function refresh() {
     try { const n = await hq.needs(); H.needs = n.reduce((a, p) => a + p.items.length, 0); } catch (e) {}
-    try { const a = await hq.agents(); H.running = a.filter((x) => x.status === "running").length; } catch (e) {}
+    try { const a = await hq.agents(); H.running = window.HQActivity ? HQActivity.total() : a.filter((x) => x.status === "running").length; } catch (e) {}
     paint();
   }
-  hq.on("agents", (a) => { H.running = (a || []).filter((x) => x.status === "running").length; paint(); });
+  hq.on("agents", (a) => { H.running = window.HQActivity ? HQActivity.total() : (a || []).filter((x) => x.status === "running").length; paint(); });
+if (window.HQActivity) HQActivity.on(() => { H.running = HQActivity.total(); paint(); });
   hq.on("todo-changed", () => { if (view.classList.contains("home-on")) refresh(); });
 
   const text = () => (typeof greet === "function" ? greet() : "Welcome.");
