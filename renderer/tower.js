@@ -115,7 +115,7 @@
   }
 
   // ---------- tower build ----------
-  function floorColor(p) { if (p && p.accent) { try { return new THREE.Color(p.accent); } catch (e) {} } return new THREE.Color(`hsl(${hueOf(p ? p.name : "x")},85%,58%)`); }
+  function floorColor(p) { if (p && /^(stonks|stocks)$/i.test(p.name)) return new THREE.Color("hsl(92,36%,46%)"); /* trading floor: the hash hue was a neon yellow that flared in lights + bloom; muted moss-green fits neon-noir */ if (p && p.accent) { try { return new THREE.Color(p.accent); } catch (e) {} } return new THREE.Color(`hsl(${hueOf(p ? p.name : "x")},85%,58%)`); }
   const disposeGroup = (g) => { g.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material) [].concat(o.material).forEach((m) => { if (m.map) m.map.dispose(); m.dispose(); }); }); };
 
   function rebuild(list) {
@@ -444,14 +444,14 @@
     L.board = new THREE.Mesh(new THREE.PlaneGeometry(BW, BH), new THREE.MeshBasicMaterial({ map: L.tex, transparent: true, depthWrite: false, toneMapped: false })); L.board.position.set(bx, by, bz); g.add(L.board);
     const fm = new THREE.MeshBasicMaterial({ color: col }); for (const [w, h, x, y] of [[BW + 0.1, 0.06, 0, BH / 2], [BW + 0.1, 0.06, 0, -BH / 2], [0.06, BH, -BW / 2, 0], [0.06, BH, BW / 2, 0]]) box(g, w, h, 0.05, fm, bx + x, by + y, bz - 0.02);
     // reception desk + host
-    const dg = new THREE.Group(); dg.position.set(3.6, 0, -1.3); g.add(dg);
+    const dg = new THREE.Group(); dg.position.set(4.3, 0, 1.0); g.add(dg);
     box(dg, 3.0, 1.0, 0.7, I.metal, 0, 0.5, 0); box(dg, 3.2, 0.07, 1.0, I.dark, 0, 1.03, 0.05); box(dg, 2.8, 0.04, 0.04, new THREE.MeshBasicMaterial({ color: col }), 0, 0.72, 0.36); box(dg, 2.8, 0.04, 0.04, new THREE.MeshBasicMaterial({ color: col }), 0, 0.18, 0.36);
     box(dg, 0.5, 0.04, 0.3, I.metal, -1.2, 1.09, -0.1); const scr = box(dg, 0.5, 0.3, 0.03, new THREE.MeshBasicMaterial({ map: codeT, color: 0x9fe, toneMapped: false }), -1.2, 1.28, -0.2); scr.rotation.x = -0.2;
     // the glowing HQ door: sliding glass doors under a neon ENTER HQ sign. The door is the button.
-    const DX = 6.0, DZ = -hw + 0.2, dgrp = new THREE.Group(); dgrp.position.set(DX, 0, DZ); g.add(dgrp); L.dgrp = dgrp;
+    const DX = 6.3, DZ = -hw + 0.2, dgrp = new THREE.Group(); dgrp.position.set(DX, 0, DZ); g.add(dgrp); L.dgrp = dgrp;
     const nm = new THREE.MeshBasicMaterial({ color: c2, toneMapped: false }); L.neon = nm;
     for (const [w, h, x, y] of [[2.9, 0.1, 0, 3.05], [0.1, 3.05, -1.4, 1.52], [0.1, 3.05, 1.4, 1.52]]) box(dgrp, w, h, 0.12, nm, x, y, 0);
-    L.glowMat = new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }); const gl = new THREE.Mesh(new THREE.PlaneGeometry(2.7, 3.0), L.glowMat); gl.position.set(0, 1.52, -0.05); dgrp.add(gl);
+    L.glowMat = new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.25, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }); const gl = new THREE.Mesh(new THREE.PlaneGeometry(2.7, 3.0), L.glowMat); gl.position.set(0, 1.52, -0.05); dgrp.add(gl);
     const gm = new THREE.MeshBasicMaterial({ color: col.clone().multiplyScalar(0.5), transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
     L.dl = box(dgrp, 1.32, 3.0, 0.04, gm, -0.67, 1.52, 0.04); L.dr = box(dgrp, 1.32, 3.0, 0.04, gm, 0.67, 1.52, 0.04); box(dgrp, 0.04, 3.0, 0.05, nm, 0, 1.52, 0.06);
     const sg2 = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 0.56), new THREE.MeshBasicMaterial({ map: signTex("ENTER HQ", "#" + col.getHexString()), color: 0xaaaaaa, transparent: true, depthWrite: false, toneMapped: false })); sg2.position.set(0, 3.55, 0.05); dgrp.add(sg2);
@@ -478,7 +478,7 @@
     let last = 0;
     I.anim = (t, dt) => {
       if (t - last > 0.25 || L.hoverPaint !== L.hover) { last = t; L.rows = dirRows(); const sig = L.rows.map((r) => r.name + r.n + r.wait).join("|") + "#" + L.hover + accRgb.join(","); if (sig !== L.sig) { L.sig = sig; drawDir(L); } L.hoverPaint = L.hover; }
-      const tgt = (L.btnHov || L.open > 0 ? 1 : 0); L.glow += (tgt - L.glow) * Math.min(1, dt * 8); L.glowMat.opacity = 0.35 + 0.5 * L.glow + 0.08 * Math.sin(t * 2); L.neon.color.copy(c2).multiplyScalar(1 + 0.8 * L.glow); const sl = L.open * 1.1; L.dl.position.x = -0.67 - sl; L.dr.position.x = 0.67 + sl;
+      const tgt = (L.btnHov || L.open > 0 ? 1 : 0); L.glow += (tgt - L.glow) * Math.min(1, dt * 8); L.glowMat.opacity = 0.2 + 0.2 * L.glow + 0.03 * Math.sin(t * 2); L.neon.color.copy(c2).multiplyScalar(0.85 + 0.3 * L.glow); const sl = L.open * 1.1; L.dl.position.x = -0.67 - sl; L.dr.position.x = 0.67 + sl;
       for (const d of L.doors) { const o = 0.5 * (1 - Math.cos(Math.max(0, Math.sin(t * 0.5 + d.ph) * 2 - 1) * Math.PI)) * 0.5; d.a.position.x = -0.28 - o * 0.45; d.b.position.x = 0.28 + o * 0.45; d.mk.position.y = 0.55 + (0.5 + 0.5 * Math.sin(t * 0.5 + d.ph + 1.2)) * 1.8; }
     };
   }
@@ -572,7 +572,7 @@
       }
       o.m = m; o.working = !!m.item; o.text = m.item ? stepOf(m.item) : ""; o.idx = i;
       if (I.f.kind === "deck") { const sp = I.seats[i] || { x: 0, z: -3, yaw: 0 }; o.tx = sp.x; o.tz = sp.z; o.sit = true; o.yawT = sp.yaw; }
-      else if (I.f.kind === "lobby") { o.tx = 3.6; o.tz = -2.2; o.sit = false; o.yawT = -0.12; }
+      else if (I.f.kind === "lobby") { o.tx = 4.3; o.tz = 0.0; o.sit = false; o.yawT = -0.12; }
       else if (I.f.stonks && I.stonks) { const p = m.desk ? I.stonks.seat[m.desk] : I.stonks.side[(i - dkN) % 6]; o.tx = p.x; o.tz = p.z; o.sit = true; o.yawT = p.yaw; }
       else if (o.working && i < nd) { const d = I.desks[i]; o.tx = d.x; o.tz = d.seatZ; o.sit = true; o.yawT = 0; }
       else { const k = idleK++; if (k < 3) { o.tx = -4.0 + k * 0.7; o.tz = 0.63; o.sit = true; } else { const kk = k - 3; o.tx = -1.0 + (kk % 4) * 1.1; o.tz = 1.5 + Math.floor(kk / 4) * 1.0; o.sit = false; } o.yawT = (o.hue % 7 - 3) * 0.12; }

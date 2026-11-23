@@ -84,6 +84,7 @@
     if (e.ctrlKey && !e.altKey && e.key.toLowerCase() === "k") { if (!available()) return; e.preventDefault(); e.stopImmediatePropagation(); open ? $("#input").focus() : openChat(true); return; }
     if (e.ctrlKey && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "n" && open) { e.preventDefault(); e.stopImmediatePropagation(); newConv(); return; }
     if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "h" && open) { e.preventDefault(); $("#btn-handoff").click(); return; }
+    if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key === "/" && !typing(e) && !t.flight && available()) { e.preventDefault(); e.stopImmediatePropagation(); open ? $("#input").focus() : openChat(true); return; }
     if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === "c" && !typing(e) && !inPanel && !t.flight && available()) {
       e.preventDefault(); open ? closeChat() : openChat(true);
     }
