@@ -586,7 +586,7 @@ $("#room-back").onclick = () => setView("hq");
   hq.music().then(renderMusic); hq.crew().then((c) => { renderFiles(c); renderLive(c); });
   $("#greet").textContent = greet(); setInterval(() => ($("#greet").textContent = greet()), 60000);
   renderProjects();
-  const ui = JSON.parse(sessionStorage.getItem("hqui") || "{}"); S.hideChat = !!ui.hide;
+  const ui = JSON.parse(sessionStorage.getItem("hqui") || "{}"); S.hideChat = ui.hide === undefined ? true : !!ui.hide; // fresh start: chat hidden (Hayden 2026-11-23); reloads keep the last state
   const start = S.projects.find((p) => p.id === (ui.proj || init.settings.last)) || S.projects.find((p) => p.id === init.settings.last) || activeProjects()[0] || S.projects[0];
   if (start) await selectProject(start.id);
   if (ui.conv && ui.proj === S.cur) { try { await openConv(ui.conv); } catch (e) {} }
@@ -644,3 +644,6 @@ window.addEventListener("beforeunload", () => sessionStorage.setItem("hqui", JSO
 hq.on("code-changed", () => $("#restart-chip").classList.remove("hidden"));
 hq.codePending().then((f) => f && $("#restart-chip").classList.remove("hidden")).catch(() => {});
 $("#restart-chip").onclick = async () => { const busy = await hq.busy(); if (busy && !confirm("A chat is still running, restart anyway?")) return; hq.restart(); };
+
+// Tiny restart button in the title bar (Hayden 2026-11-23)
+{ const b = document.getElementById("btn-restart"); if (b) b.onclick = async () => { if (await hq.busy().catch(() => false) && !confirm("A chat is still running. Restart anyway?")) return; hq.restart(); }; }
