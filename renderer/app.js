@@ -83,7 +83,7 @@ function renderProjects() {
 }
 // archived projects drop out of the list, the needs count and Ctrl+1-9, but stay one click away under ARCHIVED
 function activeProjects() { return S.projects.filter((p) => !S.archived.has(p.id)); }
-function setArchived(id, on) { on ? S.archived.add(id) : S.archived.delete(id); hq.set({ archived: [...S.archived] }); const p = S.projects.find((x) => x.id === id); toast((on ? "Archived " : "Restored ") + (p ? p.name : "")); renderProjects(); renderRoomProj(); }
+function setArchived(id, on) { on ? S.archived.add(id) : S.archived.delete(id); hq.set({ archived: [...S.archived] }); const p = S.projects.find((x) => x.id === id); toast((on ? "Archived " : "Restored ") + (p ? p.name : "")); renderProjects(); }
 async function loadProjects() { S.projects = await hq.projects(); renderProjects(); }
 
 async function selectProject(id) {
@@ -114,29 +114,7 @@ function renderDetail() {
   const pb = $("#p-board"); pb.textContent = "";
   d.board.forEach((a) => { const b = el("div", "brd" + (a.working ? " on" : "")); b.append(el("span", "at", a.updated), el("div", "an", a.name), el("div", "", a.working ? a.task : a.last)); pb.append(b); });
   if (!d.board.length) pb.append(el("div", "none", "No Agent Activity board."));
-  renderRoomProj();
 }
-// war room: compact project card above the moved-in console
-function renderRoomProj() {
-  const sel = $("#r-proj-pick"); sel.textContent = ""; activeProjects().forEach((p) => { const o = el("option", "", p.name); o.value = p.id; sel.append(o); });
-  const arch = S.projects.filter((p) => S.archived.has(p.id)); if (arch.length) { const g = document.createElement("optgroup"); g.label = "Archived"; arch.forEach((p) => { const o = el("option", "", p.name); o.value = p.id; g.append(o); }); sel.append(g); }
-  if (S.cur) sel.value = S.cur;
-  const d = S.detail; if (!d) return;
-  const live = $("#r-live"); live.textContent = d.todo.live || ""; live.title = d.todo.live || ""; live.classList.toggle("hidden", !d.todo.live);
-  const wait = d.todo.wait.filter((x) => !x.done), next = d.todo.next.filter((x) => !x.done);
-  const st = $("#r-stats"); st.textContent = "";
-  st.append(el("span", wait.length ? "w" : "", wait.length + " need you"), el("span", "", next.length + " next"), el("span", "dim", d.git.last ? "last commit " + d.git.last : "no recent commits"));
-  const ls = $("#r-list"); ls.textContent = "";
-  wait.forEach((x) => { const r = el("div", "ri wait", "! " + x.text); r.title = x.text; r.onclick = () => jumpToNeed(d.id, x.line); ls.append(r); });
-  next.slice(0, 12).forEach((x) => { const r = el("div", "ri", (x.num ? x.num + ". " : "› ") + x.text); r.title = x.text; ls.append(r); });
-  if (wait.length) ls.prepend(el("div", "rh", "NEEDS YOU")); if (next.length) ls.insertBefore(el("div", "rh", "NEXT UP"), ls.querySelector(".ri:not(.wait)"));
-  if (!wait.length && !next.length) ls.append(el("div", "none", d.todo.missing ? "No To-Do note." : "All clear."));
-}
-$("#r-proj-pick").onchange = (e) => selectProject(e.target.value);
-// war room boxes fold down to their header row (remembered per box)
-function setFold(id, on) { const box = document.getElementById(id); box.classList.toggle("folded", on); const b = document.querySelector(`.fold[data-fold="${id}"]`); b.textContent = on ? "▸" : "▾"; b.title = on ? "Expand" : "Collapse"; try { localStorage.setItem("fold:" + id, on ? "1" : ""); } catch (e) {} }
-document.querySelectorAll(".fold").forEach((b) => { const id = b.dataset.fold; let on = false; try { on = !!localStorage.getItem("fold:" + id); } catch (e) {} setFold(id, on); b.onclick = (e) => { e.stopPropagation(); setFold(id, !document.getElementById(id).classList.contains("folded")); }; });
-
 // ---------- agents + usage ----------
 function renderAgents() {
   const run = S.agents.filter((a) => a.status === "running");
@@ -421,7 +399,7 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "F4") { e.preventDefault(); return setView(document.body.classList.contains("in-floor") ? "hq" : "floor"); }
   if (e.key === "F5") { e.preventDefault(); return setView(document.body.classList.contains("in-nebula") ? "hq" : "home"); }
   if (e.key === "F2") { e.preventDefault(); return setView(document.body.classList.contains("in-tower") ? "hq" : "tower"); }
-  if (document.body.classList.contains("in-room") || document.body.classList.contains("in-tower")) return; // the war room and tower handle their own keys
+  if (document.body.classList.contains("in-tower")) return; // the tower handles its own keys
   if (e.ctrlKey && e.key.toLowerCase() === "k") { e.preventDefault(); $("#input").focus(); }
   else if (e.ctrlKey && e.key.toLowerCase() === "n") { e.preventDefault(); newConv(); }
   else if (e.ctrlKey && /^[1-9]$/.test(e.key)) { const p = activeProjects()[+e.key - 1]; if (p) { e.preventDefault(); selectProject(p.id); } }
@@ -510,7 +488,7 @@ function renderFiles(crew) {
   $("#c-files").textContent = list.length; $("#c-files").classList.toggle("zero", !list.length);
 }
 hq.on("crew", (c) => { renderFiles(c); renderLive(c); });
-// ---------- live agents panel (bottom-left): everyone working right now; click one to see it in the war room ----------
+// ---------- live agents panel (bottom-left): everyone working right now; click one to open the tower ----------
 function renderLive(crew) {
   S.crew = crew; const box = $("#live-ag"); box.textContent = "";
   const order = { running: 0, stalled: 1 }; const list = crew.slice().sort((a, b) => (order[a.status] || 0) - (order[b.status] || 0) || (b.start || 0) - (a.start || 0));
@@ -519,7 +497,7 @@ function renderLive(crew) {
     const top = el("div", "la-t"); top.append(el("span", "dot"), el("span", "la-n", a.name), el("span", "la-tm", a.start ? dur(Date.now() - a.start) : a.updated || ""));
     const last = a.steps && a.steps.length ? a.steps[a.steps.length - 1].text : a.step || "";
     r.append(top, el("div", "la-s", (a.kind === "chat" ? "console · " : a.kind === "board" ? "team · " : "") + (a.proj ? a.proj + " · " : "") + (last || (a.status === "stalled" ? "quiet for a while" : "starting…"))));
-    r.onclick = () => { setView("room"); window.HQRoom && window.HQRoom.focus && window.HQRoom.focus(a.id); };
+    r.onclick = () => setView("tower");
     box.append(r);
   });
   if (!list.length) box.append(el("div", "none", "No agents running."));
@@ -527,7 +505,7 @@ function renderLive(crew) {
   $("#c-live").textContent = run; $("#c-live").classList.toggle("zero", !run);
 }
 setInterval(() => S.crew && renderLive(S.crew), 15000); // keep the timers ticking
-$("#live-room").onclick = () => setView("room");
+$("#live-room").onclick = () => setView("tower");
 // ---------- "N items need you" chip: everything waiting on you, across projects ----------
 async function jumpToNeed(id, line) {
   setView("hq"); $("#needs-pop").classList.add("hidden");
@@ -550,30 +528,23 @@ $("#chip-sys").onclick = async (e) => {
 $("#needs-pop").onclick = (e) => e.stopPropagation();
 document.addEventListener("click", () => $("#needs-pop").classList.add("hidden"));
 
-// ---------- views: HQ and the war room live in the same window ----------
+// ---------- views: HQ, Home, Tower and Trading Floor live in the same window ----------
 function setView(v, welcome) {
   if (v === "nebula") v = "home";
   const floor = v === "floor"; document.body.classList.toggle("in-floor", floor); $("#floor-view").classList.toggle("hidden", !floor); if (floor && window.HQFloor) window.HQFloor.shown();
   const neb = v === "home"; document.body.classList.toggle("in-nebula", neb); $("#nebula-view").classList.toggle("hidden", !neb); if (window.HQNebula) window.HQNebula.show(neb); if (window.HQHome) window.HQHome.show(neb, neb && !!welcome);
   const tw = v === "tower"; document.body.classList.toggle("in-tower", tw); $("#tower-view").classList.toggle("hidden", !tw); if (window.HQTower) window.HQTower.show(tw);
-  const room = v === "room"; document.body.classList.toggle("in-room", room);
-  $("#room-view").classList.toggle("hidden", !room);
   document.querySelectorAll("#tabs button").forEach((b) => b.classList.toggle("on", b.dataset.view === v));
   // the one console moves between views, so the chat, handoff and compact work the same in both
-  const con = $("#console"); if (room) $("#room-comms").append(con); else if (floor) $("#fl-chat").append(con); else $(".col.center").append(con);
+  const con = $("#console"); if (floor) $("#fl-chat").append(con); else $(".col.center").append(con);
   // the Trading Floor chat is the Stonks project's chat: switch to it on entry, back on exit
   if (floor && S.floorPrev == null) { const st = S.projects.find((p) => /stonks/i.test(p.id + " " + p.name)); if (st && st.id !== S.cur) { S.floorPrev = S.cur || ""; selectProject(st.id); } }
   else if (!floor && S.floorPrev != null) { const pv = S.floorPrev; S.floorPrev = null; if (pv && pv !== S.cur) selectProject(pv); }
   requestAnimationFrame(() => window.HQPinLog && window.HQPinLog());
-  if (room) renderRoomProj();
-  if (room && window.HQRoom) window.HQRoom.shown();
   if (tw) { const ae = document.activeElement; if (ae && ae.blur) ae.blur(); } else $("#input").focus();
 }
-// the war room scene is sized to the space above the console strip (folds change its height)
-(function () { const rv = document.getElementById("room-view"), rc = document.getElementById("room-comms"); if (!rv || !rc || !window.ResizeObserver) return; new ResizeObserver(() => { rv.style.setProperty("--strip", (rc.offsetHeight + 24) + "px"); }).observe(rc); })();
 window.HQView = setView;
 document.querySelectorAll("#tabs button").forEach((b) => (b.onclick = () => setView(b.dataset.view)));
-$("#room-back").onclick = () => setView("hq");
 
 // ---------- boot ----------
 (async function boot() {
@@ -592,7 +563,7 @@ $("#room-back").onclick = () => setView("hq");
   const start = S.projects.find((p) => p.id === (ui.proj || init.settings.last)) || S.projects.find((p) => p.id === init.settings.last) || activeProjects()[0] || S.projects[0];
   if (start) await selectProject(start.id);
   if (ui.conv && ui.proj === S.cur) { try { await openConv(ui.conv); } catch (e) {} }
-  if (ui.view === "room") setView("room"); else if (ui.view === "tower") setView("tower"); else if (ui.view === "floor") setView("floor"); else if (ui.view === "home" || ui.view === "nebula") setView("home"); else if (!ui.view && (init.settings.startView || "home") === "home") setView("home", true);
+  if (ui.view === "tower") setView("tower"); else if (ui.view === "floor") setView("floor"); else if (ui.view === "home" || ui.view === "nebula") setView("home"); else if (!ui.view && (init.settings.startView || "home") === "home") setView("home", true);
   hq.agents().then((a) => { S.agents = a; renderAgents(); renderProjects(); });
   hq.usage(false).then((u) => renderUsage(u.usage, u.err));
   setTimeout(() => setMood("idle"), 900);
@@ -642,7 +613,7 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape" && REV.cur)
 window.addEventListener("focus", loadReview); setInterval(loadReview, 45000);
 
 // ---------- reload state + dev watchers ----------
-window.addEventListener("beforeunload", () => sessionStorage.setItem("hqui", JSON.stringify({ proj: S.cur, conv: S.conv && S.conv.id, view: document.body.classList.contains("in-tower") ? "tower" : document.body.classList.contains("in-room") ? "room" : document.body.classList.contains("in-floor") ? "floor" : document.body.classList.contains("in-nebula") ? "home" : "hq", hide: !!S.hideChat })));
+window.addEventListener("beforeunload", () => sessionStorage.setItem("hqui", JSON.stringify({ proj: S.cur, conv: S.conv && S.conv.id, view: document.body.classList.contains("in-tower") ? "tower" : document.body.classList.contains("in-floor") ? "floor" : document.body.classList.contains("in-nebula") ? "home" : "hq", hide: !!S.hideChat })));
 hq.on("code-changed", () => $("#restart-chip").classList.remove("hidden"));
 hq.codePending().then((f) => f && $("#restart-chip").classList.remove("hidden")).catch(() => {});
 $("#restart-chip").onclick = async () => { const busy = await hq.busy(); if (busy && !confirm("A chat is still running, restart anyway?")) return; hq.restart(); };

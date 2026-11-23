@@ -22,7 +22,7 @@
     colour2(a) { return this.mood === "alert" ? `rgba(255,176,46,${a})` : `rgba(${this.rgb2 || "255,95,168"},${a})`; }
     frame(now) {
       this.raf = requestAnimationFrame((t) => this.frame(t));
-      if (document.hidden || !this.cv.offsetParent) return; // paused while the war room view is showing
+      if (document.hidden || !this.cv.offsetParent) return; // paused while another full-screen view is showing
       const c = this.ctx, W = this.cv.width, H = this.cv.height, d = this.dpr, t = (now - this.t0) / 1000;
       this.energy += (this.target - this.energy) * 0.04;
       const e = Math.min(1, this.energy), speak = this.mood === "speak" ? (Math.sin(t * 9) * .5 + .5) * (Math.sin(t * 3.7) * .5 + .5) : 0;

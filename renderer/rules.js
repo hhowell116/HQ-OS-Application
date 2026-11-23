@@ -90,7 +90,7 @@ function rulesStep(dir) {
 async function rulesLoad() { try { RL.doc = await hq.rulesRead(); } catch (e) { RL.doc = { err: "Could not read the rules file", text: "", mtime: 0 }; } rulesRender(); }
 async function rulesShow() { RL.open = true; $("#rules-ov").classList.remove("hidden"); await rulesLoad(); }
 function rulesHide() { RL.open = false; $("#rules-ov").classList.add("hidden"); }
-$("#rules-open").onclick = rulesShow; $("#room-rules").onclick = rulesShow;
+$("#rules-open").onclick = rulesShow;
 $("#rl-close").onclick = rulesHide; $("#rules-ov").onclick = (e) => { if (e.target.id === "rules-ov") rulesHide(); };
 $("#rl-edit").onclick = () => RL.doc && RL.doc.path && hq.openPath(RL.doc.path);
 $("#rl-q").oninput = () => rulesSearch(true);

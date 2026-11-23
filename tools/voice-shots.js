@@ -28,7 +28,7 @@ app.whenReady().then(async () => {
   console.log("state after stop:", await wc.executeJavaScript(`document.querySelector('#btn-mic').className`));
   for (let i = 0; i < 40; i++) { if (!(await wc.executeJavaScript(`document.querySelector('#btn-mic').classList.contains('busy')`))) break; await sleep(1000); }
   console.log("toast/input:", JSON.stringify(await wc.executeJavaScript(`[document.querySelector('#toast').textContent, document.querySelector('#input').value]`)));
-  await wc.executeJavaScript(`window.HQView("room")`); await sleep(2000);
+  await wc.executeJavaScript(`window.HQView("tower")`); await sleep(2000);
   console.log("room mic visible", await wc.executeJavaScript(`(()=>{const b=document.querySelector('#btn-mic');const r=b.getBoundingClientRect();return [r.width,r.height,r.bottom<innerHeight,b.offsetParent!==null]})()`));
   fs.writeFileSync(path.join(out, "voice-input-room.png"), (await wc.capturePage()).toPNG());
   await wc.executeJavaScript(`document.querySelector('#btn-vset').click()`); await sleep(400);

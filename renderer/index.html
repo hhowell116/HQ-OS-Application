@@ -41,7 +41,7 @@
     <div class="newproj hidden" id="newproj"><input id="newproj-name" type="text" maxlength="60" placeholder="New project name…  (Enter creates, Esc cancels)" spellcheck="false"><div class="np-err" id="newproj-err"></div></div>
     <div id="projects" class="projects"></div>
     <div class="panel-h sub rules-h" id="rules-open" title="Read the shared rules (F3)"><span>RULES</span><span class="spacer"></span><span class="rules-go">open ▸</span></div>
-    <div class="panel-h sub live-h"><span>LIVE AGENTS</span><span class="count zero" id="c-live">0</span><span class="spacer"></span><button class="ghost" id="live-room" title="Watch them in the war room (F2)">⛶</button></div>
+    <div class="panel-h sub live-h"><span>LIVE AGENTS</span><span class="count zero" id="c-live">0</span><span class="spacer"></span><button class="ghost" id="live-room" title="Watch them in the tower (F2)">⛶</button></div>
     <div id="live-ag" class="live-ag"></div>
   </aside>
 
@@ -84,7 +84,6 @@
         <button class="ghost" id="btn-vset" title="Voice and speed">M·1.1×</button>
         <button class="ghost hq-only" id="btn-hide" title="Hide the chat to see the main animation (sending a message shows it again)">▾ hide chat</button>
         <button class="ghost danger" id="btn-del" title="Delete this conversation">delete</button>
-        <button class="ghost fold room-only" data-fold="room-comms" title="Collapse">▾</button>
       </div>
       <div class="log" id="log"></div>
       <div class="attach-strip hidden" id="attach"></div>
@@ -116,22 +115,6 @@
   </aside>
 </main>
 
-<section class="room-view hidden" id="room-view">
-  <canvas id="scene"></canvas>
-  <div class="rbar"><span class="ttl">◈ WAR ROOM</span><span class="sub" id="sub">assembling…</span><span class="spacer"></span><button class="ghost" id="room-rules" title="Rules (F3)">▤ rules</button><button class="ghost" id="room-back" title="Back to HQ (Esc)">← back to HQ</button></div>
-  <div class="feed" id="feed"></div>
-  <div class="detail hidden" id="detail"></div>
-  <aside class="rleft" id="room-left">
-    <div class="rproj" id="rproj">
-      <div class="rp-top"><span class="lbl">PROJECT</span><select id="r-proj-pick" title="Switch project"></select><button class="ghost fold" data-fold="rproj" title="Collapse">▾</button></div>
-      <div class="rp-live" id="r-live"></div>
-      <div class="rp-stats" id="r-stats"></div>
-      <div class="rp-list" id="r-list"></div>
-    </div>
-  </aside>
-  <aside class="comms" id="room-comms"></aside>
-  <div class="legend">click a seat for details · Ctrl+D demo crew · Esc back to HQ</div>
-</section>
 <section class="tower-view hidden" id="tower-view">
   <div id="tw-stage"></div>
   <svg id="tw-lines"></svg>
@@ -216,7 +199,6 @@
 <script src="viz.js"></script>
 <script src="activity.js"></script>
 <script src="app.js"></script>
-<script src="room.js"></script>
 <script src="rules.js"></script>
 <script src="files.js"></script>
 <script src="office.js"></script>

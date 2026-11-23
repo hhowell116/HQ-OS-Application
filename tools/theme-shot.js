@@ -14,6 +14,6 @@ app.whenReady().then(async () => {
   const wc = win.webContents; fs.mkdirSync(out, { recursive: true }); await sleep(2000);
   await wc.executeJavaScript(`(async()=>{const c=document.createElement('canvas');c.width=c.height=64;const x=c.getContext('2d');const g=x.createLinearGradient(0,0,64,64);g.addColorStop(0,'#c0262d');g.addColorStop(.6,'#7a1218');g.addColorStop(1,'#f2a33a');x.fillStyle=g;x.fillRect(0,0,64,64);HQTheme.apply('music');await HQTheme.setMusic(c.toDataURL());})()`);
   await sleep(1500); fs.writeFileSync(path.join(out, "theme-hq.png"), (await wc.capturePage()).toPNG());
-  await wc.executeJavaScript(`window.HQView("room")`); await sleep(2000); fs.writeFileSync(path.join(out, "theme-room.png"), (await wc.capturePage()).toPNG());
+  await wc.executeJavaScript(`window.HQView("tower")`); await sleep(2000); fs.writeFileSync(path.join(out, "theme-room.png"), (await wc.capturePage()).toPNG());
   app.exit(0);
 });

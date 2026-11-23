@@ -184,7 +184,7 @@
     for (const f of T.floors) {
       const l = f.lbl; if (!l) continue; let st = "";
       if (f.kind === "project") { const p = by.get(f.id); if (p) st = (p.hasTodo ? p.next + " next" : "no to-do") + " · " + p.wait + " need you · " + p.review + " review"; }
-      else if (f.kind === "deck") st = "HQ host · " + T.teams.core.length + " core agents · war room";
+      else if (f.kind === "deck") st = "HQ host · " + T.teams.core.length + " core agents · command deck";
       else st = "entrance · open HQ";
       l.stat.textContent = st;
       l.badge.classList.toggle("hidden", !f.n); l.badge.textContent = "● " + f.n + " working";
