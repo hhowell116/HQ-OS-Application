@@ -10,6 +10,8 @@ A desktop command center for the projects in your `%USERPROFILE%\Projects` folde
 
 The speech models (Kokoro voice, Whisper for the mic) download on first use into `%APPDATA%\HQ OS\`.
 
+**Agent teams.** The shared rules (`Projects\CLAUDE.md`) and the shared core Agent Team are restored by the separate claude-team backup (`claude-team\setup.ps1` in the Lumen repo). Each project keeps its own specialist team in `<Project>\.claude\agents\` inside that project's repo, so cloning a project brings its team along. A project made with **+** gets `Notes\Claude\Index.md` and a starter `<project>-team-builder` agent (from `templates\team-builder.md`). In that project's chat, ask it to "build the <Project> team" and it writes the specialists.
+
 ## Launch
 - Use the **HQ OS** shortcut on the Desktop or in the Start menu.
 - Or run `npm start` in this folder.
