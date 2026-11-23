@@ -18,6 +18,6 @@ app.whenReady().then(async () => {
   await wc.executeJavaScript(`window.HQView("floor")`);
   win.setBounds({ x: 0, y: 0, width: 1600, height: 900 }); await sleep(3000);
   console.log(JSON.stringify(await wc.executeJavaScript(`({proj:S.cur,opts:[...document.querySelectorAll("#conv-pick option")].map(o=>o.textContent),conv:S.conv&&S.conv.id,msgs:S.conv&&S.conv.msgs&&S.conv.msgs.length,dis:/not financial advice/i.test(document.getElementById("floor-view").innerText),inDock:!!document.querySelector("#fl-chat #console")})`)));
-  fs.writeFileSync(path.join(out, "trading-floor-chat.png"), (await wc.capturePage()).toPNG());
+  fs.writeFileSync(path.join(out, "trading-floor-chat-column.png"), (await wc.capturePage()).toPNG());
   app.exit(0);
 });
