@@ -13,6 +13,8 @@
   const norm = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+  // one place to tune how bright everything glows (Hayden 2026-11-23: too washed out): bloom strength / threshold, emissive multiplier (rings, neon, hologram), ambient light
+  const GLOW = { bloom: 0.4, thresh: 0.55, emis: 0.7, amb: 0.8 };
   const FH = 3.2, LH = 4.6, SPIRE = 8, MAXD = 10;
   let accRgb = [25, 227, 208]; if (window.HQTheme) HQTheme.onAccent((rgb) => (accRgb = rgb));
 
@@ -53,7 +55,7 @@
     scene = new THREE.Scene(); scene.fog = new THREE.FogExp2(0x080a1a, 0.0105);
     camera = new THREE.PerspectiveCamera(38, 1.6, 0.1, 900);
     composer = new EffectComposer(renderer); composer.addPass(new RenderPass(scene, camera));
-    bloom = new UnrealBloomPass(new THREE.Vector2(512, 512), 0.62, 0.55, 0.3); composer.addPass(bloom); composer.addPass(new OutputPass());
+    bloom = new UnrealBloomPass(new THREE.Vector2(512, 512), GLOW.bloom, 0.55, GLOW.thresh); composer.addPass(bloom); composer.addPass(new OutputPass());
     buildSky(); buildGround(); buildCity(); buildRain();
     tower = new THREE.Group(); scene.add(tower);
     new ResizeObserver(resize).observe(view); resize();
@@ -126,7 +128,7 @@
     const edgeG = [];
     defs.forEach((d, i) => {
       const h = d.kind === "lobby" ? LH : FH, t = i / Math.max(1, n - 1), w = d.kind === "lobby" ? 17 : 14.2 - 3.2 * t, g = new THREE.Group(); g.position.y = y; tower.add(g);
-      const f = Object.assign(d, { i, y0: y, h, w, group: g, act: 0, hov: 0, n: 0, fade: 1, mats: [], pulse: 0 });
+      const f = Object.assign(d, { stonks: d.kind === "project" && /stonks/i.test(d.name), i, y0: y, h, w, group: g, act: 0, hov: 0, n: 0, fade: 1, mats: [], pulse: 0 });
       const add = (m, base) => { m.transparent = true; f.mats.push({ m, base }); return m; };
       const glass = new THREE.Mesh(new THREE.BoxGeometry(w, h - 0.22, w), add(new THREE.MeshBasicMaterial({ color: f.color.clone().multiplyScalar(0.35), opacity: 0.09, depthWrite: false, side: THREE.DoubleSide }), 0.09)); glass.position.y = h / 2 + 0.11; g.add(glass); f.glass = glass;
       const slab = new THREE.Mesh(new THREE.BoxGeometry(w + 0.3, 0.22, w + 0.3), add(new THREE.MeshBasicMaterial({ color: 0x080d16 }), 1)); slab.position.y = 0.11; g.add(slab);
@@ -196,7 +198,7 @@
   function applyActivity() {
     const projs = T.floors.filter((f) => f.kind === "project").map((f) => ({ id: f.id, name: f.name, folder: f.p.folder }));
     T.groups = HQActivity.groups(projs); let total = 0;
-    for (const f of T.floors) { f.n = f.kind === "project" ? (T.groups.byProj.get(f.id) || []).length : f.kind === "deck" ? T.groups.deck.length : 0; total += f.n; }
+    for (const f of T.floors) { f.n = f.kind === "project" ? (T.groups.byProj.get(f.id) || []).length : f.kind === "deck" ? T.groups.deck.length : 0; if (f.stonks && window.HQFloor && HQFloor.running()) f.n = Math.max(f.n, 1); total += f.n; }
     paintLabels(); trackFeed();
     // monitor glows
     if (deskLights) for (const f of T.floors) { const team = f.kind === "project" ? Math.min(MAXD, Math.max(teamOf(f.id).length + 0, f.n)) : f.kind === "deck" ? Math.min(MAXD, T.teams.core.length + 1) : 0; f.nDesk = team; }
@@ -204,8 +206,10 @@
     if (interior) syncInterior();
   }
   HQActivity.on(() => { if (T.ready) applyActivity(); });
+  if (window.HQFloor) HQFloor.onChange(() => { if (T.ready) applyActivity(); });
+  const KIT = { THREE, box: (...a) => box(...a), code: () => codeT, amber: new THREE.Color(0xf5b94a), red: new THREE.Color(0xfb7185), GLOW };
 
-  const fadeEl = document.getElementById("tw-fade");
+  const fadeEl = document.getElementById("tw-fade"), stonksEl = document.getElementById("tw-stonks");
   // ---------- command deck feed: newest agent steps first (6 lines, fading) ----------
   const feedEl = document.getElementById("tw-feed");
   function trackFeed() {
@@ -231,7 +235,7 @@
       f.hov += ((T.hover === f && e < 0.2 ? 1 : 0) - f.hov) * Math.min(1, dt * 10);
       f.fade = cur && f !== cur ? 1 - e : 1; const inFloor = cur === f ? 1 - e : 1;
       const pulse = Math.sin(t * 3.2 + f.i) * 0.5 + 0.5;
-      f.edge.color.copy(f.color).multiplyScalar((0.5 + 1.0 * f.act + 0.5 * pulse * f.act + 0.9 * f.hov) * (f.kind === "lobby" ? 1.3 : 1));
+      f.edge.color.copy(f.color).multiplyScalar((0.5 + 1.0 * f.act + 0.5 * pulse * f.act + 0.9 * f.hov) * GLOW.emis * 1.15 * (f.kind === "lobby" ? 1.3 : 1));
       f.glowMat.opacity = (f.act * (0.06 + 0.05 * pulse) + f.hov * 0.06) * f.fade * inFloor;
       const ph = (t * 0.7 + f.i * 0.37) % 1; f.ring.scale.set(1 + ph * 0.1, 1, 1 + ph * 0.1); f.ringMat.opacity = f.act * (1 - ph) * 0.55 * f.fade * inFloor;
       for (const o of f.mats) if (o.base > 0) o.m.opacity = o.base * f.fade * (o === f.mats[0] ? (cur === f ? 1 - e * 0.85 : 1) : 1);
@@ -268,6 +272,7 @@
   function intCam(f) { const fy = f.y0 + 0.22, hw = f.w / 2 - 0.35;
     if (f.kind === "lobby") return { pos: new THREE.Vector3(0.2, fy + 2.4, 5.6), look: new THREE.Vector3(0.2, fy + 1.7, -4), fov: 54 };
     if (f.kind === "deck") return { pos: new THREE.Vector3(0, fy + 2.5, hw - 0.3), look: new THREE.Vector3(0, fy + 1.15, -1.3), fov: 58 };
+    if (f.stonks) return { pos: new THREE.Vector3(0, fy + 6.6, hw - 0.1), look: new THREE.Vector3(0, fy + 0.6, -1.3), fov: 72 };
     return { pos: new THREE.Vector3(0, fy + 2.55, hw - 0.4), look: new THREE.Vector3(0, fy + 0.85, -hw * 0.3), fov: 54 }; }
   function updateCamera(t, dt) {
     const fl = T.flight;
@@ -343,19 +348,20 @@
     const dark = new THREE.MeshStandardMaterial({ color: 0x141d27, roughness: 0.8 }), metal = new THREE.MeshStandardMaterial({ color: 0x0c131b, roughness: 0.5, metalness: 0.4 });
     const floorM = new THREE.MeshStandardMaterial({ roughness: 0.55, metalness: 0.2, map: gridTex(col) }); floorM.map.repeat.set(hw, hw);
     const fl = box(g, hw * 2, 0.04, hw * 2, floorM, 0, 0, 0); fl.position.y = 0.01;
-    const light = new THREE.HemisphereLight(0x9fc4ff, 0x3a1a55, f.kind === "project" ? 2.2 : 1.7); g.add(light); I.light = light;
+    const light = new THREE.HemisphereLight(0x9fc4ff, 0x3a1a55, (f.kind === "project" ? 2.2 : 1.7) * GLOW.amb); g.add(light); I.light = light;
     const pl = new THREE.PointLight(f.color.clone(), f.kind === "project" ? 40 : 9, 22, 2); pl.position.set(0, 2.6, 0); g.add(pl);
     const pl2 = new THREE.PointLight(0xffffff, f.kind === "project" ? 26 : 8, 16, 2); pl2.position.set(0, 2.7, -hw * 0.3); g.add(pl2);
-    const stripM = new THREE.MeshBasicMaterial({ color: f.color.clone().multiplyScalar(0.9) }); if (f.kind === "project") for (const z of [-hw * 0.65, -hw * 0.15]) box(g, hw * 1.6, 0.05, 0.1, stripM, 0, FH - 0.4, z);
-    const sign = new THREE.Mesh(new THREE.PlaneGeometry(7.4, 1.15), new THREE.MeshBasicMaterial({ map: signTex(f.name, col), transparent: true, depthWrite: false, toneMapped: false })); sign.position.set(0, 2.15, -hw + 0.2); if (f.kind === "project") g.add(sign);
-    if (f.kind === "project") { // lounge: sofa, table, plant, coffee machine
+    const stripM = new THREE.MeshBasicMaterial({ color: f.color.clone().multiplyScalar(0.9 * GLOW.emis) }); if (f.kind === "project" && !f.stonks) for (const z of [-hw * 0.65, -hw * 0.15]) box(g, hw * 1.6, 0.05, 0.1, stripM, 0, FH - 0.4, z);
+    const sign = new THREE.Mesh(new THREE.PlaneGeometry(7.4, 1.15), new THREE.MeshBasicMaterial({ map: signTex(f.name, col), transparent: true, depthWrite: false, toneMapped: false })); sign.position.set(0, 2.15, -hw + 0.2); if (f.kind === "project" && !f.stonks) g.add(sign);
+    if (f.kind === "project" && !f.stonks) { // lounge: sofa, table, plant, coffee machine
     const sofaM = new THREE.MeshStandardMaterial({ color: 0x23304a, roughness: 0.9 });
     box(g, 2.5, 0.42, 0.95, sofaM, -3.3, 0.24, 0.6); box(g, 2.5, 0.62, 0.22, sofaM, -3.3, 0.55, 0.1); box(g, 0.22, 0.55, 0.95, sofaM, -4.6, 0.4, 0.6); box(g, 0.22, 0.55, 0.95, sofaM, -2.0, 0.4, 0.6);
     box(g, 1.3, 0.05, 0.7, metal, -3.3, 0.4, 2.0); box(g, 0.08, 0.38, 0.08, metal, -3.3, 0.2, 2.0); box(g, 1.2, 0.01, 0.6, new THREE.MeshBasicMaterial({ color: f.color.clone().multiplyScalar(0.7) }), -3.3, 0.435, 2.0);
     const pot = box(g, 0.45, 0.5, 0.45, dark, hw - 0.9, 0.25, hw - 1.3); for (let k = 0; k < 3; k++) { const leaf = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.9, 6), new THREE.MeshStandardMaterial({ color: 0x1c6b4a, roughness: 0.8 })); leaf.position.set(hw - 0.9 + (k - 1) * 0.14, 0.95, hw - 1.3); leaf.rotation.z = (k - 1) * 0.25; g.add(leaf); }
     box(g, 0.9, 1.7, 0.7, metal, hw - 0.7, 0.85, 0.4); box(g, 0.6, 0.5, 0.02, new THREE.MeshBasicMaterial({ color: new THREE.Color(0xff2e93).multiplyScalar(0.7) }), hw - 0.7, 1.2, 0.76);
     } I.dark = dark; I.metal = metal; T.interior = I; interior = I; I.hostAt = null;
-    if (f.kind === "deck") buildDeck(I); else if (f.kind === "lobby") buildLobby(I);
+    if (f.kind === "deck") buildDeck(I); else if (f.kind === "lobby") buildLobby(I); else if (f.stonks && window.HQStonks3D) HQStonks3D.build(I, KIT);
+    if (window.HQFloor) HQFloor.shown(!!f.stonks);
     syncInterior();
   }
   // ---------- command deck: holographic round table ----------
@@ -376,22 +382,22 @@
     });
   }
   function buildDeck(I) {
-    const g = I.g, col = I.f.color, c2 = col.clone().multiplyScalar(1.5), D = (I.deck = { n: -1, pads: [], seatG: null }); I.seats = [];
+    const g = I.g, col = I.f.color, c2 = col.clone().multiplyScalar(1.5 * GLOW.emis), D = (I.deck = { n: -1, pads: [], seatG: null }); I.seats = [];
     const addM = (geo, mat, y) => { const m = new THREE.Mesh(geo, mat); m.position.y = y; g.add(m); return m; };
     addM(new THREE.CylinderGeometry(TABLE_R, TABLE_R - 0.08, 0.1, 56), I.metal, 0.72); addM(new THREE.CylinderGeometry(0.55, 0.95, 0.68, 20), I.dark, 0.35);
     addM(new THREE.TorusGeometry(TABLE_R, 0.03, 6, 72).rotateX(Math.PI / 2), new THREE.MeshBasicMaterial({ color: c2, toneMapped: false }), 0.775);
     const add = { transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false };
-    for (const [r, o] of [[0.75, 0.3], [1.15, 0.2], [1.55, 0.14]]) addM(new THREE.RingGeometry(r, r + 0.035, 64).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial(Object.assign({ color: col, opacity: o }, add)), 0.785);
-    D.sweep = addM(new THREE.RingGeometry(1.2, 1.26, 32, 1, 0, 1.1).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial(Object.assign({ color: col, opacity: 0.4 }, add)), 0.79);
+    for (const [r, o] of [[0.75, 0.3 * GLOW.emis], [1.15, 0.2 * GLOW.emis], [1.55, 0.14 * GLOW.emis]]) addM(new THREE.RingGeometry(r, r + 0.035, 64).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial(Object.assign({ color: col, opacity: o }, add)), 0.785);
+    D.sweep = addM(new THREE.RingGeometry(1.2, 1.26, 32, 1, 0, 1.1).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial(Object.assign({ color: col, opacity: 0.4 * GLOW.emis }, add)), 0.79);
     // hologram: wireframe globe + inner core + two tilted orbit rings, with a light cone down to the table
-    const wf = (o) => new THREE.MeshBasicMaterial(Object.assign({ color: col, wireframe: true, opacity: o }, add));
+    const wf = (o) => new THREE.MeshBasicMaterial(Object.assign({ color: col, wireframe: true, opacity: o * GLOW.emis }, add));
     D.globe = addM(new THREE.SphereGeometry(0.62, 18, 12), wf(0.5), 1.7); D.core = addM(new THREE.IcosahedronGeometry(0.3, 1), wf(0.7), 1.75);
-    D.rings = [0.55, -0.7].map((tilt, i) => { const m = addM(new THREE.TorusGeometry(0.95 + i * 0.14, 0.012, 6, 64), new THREE.MeshBasicMaterial(Object.assign({ color: c2, opacity: 0.7 }, add)), 1.7); m.rotation.x = Math.PI / 2 + tilt; return m; });
-    D.cone = addM(new THREE.CylinderGeometry(1.0, 0.28, 1.75, 32, 1, true), new THREE.MeshBasicMaterial(Object.assign({ color: col, opacity: 0.05, side: THREE.DoubleSide }, add)), 1.67);
-    const pl = new THREE.PointLight(col.clone(), 6, 9, 2); pl.position.set(0, 1.8, 0); g.add(pl); D.pl = pl;
+    D.rings = [0.55, -0.7].map((tilt, i) => { const m = addM(new THREE.TorusGeometry(0.95 + i * 0.14, 0.012, 6, 64), new THREE.MeshBasicMaterial(Object.assign({ color: c2, opacity: 0.7 * GLOW.emis }, add)), 1.7); m.rotation.x = Math.PI / 2 + tilt; return m; });
+    D.cone = addM(new THREE.CylinderGeometry(1.0, 0.28, 1.75, 32, 1, true), new THREE.MeshBasicMaterial(Object.assign({ color: col, opacity: 0.05 * GLOW.emis, side: THREE.DoubleSide }, add)), 1.67);
+    const pl = new THREE.PointLight(col.clone(), 6 * GLOW.emis, 9, 2); pl.position.set(0, 1.8, 0); g.add(pl); D.pl = pl;
     I.anim = (t) => {
       D.globe.rotation.y = t * 0.45; D.core.rotation.y = -t * 0.8; D.core.rotation.x = t * 0.3; D.sweep.rotation.y = -t * 0.9;
-      D.rings[0].rotation.z = t * 0.5; D.rings[1].rotation.z = -t * 0.38; D.cone.material.opacity = 0.03 + 0.01 * Math.sin(t * 1.6); pl.intensity = 5 + 1.5 * Math.sin(t * 2.1);
+      D.rings[0].rotation.z = t * 0.5; D.rings[1].rotation.z = -t * 0.38; D.cone.material.opacity = (0.03 + 0.01 * Math.sin(t * 1.6)) * GLOW.emis; pl.intensity = (5 + 1.5 * Math.sin(t * 2.1)) * GLOW.emis;
       for (const o of I.members.values()) { const m = D.pads[o.idx]; if (m) m.color.copy(o.col).multiplyScalar(o.working ? 0.9 + 0.25 * Math.sin(t * 5 + o.ph) : 0.08); }
     };
   }
@@ -424,7 +430,7 @@
     L.tex.needsUpdate = true;
   }
   function buildLobby(I) {
-    const g = I.g, hw = I.hw, col = I.f.color, c2 = col.clone().multiplyScalar(1.6), L = (I.lobby = { rows: [], hover: -1, sig: "", btnHov: false, doors: [], rh: 60, hdr: 122 });
+    const g = I.g, hw = I.hw, col = I.f.color, c2 = col.clone().multiplyScalar(1.6 * GLOW.emis), L = (I.lobby = { rows: [], hover: -1, sig: "", btnHov: false, doors: [], rh: 60, hdr: 122 });
     const cv = document.createElement("canvas"); cv.width = CW; cv.height = CH; L.ctx = cv.getContext("2d"); L.tex = new THREE.CanvasTexture(cv); L.tex.colorSpace = THREE.SRGBColorSpace; L.tex.anisotropy = 4;
     const BW = 10.2, BH = 4.2, bx = -2.8, by = 2.35, bz = -hw + 0.15;
     L.board = new THREE.Mesh(new THREE.PlaneGeometry(BW, BH), new THREE.MeshBasicMaterial({ map: L.tex, transparent: true, depthWrite: false, toneMapped: false })); L.board.position.set(bx, by, bz); g.add(L.board);
@@ -458,8 +464,8 @@
     box(g, 3.0, 0.42, 0.95, sofaM, -6.0, 0.24, 2.4); box(g, 3.0, 0.62, 0.22, sofaM, -6.0, 0.55, 1.9); box(g, 0.22, 0.55, 0.95, sofaM, -7.4, 0.4, 2.4); box(g, 0.22, 0.55, 0.95, sofaM, -4.6, 0.4, 2.4);
     box(g, 1.4, 0.05, 0.8, I.metal, -6.0, 0.4, 3.7); box(g, 0.08, 0.38, 0.08, I.metal, -6.0, 0.2, 3.7);
     for (const [px, pz] of [[hw - 1.0, 3.2], [-hw + 0.7, 1.0]]) { box(g, 0.5, 0.55, 0.5, I.dark, px, 0.27, pz); for (let k = 0; k < 3; k++) { const leaf = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.95, 6), new THREE.MeshStandardMaterial({ color: 0x1c6b4a, roughness: 0.8 })); leaf.position.set(px + (k - 1) * 0.15, 1.0, pz); leaf.rotation.z = (k - 1) * 0.25; g.add(leaf); } }
-    const em = new THREE.Mesh(new THREE.RingGeometry(1.7, 1.78, 64).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: col.clone().multiplyScalar(0.7), toneMapped: false })); em.position.set(0.5, 0.045, 1.2); g.add(em);
-    const em2 = new THREE.Mesh(new THREE.RingGeometry(0.9, 0.95, 48).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: col.clone().multiplyScalar(0.45), toneMapped: false })); em2.position.copy(em.position); g.add(em2);
+    const em = new THREE.Mesh(new THREE.RingGeometry(1.7, 1.78, 64).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: col.clone().multiplyScalar(0.7 * GLOW.emis), toneMapped: false })); em.position.set(0.5, 0.045, 1.2); g.add(em);
+    const em2 = new THREE.Mesh(new THREE.RingGeometry(0.9, 0.95, 48).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: col.clone().multiplyScalar(0.45 * GLOW.emis), toneMapped: false })); em2.position.copy(em.position); g.add(em2);
     const pl3 = new THREE.PointLight(col.clone(), 8, 16, 2); pl3.position.set(-2, 3.4, -4); g.add(pl3);
     let last = 0;
     I.anim = (t, dt) => {
@@ -484,7 +490,7 @@
   }
 
   function destroyInterior() {
-    if (!interior) return; for (const t of interior.tags) t.remove(); tagsEl.textContent = ""; scene.remove(interior.g); disposeGroup(interior.g); interior = null; T.interior = null;
+    if (!interior) return; if (interior.f.stonks && window.HQFloor) HQFloor.shown(false); for (const t of interior.tags) t.remove(); tagsEl.textContent = ""; scene.remove(interior.g); disposeGroup(interior.g); interior = null; T.interior = null;
   }
 
   function makeDesks(I, n) {
@@ -544,29 +550,32 @@
   function syncInterior() {
     const I = interior; if (!I) return; let list = members(I.f);
     if (I.f.kind === "deck" && list.length > 14) { const keep = list.filter((m) => m.host || m.item), idle = list.filter((m) => !m.host && !m.item); list = list.filter((m) => keep.includes(m) || idle.indexOf(m) < Math.max(0, 14 - keep.length)).slice(0, 14); }
-    list = list.slice(0, 16); const nd = I.f.kind === "project" ? Math.min(MAXD, list.length) : 0;
+    let dkN = 0; if (I.f.stonks && window.HQStonks3D) { const dk = HQStonks3D.deskMembers(KIT); dkN = dk.length; list = dk.concat(list.slice(0, 6)); }
+    list = list.slice(0, 20); const nd = I.f.kind === "project" && !I.f.stonks ? Math.min(MAXD, list.length) : 0;
     if (I.f.kind === "deck" && I.deck && I.deck.n !== list.length) makeSeats(I, list.length);
     if (nd !== I.nDesks) makeDesks(I, nd);
     const seen = new Set(); let idleK = 0;
     list.forEach((m, i) => {
       seen.add(m.key); let o = I.members.get(m.key);
       if (!o) {
-        const hue = m.worker ? 38 : m.host ? 176 : hueOf(m.full), fig = makeFigure(hue, !!m.worker); I.g.add(fig.g);
+        const hue = m.hue != null ? m.hue : m.worker ? 38 : m.host ? 176 : hueOf(m.full), fig = makeFigure(hue, !!m.worker); I.g.add(fig.g);
         const tag = el("div", "tw-tag"), bub = el("div", "tw-bub hidden"); tag.style.setProperty("--hc", `hsl(${hue},90%,62%)`); bub.style.setProperty("--hc", `hsl(${hue},90%,62%)`); tagsEl.append(tag, bub); I.tags.push(tag, bub);
         o = { key: m.key, col: new THREE.Color(`hsl(${hue},90%,60%)`), fig, tag, bub, x: 0, z: 0, sit: false, yaw: 0, tx: 0, tz: 0, ph: Math.random() * 6, hue, fresh: true }; I.members.set(m.key, o);
       }
       o.m = m; o.working = !!m.item; o.text = m.item ? stepOf(m.item) : ""; o.idx = i;
       if (I.f.kind === "deck") { const sp = I.seats[i] || { x: 0, z: -3, yaw: 0 }; o.tx = sp.x; o.tz = sp.z; o.sit = true; o.yawT = sp.yaw; }
       else if (I.f.kind === "lobby") { o.tx = 3.6; o.tz = -2.2; o.sit = false; o.yawT = -0.12; }
+      else if (I.f.stonks && I.stonks) { const p = m.desk ? I.stonks.seat[m.desk] : I.stonks.side[(i - dkN) % 6]; o.tx = p.x; o.tz = p.z; o.sit = true; o.yawT = p.yaw; }
       else if (o.working && i < nd) { const d = I.desks[i]; o.tx = d.x; o.tz = d.seatZ; o.sit = true; o.yawT = 0; }
       else { const k = idleK++; if (k < 3) { o.tx = -4.0 + k * 0.7; o.tz = 0.63; o.sit = true; } else { const kk = k - 3; o.tx = -1.0 + (kk % 4) * 1.1; o.tz = 1.5 + Math.floor(kk / 4) * 1.0; o.sit = false; } o.yawT = (o.hue % 7 - 3) * 0.12; }
-      o.tag.textContent = ""; const nm = el("b", "", m.label), st = el("span", "", o.working ? "working" : m.worker ? "worker" : "idle"); o.tag.append(nm, st); o.tag.classList.toggle("on", o.working); o.tag.classList.toggle("wk", !!m.worker);
+      o.tag.textContent = ""; const nm = el("b", "", I.f.stonks && !m.desk && m.label.length > 15 ? m.label.slice(0, 14) + "…" : m.label), st = el("span", "", o.working ? "working" : m.worker ? "worker" : "idle"); o.tag.append(nm, st); o.tag.classList.toggle("on", o.working); o.tag.classList.toggle("wk", !!m.worker); o.tag.onclick = m.desk ? () => HQFloor.select(m.desk) : null;
       o.bub.textContent = o.text; o.bub.classList.toggle("hidden", !o.working || !o.text);
       if (o.fresh) { o.x = o.tx; o.z = o.tz; o.fresh = false; }
     });
     for (const [k, o] of [...I.members]) if (!seen.has(k)) { I.g.remove(o.fig.g); disposeGroup(o.fig.g); o.tag.remove(); o.bub.remove(); I.members.delete(k); }
     list.forEach((m, i) => { const o = I.members.get(m.key); if (!o) return; const d = I.desks[i]; if (d) d.owner = o; });
-    if (I.f.kind === "lobby") rosterEl.textContent = ""; else paintRoster(list, I.f.kind === "deck");
+    if (I.f.kind === "lobby" || I.f.stonks) rosterEl.textContent = ""; else paintRoster(list, I.f.kind === "deck");
+    if (I.f.stonks && I.stonks) HQStonks3D.applyDesks(I, KIT);
     paintHud();
   }
   function paintHud() {
@@ -586,6 +595,7 @@
   function animateInterior(t, dt) {
     const I = interior; if (!I) return;
     codeT.offset.y = -t * 0.35; if (I.anim) I.anim(t, dt);
+    if (I.stonks && t - (I.stk || 0) > 0.25) { I.stk = t; HQStonks3D.applyDesks(I, KIT); }
     for (const d of I.desks) { const w = d.owner && d.owner.working && d.owner.sit && d.owner.arrived; d.screen.color.setRGB(w ? 1.5 : 0.01, w ? 1.5 : 0.015, w ? 1.5 : 0.02); d.edge.color.copy(I.f.color).multiplyScalar(w ? 1.8 : 0.25); }
     for (const o of I.members.values()) {
       const dx = o.tx - o.x, dz = o.tz - o.z, dist = Math.hypot(dx, dz), walking = dist > 0.04; o.arrived = !walking;
@@ -594,7 +604,7 @@
       const sit = !walking && o.sit, f = o.fig;
       f.g.position.set(o.x, 0, o.z); f.g.rotation.y = o.yaw; f.legs.visible = !sit; f.sitLegs.visible = sit;
       f.body.position.y = (sit ? -0.18 : 0) + (walking ? Math.abs(Math.sin(t * 9 + o.ph)) * 0.06 : Math.sin(t * 1.6 + o.ph) * 0.012);
-      const wk = o.working, vv = wk ? 1.7 + 0.4 * Math.sin(t * 6 + o.ph) : 0.28; f.visor.color.set(`hsl(${o.hue},95%,${wk ? 62 : 45}%)`).multiplyScalar(vv); f.chest.material = f.visor;
+      const wk = o.working, vv = wk ? 1.7 + 0.4 * Math.sin(t * 6 + o.ph) : o.done ? 0.7 : 0.28; f.visor.color.set(`hsl(${o.hue},95%,${wk ? 62 : 45}%)`).multiplyScalar(vv); f.chest.material = f.visor;
       f.arms.forEach((a, k) => { a.visible = sit && wk; a.rotation.x = Math.sin(t * 15 + k * 2 + o.ph) * 0.09; });
       f.g.position.z += 0; o.tag.style.opacity = wk ? 1 : 0.55;
     }
@@ -603,9 +613,9 @@
     const I = interior; if (!I) return; const w = view.clientWidth, h = view.clientHeight, p = new THREE.Vector3();
     const proj = (x, y, z) => { p.set(x, y + I.g.position.y, z).project(camera); return p.z > 1 ? null : [(p.x * 0.5 + 0.5) * w, (-p.y * 0.5 + 0.5) * h]; };
     for (const o of I.members.values()) {
-      const base = proj(o.x, 0.05, o.z + (o.sit ? 1.45 : 0.45)), head = proj(o.x, o.sit ? 1.95 : 2.2, o.z);
+      const base = proj(o.x, 0.05, o.z + (o.sit ? (I.f.stonks ? 0.75 : 1.45) : 0.45)), head = proj(o.x, o.sit ? 1.95 : 2.2, o.z);
       if (base) { o.tag.style.transform = `translate(${clamp(base[0], 70, w - 70)}px,${clamp(base[1], 60, h - 30)}px) translate(-50%,0)`; o.tag.style.display = ""; } else o.tag.style.display = "none";
-      if (head && o.working && o.text) { o.bub.style.transform = `translate(${clamp(head[0], 100, w - 100)}px,${head[1] - (o.idx % 2) * 46}px) translate(-50%,-100%)`; o.bub.classList.remove("hidden"); o.bub.style.setProperty("--tx", (head[0] - clamp(head[0], 100, w - 100)).toFixed(0) + "px"); } else o.bub.classList.add("hidden");
+      if (head && o.text && (o.working || (o.m && o.m.desk))) { o.bub.style.transform = `translate(${clamp(head[0], 100, w - 100)}px,${head[1] - (o.idx % 2) * 46}px) translate(-50%,-100%)`; o.bub.classList.remove("hidden"); o.bub.style.setProperty("--tx", (head[0] - clamp(head[0], 100, w - 100)).toFixed(0) + "px"); } else o.bub.classList.add("hidden");
     }
     tagsEl.style.opacity = T.e > 0.7 ? 1 : T.e > 0.4 ? (T.e - 0.4) / 0.3 : 0;
   }
@@ -647,7 +657,7 @@
       if (e.deltaY < 0) { const f = pick(); if (f) return activate(f); } T.k = clamp(T.k * (e.deltaY > 0 ? 1.08 : 0.92), 0.55, 1.4); }, { passive: false });
     addEventListener("keydown", (e) => {
       if (!T.on) return;
-      if (e.key === "Escape") { e.preventDefault(); e.stopImmediatePropagation(); if (T.mode === "int") flyOut(); else if (!T.flight && window.HQView) window.HQView("home"); }
+      if (e.key === "Escape") { e.preventDefault(); e.stopImmediatePropagation(); if (T.mode === "int" && T.cur && T.cur.stonks && window.HQFloor && HQFloor.escape()) return; if (T.mode === "int") flyOut(); else if (!T.flight && window.HQView) window.HQView("home"); }
       else if (e.ctrlKey && e.key.toLowerCase() === "d") { e.preventDefault(); toggleDemo(); }
     }, true);
     $("#tw-back").onclick = () => (T.mode === "int" ? flyOut() : window.HQView && window.HQView("hq"));
@@ -668,7 +678,7 @@
     if (!T.on) { T.raf = 0; return; } T.raf = requestAnimationFrame(frame);
     if (document.hidden || now - T.lastFrame < 15) return; const dt = Math.min(0.1, (now - (T.lastFrame || now - 16)) / 1000); T.lastFrame = now;
     const t = (performance.now() - clock0) / 1000;
-    updateCamera(t, dt); view.classList.toggle("inside", T.mode === "int"); view.dataset.fl = T.cur ? T.cur.kind : "";
+    updateCamera(t, dt); view.classList.toggle("inside", T.mode === "int"); view.dataset.fl = T.cur ? (T.cur.stonks ? "stonks" : T.cur.kind) : ""; stonksEl.classList.toggle("show", !!(T.cur && T.cur.stonks && interior && T.e > 0.85 && !(T.flight && T.flight.dir === "out")));
     if (T.mode === "ext" && !T.flight && !T.drag) { const f = pick(); if (f !== T.hover && !(T.hover && T.hover.lbl && T.hover.lbl.box.matches(":hover"))) T.hover = f; renderer.domElement.style.cursor = T.hover ? "pointer" : "grab"; }
     if (T.mode === "int" && interior && interior.lobby && !T.flight) { const h = pickLobby(); interior.lobby.hover = h && h.type === "row" ? h.i : -1; interior.lobby.btnHov = h && h.type === "hq"; renderer.domElement.style.cursor = h ? "pointer" : "default"; }
     camera.updateMatrixWorld(); animateFloors(t, dt); rainMat.uniforms.uTime.value = t; rainMat.uniforms.uA.value = 0.17 - T.e * 0.07;
@@ -688,6 +698,7 @@
     clearInterval(T.poll); T.poll = setInterval(() => { if (T.on) { sync(); } }, 2500);
     if (!T.raf) T.raf = requestAnimationFrame(frame);
   }
-  window.HQTower = { show, demo: (on) => { if (on !== T.demo) toggleDemo(); }, state: T, enter: (id) => { const f = T.floors.find((x) => x.id === id || x.name.toLowerCase() === String(id).toLowerCase()); if (f) flyIn(f); }, exit: flyOut, hop: (id) => { const f = T.floors.find((x) => x.id === id || x.name.toLowerCase() === String(id).toLowerCase()); if (f) hopTo(f); }, enterHQ, setAz: (a) => { T.az = a; T.autoAz = false; }, summary: () => ({ floors: T.floors.map((f) => ({ name: f.name, kind: f.kind, n: f.n, act: +f.act.toFixed(2) })), total: T.groups.total }) };
+  const find = (id) => T.floors.find((x) => x.id === id || x.name.toLowerCase() === String(id).toLowerCase() || (/^stonks$/i.test(id) && x.stonks));
+  window.HQTower = { show, go: (id) => { const f = find(id); if (!f) return; if (T.mode === "int" && T.cur) hopTo(f); else flyIn(f); }, demo: (on) => { if (on !== T.demo) toggleDemo(); }, state: T, enter: (id) => { const f = T.floors.find((x) => x.id === id || x.name.toLowerCase() === String(id).toLowerCase()); if (f) flyIn(f); }, exit: flyOut, hop: (id) => { const f = T.floors.find((x) => x.id === id || x.name.toLowerCase() === String(id).toLowerCase()); if (f) hopTo(f); }, enterHQ, setAz: (a) => { T.az = a; T.autoAz = false; }, summary: () => ({ floors: T.floors.map((f) => ({ name: f.name, kind: f.kind, n: f.n, act: +f.act.toFixed(2) })), total: T.groups.total }) };
   hq.on("todo-changed", () => { if (T.on) setTimeout(sync, 400); });
 })();

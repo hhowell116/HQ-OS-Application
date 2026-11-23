@@ -1,9 +1,9 @@
-// Trading Floor: one screen (office view + signal board + book strip). Office art is in office.js.
+// Trading Floor panels: the HTML HUD of the Stonks floor in the tower (#tw-stonks). The 3D room is stonks3d.js, mounted by tower.js; this file owns the data, panels and controls.
 // Data comes from Stonks/engine via main.js: IPC "tf" live lines (desk + msg events), tf-state, tf-events (replay), tf-usage, kn-*.
 (function () {
   const $ = (s) => document.querySelector(s);
   const mk = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
-  const ICON = { market: "▦", news: "✉", sentiment: "☺", analyst: "∿", bull: "▲", bear: "▼", backtest: "⟲", risk: "⛨", lead: "★", score: "✓", reflect: "✎", mirror: "⧉" };
+
   const NAME = { market: "Market Data", news: "News & Policy", sentiment: "Sentiment", analyst: "Analyst", debate: "Bull vs Bear", bull: "Bull", bear: "Bear", backtest: "Backtester", risk: "Risk Manager", lead: "Lead", score: "Scorekeeper", reflect: "Reflector", mirror: "Mirror" };
   const HUE = { market: "#4aa8ff", news: "#b58cff", sentiment: "#ff8fd0", analyst: "#ffb02e", bull: "#00f5a0", bear: "#ff3d6b", backtest: "#5ee6ff", risk: "#ff7a45", lead: "#ffe066", score: "#9ad17a", reflect: "#c0a0ff", mirror: "#ffb86b" };
   // seat angle in degrees clockwise from the top; bull (270) and bear (90) sit opposite each other
@@ -41,48 +41,21 @@
     return { st, veto };
   }
 
-  // ---------- Office (canvas, see office.js) ----------
-  const O = window.FloOffice; let animCur = -1, pinned = "";
-  const roomOfA = (a) => (a ? O.roomOf(a) : "");
-  function roomMsgs(k, cur) { return events().slice(0, cur + 1).filter((m) => m.text && roomOfA(m.agent) === k); }
-  function popFor(k, x, y, pin) {
-    const p = $("#fl-pop"); if (!k) { if (!pinned) p.classList.add("hidden"); return; }
-    if (pinned && !pin) return;
-    const ev = events(), st = derive(ev, S.cur).st, ag = O.agentsOf(k), msgs = roomMsgs(k, S.cur).slice(-3);
-    p.textContent = ""; p.style.setProperty("--h", O.HUE[ag[0]] || "#ffb02e");
-    const h = mk("div", "ph"); h.append(mk("b", "", O.NAME[k]), mk("em", "", ag.map((a) => (st[a] ? st[a].status : "idle")).join(" / "))); p.append(h);
-    if (!msgs.length) p.append(mk("div", "pm", "Nothing from this desk in the current run."));
-    msgs.forEach((m) => { const d = mk("div", "pm"); d.append(mk("small", "", NAME[m.agent] + (m.to ? " → " + NAME[m.to] : "")), document.createTextNode(m.text)); p.append(d); });
-    p.append(mk("div", "pf", pin ? "pinned · click the room again to unpin (transcript filtered to this desk)" : "click to pin and filter the transcript"));
-    p.classList.remove("hidden"); const box = $("#fl-office").getBoundingClientRect(), pw = p.offsetWidth, ph = p.offsetHeight;
-    p.style.left = Math.max(6, Math.min(box.width - pw - 6, x - box.left + 16)) + "px"; p.style.top = Math.max(6, Math.min(box.height - ph - 6, y - box.top + 10)) + "px";
-  }
-  O.init($("#fl-cv"), {
-    shown: () => document.body.classList.contains("in-floor") && !document.hidden,
-    onHover: (k, e) => { if (!pinned) popFor(k, e ? e.clientX : 0, e ? e.clientY : 0, false); },
-    onClick: (k, e, who) => { if (!k || (pinned === k && !who)) { pinned = ""; S.sel = ""; $("#fl-pop").classList.add("hidden"); O.focus(""); } else { pinned = k; S.sel = k; O.focus(k, who); popFor(k, e.clientX, e.clientY, true); } renderAgents(); },
-  });
+  const matchSel = (m) => !S.sel || seatsFor(m.agent).includes(S.sel) || seatsFor(m.to || "").includes(S.sel);
   function renderAgents() {
     const ev = events(), n = ev.length; if (S.follow || S.cur >= n) S.cur = n - 1;
-    const cur = S.cur, { st, veto } = derive(ev, cur), e = ev[cur];
-    if (cur !== animCur) {
-      if (cur > animCur && cur - animCur <= 6) for (let i = animCur + 1; i <= cur; i++) O.trigger(ev[i]);
-      else { O.reset(); if (cur >= 0) O.trigger(ev[cur], true); }
-      animCur = cur;
-    }
-    const cl = ((S.stats && S.stats.positions) || []).filter((p) => p.status === "closed");
-    O.setView({ st, veto, running: S.running, tape: S.tape, eq: (S.equity || []).map((p) => p.total).filter((v) => v != null), wins: cl.filter((p) => p.pnl > 0).length, losses: cl.filter((p) => p.pnl <= 0).length });
-    const stp = $("#fl-stepper"); stp.textContent = "";
+    const cur = S.cur, { st } = derive(ev, cur);
+    notify(); const stp = $("#fl-stepper"); stp.textContent = "";
     STAGES.forEach(([label, ids], i) => { const ss = ids.map((x) => st[x].status), c = ss.includes("working") ? "working" : ss.includes("error") ? "error" : ss.every((x) => x === "done") ? "done" : ss.includes("done") ? "working" : ""; stp.append(mk("span", "stp " + c, label)); if (i < STAGES.length - 1) stp.append(mk("i")); });
     // scrubber
     const r = $("#fl-range"); r.max = Math.max(0, n - 1); r.value = Math.max(0, cur); $("#fl-spos").textContent = n ? (cur + 1) + "/" + n : "0/0";
     $("#fl-live").classList.toggle("on", S.follow); $("#fl-play").textContent = S.play ? "PAUSE" : "PLAY";
     // transcript
     const log = $("#fl-log"), keep = log.scrollTop, atEnd = log.scrollHeight - log.scrollTop - log.clientHeight < 40; log.textContent = "";
-    $("#fl-filter").textContent = S.sel ? O.NAME[S.sel] + " only (click the room to clear)" : "";
+    $("#fl-filter").textContent = S.sel ? NAME[S.sel] + " only (click the agent again to clear)" : "";
     if (!n) log.append(mk("div", "fl-empty", "No messages yet. Hit GO and watch the desks hand work to each other."));
     ev.forEach((m, i) => {
-      if (S.sel && O.roomOf(m.agent) !== S.sel && O.roomOf(m.to || "") !== S.sel) return;
+      if (!matchSel(m)) return;
       const sid = seatOf(m.agent), row = mk("div", "ln " + m.kind + (i === cur ? " cur" : "") + (i > cur ? " future" : "")); row.style.setProperty("--h", HUE[sid] || "#888");
       const h = mk("div", "lh"); h.append(mk("b", "", NAME[m.agent] || m.agent), mk("em", "", (m.to ? "→ " + NAME[m.to] : "") + (m.kind === "veto" ? "  VETO" : m.kind === "start" ? "  working" : m.kind === "error" ? "  error" : "")), mk("time", "", m.ts ? new Date(m.ts).toLocaleTimeString([], { hour12: false }) : ""));
       row.append(h, mk("div", "lt", m.text)); row.onclick = () => { S.follow = false; S.cur = i; stopPlay(); renderAgents(); }; log.append(row);
@@ -202,7 +175,7 @@
     const ret = eq != null && cap ? Math.round((eq / cap - 1) * 10000) / 100 : null, spy = s && s.spy && s.spy.retPct;
     const r = $("#fl-ret"); r.textContent = ret == null ? "--" : sgn(ret) + "%"; r.className = cls(ret);
     const vs = ret != null && spy != null ? Math.round((ret - spy) * 100) / 100 : null, v = $("#fl-vs"); v.textContent = vs == null ? "--" : sgn(vs) + " pts"; v.className = cls(vs); v.title = spy != null ? "SPY " + sgn(spy) + "% over the same period" : "";
-    const w = Object.values(S.desks).filter((d) => d.status === "working");
+    notify(); const w = Object.values(S.desks).filter((d) => d.status === "working");
     $("#fl-sub").textContent = S.running ? (w.length ? w.map((d) => d.name).join(" + ") + " working" : "run in progress") : S.finishedAt ? "last run " + new Date(S.finishedAt).toLocaleTimeString() : "desks idle";
     const go = $("#fl-go"); go.textContent = S.running ? "RUNNING" : "GO"; go.classList.toggle("run", S.running); go.disabled = S.running; $("#fl-score").disabled = S.running;
   }
@@ -232,10 +205,15 @@
   }
 
   // ---------- Wiring ----------
-  const closePanels = (except) => { for (const [id, b] of [["fl-rail", "fl-tr"], ["fl-chatpanel", "fl-chbtn"]]) if (id !== except) { $("#" + id).classList.remove("open"); $("#" + b).classList.remove("on"); } };
-  const togglePanel = (id, b) => { const p = $("#" + id), o = !p.classList.contains("open"); closePanels(o ? id : ""); p.classList.toggle("open", o); $("#" + b).classList.toggle("on", o); renderAgents(); };
-  $("#fl-tr").onclick = () => togglePanel("fl-rail", "fl-tr");
-  $("#fl-chbtn").onclick = () => togglePanel("fl-chatpanel", "fl-chbtn");
+  // ---------- API for the 3D room and the tower ----------
+  const listeners = [];
+  let dv = null;
+  const notify = () => { dv = null; listeners.forEach((f) => { try { f(); } catch (e) {} }); };
+  function deskView() { if (dv) return dv; // seat status/text for the 3D desks: derived from the (replayed) events, live desk cards win while a run is following
+    const ev = events(), d = derive(ev, S.cur), st = d.st, cur = ev[S.cur] || null;
+    if (S.running && S.follow) for (const id in S.desks) { const k = S.desks[id]; if (k && k.status === "working") seatsFor(id).forEach((x) => { if (st[x]) { st[x].status = "working"; if (!st[x].text) st[x].text = k.step || ""; } }); }
+    return (dv = { st, cur, veto: d.veto, running: S.running });
+  }
   const all = () => { renderSafety(); renderCmp(); renderHead(); renderTape(); renderAlerts(); renderBook(); renderSig(); renderCurve(); renderAgents(); };
   function load(r) {
     const st = r.state; if (st) { S.desks = st.desks || {}; S.alerts = st.alerts || []; S.tape = st.tape || []; S.finishedAt = st.finishedAt || 0; S.flag = st.flag || ""; }
@@ -259,8 +237,13 @@
   $("#fl-score").onclick = () => start(() => hq.tfScore());
   const clk = () => { $("#fl-clock").textContent = new Date().toLocaleTimeString([], { hour12: false }); };
   clk(); setInterval(clk, 1000);
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && document.body.classList.contains("in-floor")) { const d = $("#fl-drawer"); if (!d.classList.contains("hidden")) d.classList.add("hidden"); else if (pinned) { pinned = ""; S.sel = ""; $("#fl-pop").classList.add("hidden"); O.focus(""); renderAgents(); } else if (document.querySelector(".fl-rail.open,.fl-chatpanel.open")) closePanels(""); else window.HQView("hq"); } });
-  window.HQFloor = { shown: () => { S.autoPlay = true; refresh(); } };
+  window.HQFloor = {
+    shown: (on) => { S.active = on !== false; if (S.active) { S.autoPlay = true; refresh(); } else stopPlay(); },
+    running: () => S.running, desks: deskView, onChange: (f) => listeners.push(f), NAME, HUE, ANG, SEATS,
+    data: () => ({ tape: S.tape, equity: S.equity, alerts: S.alerts, stats: S.stats }),
+    select: (seat) => { S.sel = S.sel === seat ? "" : seat; renderAgents(); }, selected: () => S.sel,
+    escape: () => { const d = $("#fl-drawer"); if (!d.classList.contains("hidden")) { d.classList.add("hidden"); return true; } if (S.sel) { S.sel = ""; renderAgents(); return true; } return false; },
+  };
   all(); refresh();
-  setInterval(() => { if (document.body.classList.contains("in-floor")) { refreshUsage(); if (!S.running) refresh(); } }, 30000);
+  setInterval(() => { if (S.active) { refreshUsage(); if (!S.running) refresh(); } }, 30000);
 })();

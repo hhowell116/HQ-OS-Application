@@ -15,7 +15,7 @@
 
 <header class="titlebar">
   <div class="brand"><span class="glyph">◈</span><span>HQ<b>OS</b></span><span class="ver">v2.1</span></div>
-  <div class="tabs" id="tabs"><button data-view="home" title="Home: the nebula (F5, Esc)">HOME</button><button data-view="hq" class="on" title="Command center (F1)">HQ</button><button data-view="tower" title="Tower: a floor per project, live activity (F2)">TOWER</button><button data-view="floor" title="Trading Floor: research agents, paper trades (F4)">TRADING FLOOR</button></div>
+  <div class="tabs" id="tabs"><button data-view="home" title="Home: the nebula (F5, Esc)">HOME</button><button data-view="hq" class="on" title="Command center (F1)">HQ</button><button data-view="tower" title="Tower: a floor per project, live activity (F2)">TOWER</button></div>
   <div class="status" id="status">
     <span class="chip warn hidden" id="restart-chip" style="cursor:pointer" title="Main-process code changed. Click to restart HQ OS.">⟳ restart to apply</span>
     <span class="chip" id="chip-agents">0 agents</span>
@@ -124,6 +124,37 @@
   <aside class="tw-roster" id="tw-roster"></aside>
   <div id="tw-tags"></div>
   <div id="tw-feed"></div>
+  <div class="tw-stonks" id="tw-stonks">
+  <div class="fl-bar">
+    <span class="fl-ttl">&#9672; STONKS FLOOR</span><span class="fl-sub" id="fl-sub">desks idle</span>
+    <div class="fl-use" id="fl-use" title="Claude usage, from Stonks/data/usage.json (written by the Stonks statusline script)">
+      <div class="u" id="fl-u5"><small>SESSION</small><i><b></b></i><span>--</span></div>
+      <div class="u" id="fl-u7"><small>WEEKLY</small><i><b></b></i><span>--</span></div>
+      <em id="fl-uage">no data yet</em>
+    </div>
+    <div class="fl-kpi"><small>EQUITY</small><b id="fl-eq">--</b></div>
+    <div class="fl-kpi"><small>RETURN</small><b id="fl-ret">--</b></div>
+    <div class="fl-kpi"><small>VS SPY</small><b id="fl-vs">--</b></div>
+    <span class="spacer"></span>
+    <span class="fl-pill active" id="fl-pill" title="Agent state">ACTIVE</span><button class="fl-btn ghost hidden" id="fl-resume" title="Hayden only: resume trading after a pause">RESUME</button><button class="fl-btn kill" id="fl-kill" title="Close all paper positions and pause (live: cancel orders)">KILL</button>
+    <button class="fl-btn ghost" id="fl-score" title="Re-price open paper positions">SCORE</button><button class="fl-go" id="fl-go" title="Run every desk now">GO</button><span class="fl-clock" id="fl-clock"></span>
+  </div>
+  <div class="fl-banner hidden" id="fl-banner"></div>
+  <div class="fl-tape" id="fl-tape"><div class="fl-tape-in" id="fl-tape-in"></div></div>
+  <aside class="fl-pn fl-board"><div class="fl-h"><span>SIGNAL BOARD</span><span class="fl-rule"></span><span class="fl-note" id="fl-when"></span></div><div class="fl-alerts" id="fl-alerts"></div></aside>
+  <div class="fl-pn fl-rcol">
+    <div class="fl-sc"><div class="fl-h"><span>PAPER BOOK</span><span class="fl-rule"></span></div><div class="fl-cmp" id="fl-cmp"></div><div class="fl-curve" id="fl-curve"></div></div>
+    <div class="fl-sc"><div class="fl-h"><span>RESULTS</span><span class="fl-rule"></span></div><div class="fl-stats" id="fl-stats"></div></div>
+    <div class="fl-sc"><div class="fl-h"><span>POSITIONS</span><span class="fl-rule"></span></div><div class="fl-pos" id="fl-pos"></div></div>
+    <div class="fl-sc"><div class="fl-h"><span>SAFETY</span><span class="fl-rule"></span></div><div class="fl-rules" id="fl-rules"></div><div class="fl-h"><span>SIGNAL RECORD</span><span class="fl-rule"></span></div><div class="fl-sig" id="fl-sig"></div></div>
+  </div>
+  <div class="fl-pn fl-bot">
+    <div class="fl-step" id="fl-stepper"></div>
+    <div class="fl-scrub"><button class="fl-btn ghost" id="fl-play" title="Replay the run message by message">PLAY</button><input type="range" id="fl-range" min="0" max="0" value="0"><span id="fl-spos">0/0</span><span class="fl-note" id="fl-filter"></span><button class="fl-btn ghost on" id="fl-live" title="Follow the live run">LIVE</button></div>
+    <div class="fl-log" id="fl-log"></div>
+  </div>
+  <aside class="fl-pn fl-drawer hidden" id="fl-drawer"></aside>
+  </div>
   <div id="tw-fade"></div>
   <div class="tw-hint" id="tw-hint"></div>
 </section>
@@ -140,43 +171,7 @@
   <div class="nb-chips" id="nb-chips"></div>
   <aside class="nb-panel hidden" id="nb-panel"></aside>
 </section>
-<section class="floor-view hidden" id="floor-view">
-  <div class="fl-bar">
-    <span class="fl-ttl">&#9672; TRADING FLOOR</span><span class="fl-sub" id="fl-sub">desks idle</span>
-    <div class="fl-use" id="fl-use" title="Claude usage, from Stonks/data/usage.json (written by the Stonks statusline script)">
-      <div class="u" id="fl-u5"><small>SESSION</small><i><b></b></i><span>--</span></div>
-      <div class="u" id="fl-u7"><small>WEEKLY</small><i><b></b></i><span>--</span></div>
-      <em id="fl-uage">no data yet</em>
-    </div>
-    <div class="fl-kpi"><small>EQUITY</small><b id="fl-eq">--</b></div>
-    <div class="fl-kpi"><small>RETURN</small><b id="fl-ret">--</b></div>
-    <div class="fl-kpi"><small>VS SPY</small><b id="fl-vs">--</b></div>
-    <span class="spacer"></span>
-    <span class="fl-pill active" id="fl-pill" title="Agent state">ACTIVE</span><button class="fl-btn ghost hidden" id="fl-resume" title="Hayden only: resume trading after a pause">RESUME</button><button class="fl-btn kill" id="fl-kill" title="Close all paper positions and pause (live: cancel orders)">KILL</button>
-    <button class="fl-btn ghost" id="fl-score" title="Re-price open paper positions">SCORE</button><button class="fl-go" id="fl-go" title="Run every desk now">GO</button><span class="fl-clock" id="fl-clock"></span>
-  </div>
-  <div class="fl-banner hidden" id="fl-banner"></div>
-  <div class="fl-tape" id="fl-tape"><div class="fl-tape-in" id="fl-tape-in"></div></div>
-  <div class="fl-work" id="fl-work">
-    <div class="fl-left">
-      <div class="fl-center" id="fl-center">
-        <div class="fl-step" id="fl-stepper"></div>
-        <div class="fl-office" id="fl-office"><canvas id="fl-cv"></canvas><div class="fl-pop hidden" id="fl-pop"></div></div>
-        <div class="fl-scrub"><button class="fl-btn ghost" id="fl-play" title="Replay the run message by message">PLAY</button><input type="range" id="fl-range" min="0" max="0" value="0"><span id="fl-spos">0/0</span><button class="fl-btn ghost" id="fl-tr" title="Show or hide the full message transcript">TRANSCRIPT</button><button class="fl-btn ghost" id="fl-chbtn" title="Open the Stonks chat">CHAT</button><button class="fl-btn ghost on" id="fl-live" title="Follow the live run">LIVE</button></div>
-        <aside class="fl-rail" id="fl-rail"><div class="fl-h"><span>TRANSCRIPT</span><span class="fl-rule"></span><span class="fl-note" id="fl-filter"></span></div><div class="fl-log" id="fl-log"></div></aside>
-        <aside class="fl-chatpanel" id="fl-chatpanel"><div class="fl-chat" id="fl-chat"></div></aside>
-      </div>
-      <div class="fl-strip">
-        <div class="fl-sc"><div class="fl-h"><span>PAPER BOOK</span><span class="fl-rule"></span></div><div class="fl-cmp" id="fl-cmp"></div><div class="fl-curve" id="fl-curve"></div></div>
-        <div class="fl-sc"><div class="fl-h"><span>RESULTS</span><span class="fl-rule"></span></div><div class="fl-stats" id="fl-stats"></div></div>
-        <div class="fl-sc"><div class="fl-h"><span>POSITIONS</span><span class="fl-rule"></span></div><div class="fl-pos" id="fl-pos"></div></div>
-        <div class="fl-sc"><div class="fl-h"><span>SAFETY</span><span class="fl-rule"></span></div><div class="fl-rules" id="fl-rules"></div><div class="fl-h"><span>SIGNAL RECORD</span><span class="fl-rule"></span></div><div class="fl-sig" id="fl-sig"></div></div>
-      </div>
-    </div>
-    <aside class="fl-main fl-board"><div class="fl-h"><span>SIGNAL BOARD</span><span class="fl-rule"></span><span class="fl-note" id="fl-when"></span></div><div class="fl-alerts" id="fl-alerts"></div></aside>
-    <aside class="fl-drawer hidden" id="fl-drawer"></aside>
-  </div>
-</section>
+
 <div class="rev-ov hidden" id="rules-ov">
   <div class="rl-box">
     <div class="rl-top"><span class="rl-ttl">▤ RULES</span><span class="dim small" id="rl-meta"></span><span class="spacer"></span>
@@ -203,8 +198,9 @@
 <script src="app.js"></script>
 <script src="rules.js"></script>
 <script src="files.js"></script>
-<script src="office.js"></script>
+
 <script src="floor.js"></script>
+<script src="stonks3d.js"></script>
 <script src="vendor/nebula-lib.js"></script>
 <script src="brain.js"></script>
 <script src="nebula.js"></script>
