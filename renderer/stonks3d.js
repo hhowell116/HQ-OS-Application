@@ -68,7 +68,6 @@
     sc.eq = screen(K, I, 3.5, 1.95, 768, 428, -hw * 0.62, 2.0, z, 0, fc);
     sc.main = screen(K, I, 4.2, 2.35, 896, 500, 0, 2.05, z, 0, fc);
     sc.sig = screen(K, I, 3.5, 1.95, 768, 428, hw * 0.62, 2.0, z, 0, fc);
-    sc.tick = screen(K, I, Math.min(hw * 2 - 0.6, 11), 0.42, 2048, 96, 0, 3.0, z, 0, fc); sc.tick.tex.wrapS = T.RepeatWrapping; sc.tick.tex.repeat.x = 0.5; sc.tick.m.material.needsUpdate = true;
     const stripM = new T.MeshBasicMaterial({ color: col.clone().multiplyScalar(0.8), toneMapped: false }); for (const x of [-hw + 0.1, hw - 0.1]) K.box(g, 0.06, 3.0, 0.06, stripM, x, 1.5, -hw + 0.12);
     buildExtras(I, K);
     I.anim = (t, dt) => anim(I, K, t, dt);
@@ -137,13 +136,6 @@
     const plane = new T.Mesh(new T.PlaneGeometry(0.96, 0.6), new T.MeshBasicMaterial({ map: ktex, toneMapped: false })); plane.position.set(0, 1.05, 0); plane.rotation.y = -Math.sign(kx) * 0.22; plane.rotation.x = -0.05; kio.add(plane);
     const fr = new T.Mesh(new T.PlaneGeometry(1.0, 0.64), basic(kc, 0.6 * E)); fr.position.z = -0.01; plane.add(fr); S.kscr = { ctx: kcv.getContext("2d"), tex: ktex, key: "" };
     const kl = spriteOf(K, S, 320, 48, 1.3, 0.2); kl.draw("k", (c, w, h) => { c.font = "700 24px Consolas, monospace"; c.textAlign = "center"; c.textBaseline = "middle"; c.fillStyle = "#8ec3ff"; c.fillText("STEADY DESK", w / 2, h / 2); }); kl.sp.position.set(0, 0.2, 0.95); kio.add(kl.sp); S.lbl.steady = kl.sp; S.cm = 0;
-    // ---- 3. Ticker ring ----
-    const R = 2.55, BH = (2 * Math.PI * R) / 48, tr = new T.Group(); tr.position.y = 2.1; g.add(tr); S.tring = tr;
-    const tcv = document.createElement("canvas"); tcv.width = 3072; tcv.height = 64; const ttex = new T.CanvasTexture(tcv); ttex.colorSpace = T.SRGBColorSpace; ttex.anisotropy = 4; S.tex.push(ttex); S.tick = { cv: tcv, ctx: tcv.getContext("2d"), tex: ttex, sig: "" };
-    const tmat = (side) => new T.MeshBasicMaterial({ map: ttex, transparent: true, opacity: 0.95, depthWrite: false, side, toneMapped: false });
-    const cyl = new T.CylinderGeometry(R, R, BH, 96, 1, true), cyl2 = cyl.clone(), uv = cyl2.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setX(i, 1 - uv.getX(i));
-    tr.add(new T.Mesh(cyl, tmat(T.FrontSide)), new T.Mesh(cyl2, tmat(T.BackSide)));
-    for (const y of [-BH / 2, BH / 2]) { const rm = new T.Mesh(new T.TorusGeometry(R, 0.006, 4, 120).rotateX(Math.PI / 2), basic(col.clone().multiplyScalar(1.3), 0.55 * E)); rm.position.y = y; tr.add(rm); }
     // ---- 4. packets, shockwaves, veto stamp ----
     for (let i = 0; i < 6; i++) { const g2 = new T.Group(); g2.visible = false; g.add(g2); const head = new T.Mesh(new T.SphereGeometry(0.075, 10, 8), basic(0xffffff, 1)); g2.add(head); const tails = []; for (let k = 1; k <= 6; k++) { const t2 = new T.Mesh(new T.SphereGeometry(0.075 * (1 - k / 8), 8, 6), basic(0xffffff, 0.6 * (1 - k / 7))); g2.add(t2); tails.push(t2); }
       const pts = new Float32Array((SPOKE_N * 2 + 1) * 3), geo = new T.BufferGeometry(); geo.setAttribute("position", new T.BufferAttribute(pts, 3)); const lm = new T.LineBasicMaterial(Object.assign({ color: 0xffffff, opacity: 0 }, add)), ln = new T.Line(geo, lm); ln.frustumCulled = false; ln.visible = false; g.add(ln);
@@ -234,14 +226,14 @@
     pump(I, K, t);
     // calm by default: ticker ring, debate pit, spokes and desk names fade back unless a run is going or replaying
     S.cm += ((f.busy && f.busy() ? 1 : 0) - S.cm) * Math.min(1, dt * 2.5); const CM = S.cm, CK = 0.12 + 0.88 * CM, PK = 0.3 + 0.7 * CM;
-    for (const id in S.lbl) S.lbl[id].material.opacity = Math.max(CM * 0.85, S.hov === id || S.focus === id ? 1 : 0);
+    for (const id in S.lbl) S.lbl[id].material.opacity = Math.max(id === "hub" ? 1 : CM * 0.85, S.hov === id || S.focus === id ? 1 : 0);
     if (S.md && S.cam) { S.md = false; S.hov = I.g.parent ? pick(I) : ""; if (S.cv) S.cv.style.cursor = S.hov ? "pointer" : ""; }
     S.fk += (S.fgoal - S.fk) * Math.min(1, dt * 4.5); if (Math.abs(S.fgoal - S.fk) < 0.002) S.fk = S.fgoal;
     // hub: glass breathes, flashes on handoffs and vetoes
     S.hubFlash = Math.max(0, S.hubFlash - dt * 1.6); const vetoing = S.stamp && t - S.stamp.t0 < 1.2;
     S.glass.material.opacity = (0.08 + 0.02 * Math.sin(t * 1.6) + 0.12 * S.hubFlash + (V.running ? 0.03 : 0)) * E; S.hubTop.material.opacity = (0.06 + 0.1 * S.hubFlash) * E;
     S.glass.material.color.copy(vetoing ? K.red : I.f.color); S.globe.material.color.copy(vetoing ? K.red : S.hubFlash > 0.3 ? K.amber : I.f.color);
-    for (const id in S.spoke) { S.boost[id] = Math.max(0, S.boost[id] - dt * 1.1); S.spoke[id].opacity = (0.09 * (0.25 + 0.75 * CM) + 0.7 * S.boost[id] + (S.hov === id ? 0.25 : 0)) * E; }
+    for (const id in S.spoke) { S.boost[id] = Math.max(0, S.boost[id] - dt * 1.1); S.spoke[id].opacity = (0.04 * (0.4 + 0.6 * CM) + 0.7 * S.boost[id] + (S.hov === id ? 0.25 : 0)) * E; }
     for (const id in S.led) {
       const st = id === "steady" ? (t < S.steadyUntil ? "working" : "idle") : V.st[id] ? V.st[id].status : "idle", m = S.led[id];
       if (st === "working") m.color.set(amb).multiplyScalar(0.7 + 0.5 * Math.sin(t * 7 + id.length)); else if (st === "done") m.color.set(hueOf(id)).multiplyScalar(0.85); else if (st === "error") m.color.set(dn); else m.color.set(0x25323f);
@@ -278,7 +270,7 @@
       const slam = a < 0.18 ? 3 - 2 * ease(a / 0.18) : 1, jit = a < 0.35 ? (1 - a / 0.35) * 0.06 : 0; sp.visible = true; sp.scale.set(2.3 * slam, 0.72 * slam, 1); sp.position.set((Math.random() - 0.5) * jit, 2.55 + (Math.random() - 0.5) * jit, 0); sp.material.rotation = -0.2; sp.material.opacity = a < 3 ? 1 : Math.max(0, 1 - (a - 3) / 0.8);
     } else sp.visible = false;
     drawKiosk(I, t); S.kRing.material.opacity = PK * (0.4 + (t < S.steadyUntil ? 0.4 : 0) + (S.hov === "steady" ? 0.25 : 0)) * E;
-    S.tring.rotation.y = -t * 0.09; for (const m of S.tring.children) if (m.material && m.material.map) m.material.opacity = 0.95 * CK * (1 - 0.9 * ease(S.fk)); drawRing(I, D.tape && D.tape.length ? D.tape : [{ s: "SPY", px: 0, chg: 0 }]);
+
   }
 
   function drawScreens(I, K) {
@@ -299,17 +291,11 @@
       head(c, w, "SIGNAL BOARD", amb); if (!al.length) { c.font = "600 26px Consolas, monospace"; c.fillStyle = "#6b7d8a"; c.fillText("no alerts yet", 40, 140); }
       al.forEach((a, i) => { const y = 112 + i * 52, cc = a.action === "BUY" ? up : a.action === "SELL" ? dn : amb; c.fillStyle = cc; c.fillRect(30, y - 18, 6, 38); c.textAlign = "left"; c.font = "700 32px Consolas, monospace"; c.shadowColor = cc; c.shadowBlur = 10; c.fillText(a.action, 50, y); c.fillStyle = "#e6edf3"; c.shadowBlur = 0; c.fillText(a.ticker, 190, y); c.textAlign = "right"; c.fillStyle = "#8fa3b0"; c.fillText(String(a.confidence != null ? a.confidence : ""), w - 30, y); });
     });
-    const tp = D.tape && D.tape.length ? D.tape : [{ s: "SPY", px: 0, chg: 0 }], tsig = "t" + tp.map((x) => x.s + x.chg).join(",");
-    const s = S.screens.tick; if (s.sig !== tsig) { s.sig = tsig; const c = s.ctx; c.fillStyle = "rgba(3,9,14,.97)"; c.fillRect(0, 0, s.cw, s.ch); c.textBaseline = "middle"; c.font = "700 44px Consolas, monospace";
-      const half = s.cw / 2; let x = 24; const items = []; while (x < half - 120 && items.length < 60) for (const q of tp) { if (x >= half - 120) break; const txt = q.s + " " + (q.chg > 0 ? "▲" : q.chg < 0 ? "▼" : "") + (q.px ? " " + q.px : "") + " " + (q.chg > 0 ? "+" : "") + q.chg + "%"; items.push([x, txt, q.chg]); x += c.measureText(txt).width + 70; }
-      for (const off of [0, half]) for (const [ix, txt, chg] of items) { c.fillStyle = chg > 0 ? up : chg < 0 ? dn : "#a8b8c4"; c.fillText(txt, ix + off, s.ch / 2); }
-      s.tex.needsUpdate = true; }
   }
 
   function anim(I, K, t, dt) {
     const S = I.stonks, f = F(); if (!S || !f || S.dead || !I.g.parent || document.hidden) return; const V = f.desks(), D = f.data(), E = emis(K);
     if (t - S.last > 0.4) { S.last = t; drawScreens(I, K); }
-    S.screens.tick.tex.offset.x = (t * 0.018) % 1;
     S.globe.rotation.y = t * 0.5; S.ring.rotation.z = t * 0.6; S.pl.intensity = (5 + 1.5 * Math.sin(t * 2.1) + (V.running ? 2 : 0)) * emis(K);
     S.globe.material.color.copy(V.running ? K.amber : I.f.color);
     // candle ring: last equity points, normalised; idle = slow wave

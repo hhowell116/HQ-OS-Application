@@ -7,7 +7,7 @@
   const NAME = { market: "Market Data", news: "News & Policy", sentiment: "Sentiment", analyst: "Analyst", debate: "Bull vs Bear", bull: "Bull", bear: "Bear", backtest: "Backtester", risk: "Risk Manager", lead: "Lead", score: "Scorekeeper", reflect: "Reflector", mirror: "Mirror" };
   const HUE = { market: "#4aa8ff", news: "#b58cff", sentiment: "#ff8fd0", analyst: "#ffb02e", bull: "#00f5a0", bear: "#ff3d6b", backtest: "#5ee6ff", risk: "#ff7a45", lead: "#ffe066", score: "#9ad17a", reflect: "#c0a0ff", mirror: "#ffb86b" };
   // seat angle in degrees clockwise from the top; bull (270) and bear (90) sit opposite each other
-  const ANG = { market: 325, news: 0, sentiment: 35, mirror: 62, bear: 90, backtest: 135, risk: 165, lead: 195, reflect: 222, score: 248, bull: 270, analyst: 298 };
+  const ANG = { news: 0, sentiment: 30, mirror: 60, bear: 90, backtest: 120, risk: 150, lead: 180, reflect: 210, score: 240, bull: 270, analyst: 300, market: 330 };
   const SEATS = Object.keys(ANG).concat("steady");
   const NEXT = { score: "market", market: "analyst", news: "analyst", sentiment: "analyst", mirror: "analyst", analyst: "bull", bull: "bear", bear: "backtest", debate: "backtest", backtest: "risk", risk: "lead", lead: "reflect", reflect: "" };
   const STAGES = [["SCORE", ["score"]], ["DATA", ["market", "news", "sentiment", "mirror"]], ["ANALYST", ["analyst"]], ["DEBATE", ["bull", "bear"]], ["BACKTEST", ["backtest"]], ["RISK", ["risk"]], ["LEAD", ["lead"]], ["REFLECT", ["reflect"]]];
@@ -70,6 +70,7 @@
   $("#fl-live").onclick = () => { stopPlay(); S.follow = true; renderAgents(); };
   $("#fl-range").oninput = (x) => { stopPlay(); S.follow = false; S.cur = +x.target.value; renderAgents(); };
   function renderTape() {
+    const sig = JSON.stringify(S.tape); if (S.tapeSig === sig) return; S.tapeSig = sig;
     const t = S.tape.length ? S.tape : [{ s: "SPY", px: 0, chg: 0 }]; const inn = $("#fl-tape-in"); inn.textContent = "";
     for (const x of [...t, ...t]) { const s = mk("span", "fl-tk " + cls(x.chg)); s.append(mk("b", "", x.s), document.createTextNode((x.chg > 0 ? "▲ " : x.chg < 0 ? "▼ " : "") + (x.px ? x.px + " " : "") + sgn(x.chg) + "%")); inn.append(s); }
   }
@@ -290,9 +291,9 @@
   const busy = () => !!(S.running || S.play);
   function syncBusy() { const t = $("#tw-stonks"); if (t) t.classList.toggle("fl-busy", busy()); }
   function collapsibles() { // book/safety panels: compact, click a header to fold; Paper Book open by default
-    if (S.coll) return; S.coll = true; let saved = {}; try { saved = JSON.parse(localStorage.getItem("flcoll") || "{}"); } catch (e) {}
-    document.querySelectorAll(".fl-rcol > .fl-sc").forEach((p, i) => { const hd = p.querySelector(".fl-h"); if (!hd) return; const key = (hd.textContent || "").trim().slice(0, 12) || "p" + i; hd.classList.add("fold"); p.classList.toggle("collapsed", key in saved ? !!saved[key] : i > 0);
-      hd.onclick = () => { const c = p.classList.toggle("collapsed"); saved[key] = c; try { localStorage.setItem("flcoll", JSON.stringify(saved)); } catch (e) {} }; });
+    if (S.coll) return; S.coll = true; let saved = {}; try { saved = JSON.parse(localStorage.getItem("flcoll2") || "{}"); } catch (e) {}
+    document.querySelectorAll(".fl-rcol > .fl-sc").forEach((p, i) => { const hd = p.querySelector(".fl-h"); if (!hd) return; const key = (hd.textContent || "").trim().slice(0, 12) || "p" + i; hd.classList.add("fold"); p.classList.toggle("collapsed", key in saved ? !!saved[key] : false);
+      hd.onclick = () => { const c = p.classList.toggle("collapsed"); saved[key] = c; try { localStorage.setItem("flcoll2", JSON.stringify(saved)); } catch (e) {} }; });
   }
   function load(r) {
     if (S.preview) return; // dev screenshot hook: HQFloor.preview() freezes the data
