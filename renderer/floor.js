@@ -3,14 +3,14 @@
 (function () {
   const $ = (s) => document.querySelector(s);
   const mk = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
-  const ICON = { market: "▦", news: "✉", sentiment: "☺", analyst: "∿", bull: "▲", bear: "▼", backtest: "⟲", risk: "⛨", lead: "★", score: "✓", reflect: "✎" };
-  const NAME = { market: "Market Data", news: "News & Policy", sentiment: "Sentiment", analyst: "Analyst", debate: "Bull vs Bear", bull: "Bull", bear: "Bear", backtest: "Backtester", risk: "Risk Manager", lead: "Lead", score: "Scorekeeper", reflect: "Reflector" };
-  const HUE = { market: "#4aa8ff", news: "#b58cff", sentiment: "#ff8fd0", analyst: "#ffb02e", bull: "#00f5a0", bear: "#ff3d6b", backtest: "#5ee6ff", risk: "#ff7a45", lead: "#ffe066", score: "#9ad17a", reflect: "#c0a0ff" };
+  const ICON = { market: "▦", news: "✉", sentiment: "☺", analyst: "∿", bull: "▲", bear: "▼", backtest: "⟲", risk: "⛨", lead: "★", score: "✓", reflect: "✎", mirror: "⧉" };
+  const NAME = { market: "Market Data", news: "News & Policy", sentiment: "Sentiment", analyst: "Analyst", debate: "Bull vs Bear", bull: "Bull", bear: "Bear", backtest: "Backtester", risk: "Risk Manager", lead: "Lead", score: "Scorekeeper", reflect: "Reflector", mirror: "Mirror" };
+  const HUE = { market: "#4aa8ff", news: "#b58cff", sentiment: "#ff8fd0", analyst: "#ffb02e", bull: "#00f5a0", bear: "#ff3d6b", backtest: "#5ee6ff", risk: "#ff7a45", lead: "#ffe066", score: "#9ad17a", reflect: "#c0a0ff", mirror: "#ffb86b" };
   // seat angle in degrees clockwise from the top; bull (270) and bear (90) sit opposite each other
-  const ANG = { market: 325, news: 0, sentiment: 35, bear: 90, backtest: 135, risk: 165, lead: 195, reflect: 222, score: 248, bull: 270, analyst: 298 };
+  const ANG = { market: 325, news: 0, sentiment: 35, mirror: 62, bear: 90, backtest: 135, risk: 165, lead: 195, reflect: 222, score: 248, bull: 270, analyst: 298 };
   const SEATS = Object.keys(ANG).concat("steady");
-  const NEXT = { score: "market", market: "analyst", news: "analyst", sentiment: "analyst", analyst: "bull", bull: "bear", bear: "backtest", debate: "backtest", backtest: "risk", risk: "lead", lead: "reflect", reflect: "" };
-  const STAGES = [["SCORE", ["score"]], ["DATA", ["market", "news", "sentiment"]], ["ANALYST", ["analyst"]], ["DEBATE", ["bull", "bear"]], ["BACKTEST", ["backtest"]], ["RISK", ["risk"]], ["LEAD", ["lead"]], ["REFLECT", ["reflect"]]];
+  const NEXT = { score: "market", market: "analyst", news: "analyst", sentiment: "analyst", mirror: "analyst", analyst: "bull", bull: "bear", bear: "backtest", debate: "backtest", backtest: "risk", risk: "lead", lead: "reflect", reflect: "" };
+  const STAGES = [["SCORE", ["score"]], ["DATA", ["market", "news", "sentiment", "mirror"]], ["ANALYST", ["analyst"]], ["DEBATE", ["bull", "bear"]], ["BACKTEST", ["backtest"]], ["RISK", ["risk"]], ["LEAD", ["lead"]], ["REFLECT", ["reflect"]]];
   const S = { health: { ok: true, why: [] }, running: false, desks: {}, alerts: [], tape: [], stats: null, sig: {}, equity: [], finishedAt: 0, ev: [], cur: -1, follow: true, sel: "", play: null, usage: null };
   const sgn = (n) => (n > 0 ? "+" : "") + n;
   const cls = (n) => (n > 0 ? "up" : n < 0 ? "dn" : "");
@@ -149,7 +149,7 @@
   }
   function renderCmp() {
     const s = S.stats, box = $("#fl-cmp"); box.textContent = ""; if (!s || !s.steady) return;
-    const rows = [["SCANNER", s.retPct, s.trades + " closed · " + s.open + " open"], ["STEADY", s.steady.retPct, s.steady.trades + " closed · " + s.steady.open + " open"], ["SPY", s.spy && s.spy.retPct, s.spy && s.spy.since ? "since " + new Date(s.spy.since).toLocaleDateString() : "benchmark"]];
+    const rows = [["SCANNER", s.retPct, s.trades + " closed · " + s.open + " open"], ["STEADY", s.steady.retPct, s.steady.trades + " closed · " + s.steady.open + " open"], ...(s.mirror ? [["MIRROR", s.mirror.retPct, s.mirror.trades + " closed · " + s.mirror.open + " open"]] : []), ["SPY", s.spy && s.spy.retPct, s.spy && s.spy.since ? "since " + new Date(s.spy.since).toLocaleDateString() : "benchmark"]];
     for (const [k, v, n] of rows) { const d = mk("div", "t " + k); d.append(mk("small", "", k), mk("b", cls(v), v == null ? "--" : sgn(v) + "%"), mk("em", "", n)); box.append(d); }
     if (s.review && s.review.due) box.append(mk("div", "rev", "Steady watchlist review due (every " + s.review.every + " days)"));
   }
@@ -183,7 +183,7 @@
     if (h.length < 2) { box.append(mk("div", "fl-empty", "The curve fills in as runs finish. Each GO or SCORE adds a point.")); return; }
     const cap = (s && s.capital) || h[0].total || 1000, W = 380, H = 92, P = { l: 34, r: 8, t: 6, b: 16 };
     const pct = (v) => (v == null ? null : (v / cap - 1) * 100);
-    const series = [["TOTAL", "#ffb02e", h.map((p) => pct(p.total))], ["SCANNER", "#00f5a0", h.map((p) => (p.scanner == null ? null : (p.scanner / (cap / 2) - 1) * 100))], ["STEADY", "#4aa8ff", h.map((p) => (p.steady == null ? null : (p.steady / (cap / 2) - 1) * 100))], ["SPY", "#8a9a94", h.map((p) => p.spy)]];
+    const series = [["TOTAL", "#ffb02e", h.map((p) => pct(p.total))], ["SCANNER", "#00f5a0", h.map((p) => (p.scanner == null ? null : (p.scanner / ((s.sleeves && s.sleeves.scanner) || cap / 2) - 1) * 100))], ["STEADY", "#4aa8ff", h.map((p) => (p.steady == null ? null : (p.steady / ((s.sleeves && s.sleeves.steady) || cap / 2) - 1) * 100))], ["MIRROR", "#ffb86b", h.map((p) => (p.mirror == null || !(s.sleeves && s.sleeves.mirror) ? null : (p.mirror / s.sleeves.mirror - 1) * 100))], ["SPY", "#8a9a94", h.map((p) => p.spy)]];
     const vals = series.flatMap((x) => x[2]).filter((v) => v != null), lo = Math.min(0, ...vals), hi = Math.max(0.5, ...vals), pad = (hi - lo) * 0.1 || 1, y0 = lo - pad, y1 = hi + pad;
     const t0 = h[0].ts, t1 = h[h.length - 1].ts || t0 + 1, X = (t) => P.l + ((t - t0) / Math.max(1, t1 - t0)) * (W - P.l - P.r), Y = (v) => P.t + (1 - (v - y0) / (y1 - y0)) * (H - P.t - P.b);
     const ns = "http://www.w3.org/2000/svg", el = (n, a) => { const e = document.createElementNS(ns, n); for (const k in a) e.setAttribute(k, a[k]); return e; };
