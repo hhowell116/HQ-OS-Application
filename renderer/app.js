@@ -316,12 +316,13 @@ function vsetLabel() { const v = VOICES.find((x) => x[0] === S.voiceName) || VOI
 function closeVpop() { const p = $("#vpop"); if (p) p.remove(); }
 function openVpop() {
   closeVpop(); const btn = $("#btn-vset"), p = document.createElement("div"); p.id = "vpop"; p.className = "vpop";
-  const draw = () => { p.innerHTML = '<div class="vp-h">Voice</div>' + VOICES.map((v) => '<button data-v="' + v[0] + '"' + (v[0] === S.voiceName ? ' class="on"' : "") + ">" + v[1] + "</button>").join("") + '<div class="vp-h">Speed</div><div class="vp-sp">' + SPEEDS.map((x) => '<button data-s="' + x + '"' + (x === +S.speed ? ' class="on"' : "") + ">" + x + "×</button>").join("") + "</div>"; };
+  const draw = () => { p.innerHTML = '<div class="vp-h">Voice</div>' + VOICES.map((v) => '<button data-v="' + v[0] + '"' + (v[0] === S.voiceName ? ' class="on"' : "") + ">" + v[1] + "</button>").join("") + '<div class="vp-h">Speed</div><div class="vp-sp">' + SPEEDS.map((x) => '<button data-s="' + x + '"' + (x === +S.speed ? ' class="on"' : "") + ">" + x + "×</button>").join("") + '</div><div class="vp-h">Mic</div><button data-auto="1"' + (S.autoSend ? ' class="on"' : "") + ">Auto-send after speaking: " + (S.autoSend ? "on" : "off") + "</button>"; };
   draw(); document.body.appendChild(p);
   const place = () => { const r = btn.getBoundingClientRect(), z = parseFloat(getComputedStyle(document.documentElement).zoom) || 1, w = p.offsetWidth, h = p.offsetHeight, vw = innerWidth / z, vh = innerHeight / z, rl = r.left / z, rt = r.top / z, rb = r.bottom / z;
     let top = rb + 4; if (top + h > vh - 6 && rt - h - 4 > 6) top = rt - h - 4; top = Math.max(6, Math.min(top, vh - h - 6)); p.style.left = Math.max(6, Math.min(rl, vw - w - 6)) + "px"; p.style.top = top + "px"; };
   place();
   p.onclick = (e) => { const b = e.target.closest("button"); if (!b) return;
+    if (b.dataset.auto) { S.autoSend = !S.autoSend; hq.set({ autoSend: S.autoSend }); draw(); place(); return; }
     if (b.dataset.v) { S.voiceName = b.dataset.v; hq.set({ voiceName: S.voiceName }); } else { S.speed = +b.dataset.s; hq.set({ speed: S.speed }); }
     speak("Voice online."); vsetLabel(); draw(); place(); };
   const cleanup = () => { document.removeEventListener("mousedown", off, true); document.removeEventListener("keydown", off, true); removeEventListener("resize", shut); removeEventListener("blur", shut); };
@@ -362,6 +363,43 @@ $("#btn-new").onclick = newConv;
 $("#btn-del").onclick = async () => { if (!S.conv) return; const b = $("#btn-del"); if (!b.dataset.arm) { b.dataset.arm = "1"; b.textContent = "confirm?"; setTimeout(() => { delete b.dataset.arm; b.textContent = "delete"; }, 2500); return; } delete b.dataset.arm; b.textContent = "delete"; await hq.chatDelete(S.conv.id); S.conv = null; const list = await hq.chatList(S.cur); await fillConvPick(list); if (list.length) openConv(list[0].id); else renderLog(); };
 $("#conv-pick").onchange = (e) => e.target.value && openConv(e.target.value);
 $("#model-pick").onchange = (e) => S.conv && hq.chatModel({ id: S.conv.id, model: e.target.value });
+// ---- voice input (local Whisper in a utility process) ----
+const MIC = { st: "idle", ctx: null, stream: null, node: null, src: null, chunks: [], t0: 0, hold: false };
+function micUI(st, tip) { MIC.st = st; const b = $("#btn-mic"); b.classList.toggle("rec", st === "rec"); b.classList.toggle("busy", st === "busy"); b.textContent = st === "busy" ? "…" : st === "rec" ? "⏹" : "🎤"; b.title = tip || (st === "rec" ? "Listening: click to stop, Esc to cancel" : st === "busy" ? "Transcribing…" : "Talk to Claude (click to start/stop, Esc cancels; hold Ctrl+Space to talk)"); $(".input-row").classList.toggle("mic-" + "rec", st === "rec"); $("#input").placeholder = st === "rec" ? "Listening…" : st === "busy" ? "Transcribing…" : MIC.ph; }
+MIC.ph = $("#input").placeholder;
+function micCleanup() { try { MIC.node && MIC.node.disconnect(); MIC.src && MIC.src.disconnect(); MIC.stream && MIC.stream.getTracks().forEach((t) => t.stop()); MIC.ctx && MIC.ctx.close(); } catch {} MIC.node = MIC.src = MIC.stream = MIC.ctx = null; }
+async function micStart() {
+  if (MIC.st !== "idle") return; MIC.chunks = []; MIC.cancel = false;
+  try { stopSpeech(); } catch {}
+  try {
+    MIC.stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true } });
+    MIC.ctx = new AudioContext({ sampleRate: 16000 }); MIC.src = MIC.ctx.createMediaStreamSource(MIC.stream);
+    MIC.node = MIC.ctx.createScriptProcessor(4096, 1, 1); MIC.node.onaudioprocess = (e) => MIC.chunks.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+    MIC.src.connect(MIC.node); MIC.node.connect(MIC.ctx.destination); MIC.t0 = Date.now(); micUI("rec");
+  } catch (e) { micCleanup(); micUI("idle"); toast("Microphone unavailable: " + (e && e.message || e), true); }
+}
+async function micStop(cancel) {
+  if (MIC.st !== "rec") return; const sr = MIC.ctx ? MIC.ctx.sampleRate : 16000, chunks = MIC.chunks; MIC.chunks = []; micCleanup();
+  if (cancel) return micUI("idle");
+  const n = chunks.reduce((s, c) => s + c.length, 0); if (n < sr * 0.4) { micUI("idle"); return toast("Too short, nothing heard"); }
+  let pcm = new Float32Array(n), o = 0; for (const c of chunks) { pcm.set(c, o); o += c.length; }
+  if (sr !== 16000) { const r = sr / 16000, out = new Float32Array(Math.floor(n / r)); for (let i = 0; i < out.length; i++) { const x = i * r, j = Math.floor(x), t = x - j; out[i] = pcm[j] * (1 - t) + (pcm[j + 1] ?? pcm[j]) * t; } pcm = out; }
+  micUI("busy");
+  try {
+    const text = ((await hq.sttTranscribe(pcm)) || "").trim(); micUI("idle");
+    if (!text) return toast("Didn't catch anything");
+    const ta = $("#input"), s = ta.selectionStart ?? ta.value.length, e2 = ta.selectionEnd ?? s, before = ta.value.slice(0, s), after = ta.value.slice(e2), sp = before && !/s$/.test(before) ? " " : "";
+    ta.value = before + sp + text + after; const pos = (before + sp + text).length; ta.setSelectionRange(pos, pos); autosize(); ta.focus();
+    if (S.autoSend) sendInput();
+  } catch (e) { micUI("idle"); toast("Transcription failed: " + (e && e.message || e), true); }
+}
+hq.on("stt", (m) => { if (m.type === "progress" && MIC.st === "busy") $("#btn-mic").title = "Loading speech model " + m.pct + "%"; });
+$("#btn-mic").onclick = () => (MIC.st === "rec" ? micStop() : micStart());
+addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && MIC.st === "rec") { e.preventDefault(); micStop(true); }
+  else if (e.ctrlKey && e.code === "Space" && !e.repeat) { e.preventDefault(); if (MIC.st === "rec") micStop(); else { MIC.hold = true; micStart(); } }
+}, true);
+addEventListener("keyup", (e) => { if (MIC.hold && (e.code === "Space" || e.key === "Control")) { MIC.hold = false; if (MIC.st === "rec" && Date.now() - MIC.t0 > 600) micStop(); } }, true);
 $("#btn-vset").onclick = (e) => { e.stopPropagation(); if ($("#vpop")) closeVpop(); else openVpop(); };
 $("#btn-voice").onclick = () => { S.voice = !S.voice; hq.set({ voice: S.voice }); $("#btn-voice").textContent = S.voice ? "🔊 voice on" : "🔈 voice off"; if (!S.voice) stopSpeech(); else speak("Voice online."); };
 $("#btn-refresh").onclick = async () => { await loadProjects(); if (S.cur) { S.detail = await hq.project(S.cur); renderDetail(); } hq.usage(true); toast("Refreshed"); };
@@ -517,7 +555,7 @@ $("#room-back").onclick = () => setView("hq");
   tickClock(); setInterval(tickClock, 1000);
   setMood("think", "booting");
   const init = await hq.init();
-  S.person = init.settings.person || "Hayden"; S.voice = init.settings.voice; S.voiceName = init.settings.voiceName || "am_michael"; S.speed = +init.settings.speed || 1.1; vsetLabel(); S.projects = init.projects; S.archived = new Set(init.settings.archived || []);
+  S.autoSend = !!init.settings.autoSend; S.person = init.settings.person || "Hayden"; S.voice = init.settings.voice; S.voiceName = init.settings.voiceName || "am_michael"; S.speed = +init.settings.speed || 1.1; vsetLabel(); S.projects = init.projects; S.archived = new Set(init.settings.archived || []);
   $("#btn-voice").textContent = S.voice ? "🔊 voice on" : "🔈 voice off";
   const th = fillThemes(init.settings.theme); if (th !== init.settings.theme) hq.set({ theme: th }); // removed themes fall back to Cyan
   HQTheme.setAccent(init.settings.accent); HQTheme.apply(th); paintAccentBtn(); setAudio(init.settings.audio);

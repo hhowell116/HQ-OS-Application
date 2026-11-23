@@ -129,7 +129,10 @@ app.whenReady().then(() => {
     desktopCapturer.getSources({ types: ["screen"] }).then((s) => cb(s[0] ? { video: s[0], audio: "loopback" } : {})).catch(() => cb({}));
   });
 
-  const pub = () => ({ person: settings.person, voice: !!settings.voice, voiceName: settings.voiceName || "af_heart", speed: settings.speed || 1.1, last: settings.last, projectsRoot: settings.projectsRoot, theme: settings.theme || "cyan", accent: settings.accent || "", audio: settings.audio !== false, music: settings.music !== false, archived: settings.archived || [] });
+  { const own = (wc) => !!wc && !!win && !win.isDestroyed() && wc === win.webContents;
+    session.defaultSession.setPermissionRequestHandler((wc, perm, cb, det) => cb(perm === "media" && own(wc) && !(det && det.mediaTypes && det.mediaTypes.some((t) => t !== "audio"))));
+    session.defaultSession.setPermissionCheckHandler((wc, perm) => perm === "media" && own(wc)); }
+  const pub = () => ({ person: settings.person, voice: !!settings.voice, voiceName: settings.voiceName || "af_heart", speed: settings.speed || 1.1, last: settings.last, projectsRoot: settings.projectsRoot, theme: settings.theme || "cyan", accent: settings.accent || "", audio: settings.audio !== false, autoSend: !!settings.autoSend, music: settings.music !== false, archived: settings.archived || [] });
   ipcMain.handle("init", async () => ({ settings: pub(), projects: await Promise.all(cache.projects.map(projectSummary)) }));
   ipcMain.handle("settings", () => pub());
   ipcMain.handle("projects", async () => { refreshProjects(); watchTodos(); return Promise.all(cache.projects.map(projectSummary)); });
@@ -162,6 +165,34 @@ app.whenReady().then(() => {
   };
   ipcMain.handle("tts-speak", (_, { text, voice, speed }) => { const id = ++ttsId; ttsLog("speak id=" + id + " voice=" + voice + " speed=" + speed + " chars=" + String(text || "").length); try { ttsStart().postMessage({ type: "speak", id, text: String(text || "").slice(0, 2000), voice, speed, cache: path.join(USER, "kokoro-cache") }); } catch (e) { ttsLog("speak failed: " + e.message); send("tts", { type: "error", id, error: e.message }); } return id; });
   ipcMain.handle("tts-stop", () => { ++ttsId; if (ttsProc) ttsProc.postMessage({ type: "stop" }); return true; });
+  // Whisper speech-to-text (local) in its own utility process; lazy-started on first use.
+  let sttProc = null, sttId = 0; const sttWait = new Map();
+  const sttLog = (line) => { try { fs.appendFileSync(path.join(USER, "stt.log"), new Date().toISOString() + " " + String(line).slice(0, 600) + "\n"); } catch (e) {} };
+  const sttStart = () => {
+    if (sttProc) return sttProc;
+    const cacheDir = path.join(USER, "whisper-cache");
+    sttLog("spawn worker cache=" + cacheDir);
+    sttProc = utilityProcess.fork(path.join(__dirname, "stt-worker.js"), [], { serviceName: "hq-stt", stdio: "pipe" });
+    const pipe = (st, tag) => st && st.on("data", (d) => sttLog(tag + " " + String(d).trim()));
+    pipe(sttProc.stdout, "out"); pipe(sttProc.stderr, "err");
+    sttProc.on("message", (m) => {
+      if (m.type === "progress") return send("stt", m);
+      sttLog("worker " + m.type + (m.id ? " id=" + m.id : "") + (m.error ? " ERROR " + m.error : "") + (m.text ? " chars=" + m.text.length : ""));
+      const w = sttWait.get(m.id); if (w) { sttWait.delete(m.id); m.type === "text" ? w.res(m.text) : w.rej(new Error(m.error)); }
+    });
+    sttProc.on("exit", (code) => { sttLog("worker exit code=" + code); sttProc = null; for (const [, w] of sttWait) w.rej(new Error("speech engine exited (code " + code + ")")); sttWait.clear(); });
+    sttProc.postMessage({ type: "init", cache: cacheDir });
+    return sttProc;
+  };
+  ipcMain.handle("stt-transcribe", (_, buf) => new Promise((res, rej) => {
+    const id = ++sttId; let audio;
+    try { audio = buf instanceof Float32Array ? buf : new Float32Array(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength)); } catch (e) { return rej(new Error("bad audio")); }
+    if (audio.length < 1600) return res("");
+    if (audio.length > 16000 * 120) audio = audio.slice(0, 16000 * 120);
+    sttWait.set(id, { res, rej }); sttLog("transcribe id=" + id + " samples=" + audio.length);
+    try { sttStart().postMessage({ type: "transcribe", id, audio, cache: path.join(USER, "whisper-cache") }); } catch (e) { sttWait.delete(id); rej(e); }
+  }));
+  app.on("before-quit", () => { if (sttProc) sttProc.kill(); });
   ipcMain.handle("tts-log", (_, line) => { ttsLog("ui " + line); return true; });
   app.on("before-quit", () => { if (ttsProc) ttsProc.kill(); });
   ipcMain.handle("code-pending", () => codePending);
@@ -184,7 +215,7 @@ app.whenReady().then(() => {
   ipcMain.handle("usage", async (_, force) => { await pollUsage(!!force); return { usage: cache.usage, err: cache.usageErr }; });
   ipcMain.handle("music", () => { now.start(); return cache.music; });
   ipcMain.handle("music-ctl", (_, cmd) => now.control(cmd));
-  ipcMain.handle("set", (_, kv) => { for (const k of ["voice", "voiceName", "speed", "person", "theme", "accent", "audio", "music"]) if (k in kv) settings[k] = kv[k]; if (Array.isArray(kv.archived)) settings.archived = kv.archived.filter((x) => typeof x === "string"); D.saveSettings(SETTINGS_FILE, settings); send("settings", pub()); if ("music" in kv) kv.music ? now.start() : (now.stop(), send("music", null)); return true; });
+  ipcMain.handle("set", (_, kv) => { for (const k of ["voice", "voiceName", "speed", "person", "theme", "accent", "audio", "music", "autoSend"]) if (k in kv) settings[k] = kv[k]; if (Array.isArray(kv.archived)) settings.archived = kv.archived.filter((x) => typeof x === "string"); D.saveSettings(SETTINGS_FILE, settings); send("settings", pub()); if ("music" in kv) kv.music ? now.start() : (now.stop(), send("music", null)); return true; });
   ipcMain.handle("open-path", (_, p) => { const target = p === "settings" ? SETTINGS_FILE : p; if (target && fs.existsSync(target)) shell.openPath(target); });
   // Rules viewer: read-only, exactly one file (CLAUDE.md in the Projects root). The renderer never supplies a path.
   const rulesFile = () => path.join(settings.projectsRoot || path.join(require("os").homedir(), "Projects"), "CLAUDE.md");

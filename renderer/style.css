@@ -493,3 +493,12 @@ mark.rl-hit { background: rgba(var(--hl-rgb),.35); color: #fff; border-radius: 2
 
 /* War room covered titlebar pop-ups (needs review, accents): lift titlebar above .room-view (z 10) */
 .titlebar { z-index: 20; }
+
+/* Voice input (mic button next to the chat input) */
+.mic { background: transparent; border: 1px solid var(--line, #1c3a4a); color: inherit; border-radius: 6px; padding: 0 10px; cursor: pointer; font-size: 15px; align-self: stretch; }
+.mic:hover { border-color: var(--acc, #4dabf7); }
+.mic.rec { border-color: var(--acc, #4dabf7); background: color-mix(in srgb, var(--acc, #4dabf7) 25%, transparent); animation: micpulse 1.1s ease-in-out infinite; }
+.mic.busy { opacity: .7; cursor: progress; animation: micblink 1s steps(2) infinite; }
+@keyframes micpulse { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--acc, #4dabf7) 70%, transparent); } 50% { box-shadow: 0 0 0 6px transparent; } }
+@keyframes micblink { 50% { opacity: .35; } }
+
