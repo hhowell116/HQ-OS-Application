@@ -10,7 +10,7 @@
   const panel = document.createElement("aside"); panel.id = "tw-chat"; panel.className = "hidden";
   panel.innerHTML = '<div class="twc-h"><span class="twc-t" id="twc-t"></span><span class="twc-s" id="twc-s"></span><button class="ghost" id="twc-x" title="Close chat (Esc when idle)">&#10005;</button></div><div class="twc-b" id="twc-b"></div>';
   const btn = document.createElement("button"); btn.id = "tw-chatbtn"; btn.className = "ghost hidden"; btn.title = "Chat with Claude about this floor's project (C)";
-  btn.innerHTML = '&#128172; chat<i class="twc-dot hidden"></i>';
+  btn.innerHTML = '&#128172; chat (C)<i class="twc-dot hidden"></i>';
   view.append(panel, btn);
   const body = panel.querySelector("#twc-b"), dot = btn.querySelector(".twc-dot");
 
@@ -29,17 +29,19 @@
   async function openChat(focus) {
     const f = floorNow(); if (!f || !available()) return; const p = projFor(f), my = ++seq;
     if (!open) { marker = document.createComment("console-home"); consoleEl.before(marker); body.append(consoleEl); open = true; }
-    consoleEl.classList.add("in-tower-chat");
+    consoleEl.classList.add("in-tower-chat"); if (window.HQTower && HQTower.termFocus) HQTower.termFocus(true); // camera pushes toward this floor's terminal
     panel.classList.remove("hidden"); requestAnimationFrame(() => panel.classList.add("show")); view.classList.add("chat-open");
-    $("#twc-t").textContent = (f.kind === "deck" ? "General" : p.name) + " · chat";
-    $("#twc-s").textContent = f.kind === "deck" ? "(" + p.name + ")" : "";
+    panel.style.setProperty("--fc", "#" + f.color.getHexString());
+    $("#twc-t").textContent = (f.kind === "deck" ? "COMMAND DECK" : p.name.toUpperCase()) + " TERMINAL";
+    $("#twc-s").textContent = f.kind === "deck" ? "general chat (" + p.name + ")" : "chat · Esc closes";
     unread.delete(p.id); paintBtn();
     if (S.cur !== p.id) { await selectProject(p.id); if (my !== seq) return; } else if (window.HQPinLog) HQPinLog();
     if (window.HQPinLog) requestAnimationFrame(HQPinLog);
     if (focus) $("#input").focus();
   }
   function closeChat() {
-    ++seq; if (!open) { paintBtn(); return; }
+    ++seq; if (window.HQTower && HQTower.termFocus) HQTower.termFocus(false); // camera eases back
+    if (!open) { paintBtn(); return; }
     open = false; panel.classList.remove("show"); view.classList.remove("chat-open"); consoleEl.classList.remove("in-tower-chat");
     if (marker && marker.parentNode) { marker.replaceWith(consoleEl); } marker = null;
     setTimeout(() => { if (!open) panel.classList.add("hidden"); }, 260);
@@ -90,5 +92,5 @@
     }
   }, true);
 
-  window.HQTowerChat = { sync, close: closeChat, open: openChat, isOpen: () => open, unread, paintBtn };
+  window.HQTowerChat = { projFor, sync, close: closeChat, open: openChat, isOpen: () => open, unread, paintBtn };
 })();

@@ -90,3 +90,13 @@ body.in-tower .layout { display: none; }
 #tw-chatbtn.busy { animation: twp 1.3s ease-in-out infinite; }
 .twc-dot { position: absolute; top: -4px; right: -4px; width: 10px; height: 10px; border-radius: 50%; background: #ff3d6b; box-shadow: 0 0 10px #ff3d6b; }
 .twc-dot.hidden { display: none; }
+
+/* chat terminal (2026-11-23): the chat panel reads as the floor terminal's screen; the old floating chat button is now a tiny HUD fallback */
+#tw-chat { --fc: var(--acc); border: 1px solid color-mix(in srgb, var(--fc) 75%, transparent); border-radius: 8px; background: rgba(3,7,13,.82); box-shadow: 0 0 0 3px rgba(3,7,13,.9), 0 0 0 4px color-mix(in srgb, var(--fc) 40%, transparent), 0 0 34px color-mix(in srgb, var(--fc) 28%, transparent), 0 0 40px rgba(0,0,0,.5); }
+#tw-chat::after { content: ""; position: absolute; inset: 0; pointer-events: none; border-radius: 8px; z-index: 4; background: repeating-linear-gradient(0deg, rgba(0,0,0,.10) 0 1px, transparent 1px 3px); }
+.twc-h { background: linear-gradient(90deg, color-mix(in srgb, var(--fc) 22%, transparent), transparent 72%); border-bottom: 2px solid color-mix(in srgb, var(--fc) 60%, transparent); }
+.twc-t { color: var(--fc); font-weight: 800; letter-spacing: .2em; text-shadow: 0 0 8px color-mix(in srgb, var(--fc) 55%, transparent); }
+#tw-chatbtn, #tw-chatbtn.stonks { bottom: auto; top: 6px; right: 130px; z-index: 6; padding: 3px 9px; font-size: 10px; letter-spacing: .08em; opacity: .75; box-shadow: none; }
+.tower-view.on.inside:not([data-fl="lobby"]) #tw-chatbtn:hover { opacity: 1; }
+/* exterior floor labels and floor name text: softer glow, heavier weight */
+.tw-nm { font-weight: 800; text-shadow: 0 0 4px color-mix(in srgb, var(--fc) 55%, transparent), 0 1px 2px rgba(0,0,0,.9); }
