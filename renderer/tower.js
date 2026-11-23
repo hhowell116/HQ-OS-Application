@@ -393,7 +393,7 @@
     const f = I.f, hw = I.hw; let x, z, sw, tilt = 0.16, stand = false;
     if (f.kind === "deck") { x = -4.1; z = -hw + 1.3; sw = 2.8; stand = true; }
     else if (f.stonks) { x = -hw + 1.0; z = -0.3; sw = 1.7; stand = true; tilt = 0.5; }
-    else { x = 2.3; z = hw - 4.0; sw = 1.5; }
+    else { x = Math.min(hw - 2.5, 2.9); z = hw - 4.3; sw = 1.4; } // right edge, clear of the 2-row desk block (6+ agents)
     const cam = intCam(f).pos; return { x, z, sw, tilt, stand, yaw: Math.atan2(cam.x - x, cam.z - z) };
   }
   function buildTerminal(I) {
@@ -556,7 +556,7 @@
     L.board = new THREE.Mesh(new THREE.PlaneGeometry(BW, BH), new THREE.MeshBasicMaterial({ map: L.tex, transparent: true, depthWrite: false, toneMapped: false })); L.board.position.set(bx, by, bz); g.add(L.board);
     const fm = new THREE.MeshBasicMaterial({ color: col }); for (const [w, h, x, y] of [[BW + 0.1, 0.06, 0, BH / 2], [BW + 0.1, 0.06, 0, -BH / 2], [0.06, BH, -BW / 2, 0], [0.06, BH, BW / 2, 0]]) box(g, w, h, 0.05, fm, bx + x, by + y, bz - 0.02);
     // reception desk + host
-    const dg = new THREE.Group(); dg.position.set(2.3, 0, -1.4); g.add(dg);
+    const dg = new THREE.Group(); dg.position.set(4.3, 0, -1.4); g.add(dg);
     box(dg, 3.0, 1.0, 0.7, I.metal, 0, 0.5, 0); box(dg, 3.2, 0.07, 1.0, I.dark, 0, 1.03, 0.05); box(dg, 2.8, 0.04, 0.04, new THREE.MeshBasicMaterial({ color: col }), 0, 0.72, 0.36); box(dg, 2.8, 0.04, 0.04, new THREE.MeshBasicMaterial({ color: col }), 0, 0.18, 0.36);
     box(dg, 0.5, 0.04, 0.3, I.metal, -1.2, 1.09, -0.1); const scr = box(dg, 0.5, 0.3, 0.03, new THREE.MeshBasicMaterial({ map: codeT, color: 0x9fe, toneMapped: false }), -1.2, 1.28, -0.2); scr.rotation.x = -0.2;
     // the glowing HQ door: sliding glass doors under a neon ENTER HQ sign. The door is the button.
@@ -671,9 +671,9 @@
     const I = interior; if (!I) return; let list = members(I.f);
     if (I.f.kind === "deck" && list.length > 14) { const keep = list.filter((m) => m.host || m.item), idle = list.filter((m) => !m.host && !m.item); list = list.filter((m) => keep.includes(m) || idle.indexOf(m) < Math.max(0, 14 - keep.length)).slice(0, 14); }
     let dkN = 0; if (I.f.stonks && window.HQStonks3D) { const dk = HQStonks3D.deskMembers(KIT); dkN = dk.length; list = dk.concat(list.slice(0, 6)); }
-    list = list.slice(0, 20); const nd = I.f.kind === "project" && !I.f.stonks ? Math.min(MAXD, list.length) : 0;
+    list = list.slice(0, 20); let nd = I.f.kind === "project" && !I.f.stonks ? Math.min(MAXD, list.length) : 0;
     if (I.f.kind === "deck" && I.deck && I.deck.n !== list.length) makeSeats(I, list.length);
-    if (nd !== I.nDesks) makeDesks(I, nd);
+    if (I.dbg) nd = I.dbg; if (nd !== I.nDesks) makeDesks(I, nd);
     const seen = new Set(); let idleK = 0;
     list.forEach((m, i) => {
       seen.add(m.key); let o = I.members.get(m.key);
@@ -684,7 +684,7 @@
       }
       o.m = m; o.working = !!m.item; o.text = m.item ? stepOf(m.item) : ""; o.idx = i;
       if (I.f.kind === "deck") { const sp = I.seats[i] || { x: 0, z: -3, yaw: 0 }; o.tx = sp.x; o.tz = sp.z; o.sit = true; o.yawT = sp.yaw; }
-      else if (I.f.kind === "lobby") { o.tx = 2.3; o.tz = -2.4; o.sit = false; o.yawT = -0.12; }
+      else if (I.f.kind === "lobby") { o.tx = 4.3; o.tz = -2.4; o.sit = false; o.yawT = -0.12; }
       else if (I.f.stonks && I.stonks) { const p = m.desk ? I.stonks.seat[m.desk] : I.stonks.side[(i - dkN) % 6]; o.tx = p.x; o.tz = p.z; o.sit = true; o.yawT = p.yaw; }
       else if (o.working && i < nd) { const d = I.desks[i]; o.tx = d.x; o.tz = d.seatZ; o.sit = true; o.sy = 0.05; o.yawT = 0; }
       else { const k = idleK++; if (k < 3) { o.tx = -4.0 + k * 0.7; o.tz = 0.63; o.sit = true; o.sy = -0.02; } else { const kk = k - 3; o.tx = -1.6 + (kk % 4) * 0.85; o.tz = 1.5 + Math.floor(kk / 4) * 1.0; o.sit = false; } o.yawT = (o.hue % 7 - 3) * 0.12; }
@@ -821,6 +821,6 @@
     if (!T.raf) T.raf = requestAnimationFrame(frame);
   }
   const find = (id) => T.floors.find((x) => x.id === id || x.name.toLowerCase() === String(id).toLowerCase() || (/^(stonks|stocks)$/i.test(id) && x.stonks));
-  window.HQTower = { termXY: () => { const I = interior; if (!I || !I.term) return null; const v = new THREE.Vector3(); I.term.scr.getWorldPosition(v); v.project(camera); const b = renderer.domElement.getBoundingClientRect(); return { x: b.left + (v.x * 0.5 + 0.5) * b.width, y: b.top + (-v.y * 0.5 + 0.5) * b.height }; }, termFocus, term: () => interior && interior.term, setFocus: (p) => { if (p && p.pos && p.target) T.focus = { pos: p.pos, target: p.target, fov: p.fov }; }, clearFocus: () => { T.focus = null; }, show, go: (id) => { const f = find(id); if (!f) return; if (T.mode === "int" && T.cur) hopTo(f); else flyIn(f); }, demo: (on) => { if (on !== T.demo) toggleDemo(); }, state: T, enter: (id) => { const f = T.floors.find((x) => x.id === id || x.name.toLowerCase() === String(id).toLowerCase()); if (f) flyIn(f); }, exit: flyOut, hop: (id) => { const f = T.floors.find((x) => x.id === id || x.name.toLowerCase() === String(id).toLowerCase()); if (f) hopTo(f); }, enterHQ, setAz: (a) => { T.az = a; T.autoAz = false; }, summary: () => ({ floors: T.floors.map((f) => ({ name: f.name, kind: f.kind, n: f.n, act: +f.act.toFixed(2) })), total: T.groups.total }) };
+  window.HQTower = { debugDesks: (n) => { if (interior) { interior.dbg = n; makeDesks(interior, n); } }, termXY: () => { const I = interior; if (!I || !I.term) return null; const v = new THREE.Vector3(); I.term.scr.getWorldPosition(v); v.project(camera); const b = renderer.domElement.getBoundingClientRect(); return { x: b.left + (v.x * 0.5 + 0.5) * b.width, y: b.top + (-v.y * 0.5 + 0.5) * b.height }; }, termFocus, term: () => interior && interior.term, setFocus: (p) => { if (p && p.pos && p.target) T.focus = { pos: p.pos, target: p.target, fov: p.fov }; }, clearFocus: () => { T.focus = null; }, show, go: (id) => { const f = find(id); if (!f) return; if (T.mode === "int" && T.cur) hopTo(f); else flyIn(f); }, demo: (on) => { if (on !== T.demo) toggleDemo(); }, state: T, enter: (id) => { const f = T.floors.find((x) => x.id === id || x.name.toLowerCase() === String(id).toLowerCase()); if (f) flyIn(f); }, exit: flyOut, hop: (id) => { const f = T.floors.find((x) => x.id === id || x.name.toLowerCase() === String(id).toLowerCase()); if (f) hopTo(f); }, enterHQ, setAz: (a) => { T.az = a; T.autoAz = false; }, summary: () => ({ floors: T.floors.map((f) => ({ name: f.name, kind: f.kind, n: f.n, act: +f.act.toFixed(2) })), total: T.groups.total }) };
   hq.on("todo-changed", () => { if (T.on) setTimeout(sync, 400); });
 })();
