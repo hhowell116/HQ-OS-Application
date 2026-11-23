@@ -118,7 +118,7 @@
   // ---------- tower build ----------
   // Distinct neon-noir palette, one colour per project floor in tower order (no yellows; Hayden 2026-11-23: "most of them are just yellow").
   const FLOOR_PALETTE = ["#3fa9f5", "#e0559b", "#8f6cf0", "#2fc6b0", "#f07a5a", "#5f7cf7", "#c46ae0", "#36c98a", "#e8607a", "#4dc4e0"];
-  function floorColor(p, i) { if (p && /^(stonks|stocks)$/i.test(p.name)) return new THREE.Color("hsl(92,36%,46%)"); if (Number.isInteger(i)) return new THREE.Color(FLOOR_PALETTE[i % FLOOR_PALETTE.length]); /* trading floor: the hash hue was a neon yellow that flared in lights + bloom; muted moss-green fits neon-noir */ if (p && p.accent) { try { return new THREE.Color(p.accent); } catch (e) {} } return new THREE.Color(`hsl(${hueOf(p ? p.name : "x")},85%,58%)`); }
+  function floorColor(p, i) { if (p && /^(stonks|stocks|trading)$/i.test(p.name)) return new THREE.Color("hsl(92,36%,46%)"); if (Number.isInteger(i)) return new THREE.Color(FLOOR_PALETTE[i % FLOOR_PALETTE.length]); /* trading floor: the hash hue was a neon yellow that flared in lights + bloom; muted moss-green fits neon-noir */ if (p && p.accent) { try { return new THREE.Color(p.accent); } catch (e) {} } return new THREE.Color(`hsl(${hueOf(p ? p.name : "x")},85%,58%)`); }
   const disposeGroup = (g) => { g.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material) [].concat(o.material).forEach((m) => { if (m.map) m.map.dispose(); m.dispose(); }); }); };
 
   function rebuild(list) {
@@ -131,7 +131,7 @@
     const edgeG = [];
     defs.forEach((d, i) => {
       const h = d.kind === "lobby" ? LH : FH, t = i / Math.max(1, n - 1), w = d.kind === "lobby" ? 17 : 14.2 - 3.2 * t, g = new THREE.Group(); g.position.y = y; tower.add(g);
-      const f = Object.assign(d, { stonks: d.kind === "project" && /^(stonks|stocks)$/i.test(d.name), i, y0: y, h, w, group: g, act: 0, hov: 0, n: 0, fade: 1, mats: [], pulse: 0 });
+      const f = Object.assign(d, { stonks: d.kind === "project" && /^(stonks|stocks|trading)$/i.test(d.name), i, y0: y, h, w, group: g, act: 0, hov: 0, n: 0, fade: 1, mats: [], pulse: 0 });
       const add = (m, base) => { m.transparent = true; f.mats.push({ m, base }); return m; };
       const glass = new THREE.Mesh(new THREE.BoxGeometry(w, h - 0.24, w), add(new THREE.MeshBasicMaterial({ color: f.color.clone().multiplyScalar(0.35), opacity: 0.09, depthWrite: false, side: THREE.DoubleSide }), 0.09)); glass.position.y = h / 2 + 0.12; g.add(glass); f.glass = glass;
       const slab = new THREE.Mesh(new THREE.BoxGeometry(w + 0.3, 0.22, w + 0.3), add(new THREE.MeshBasicMaterial({ color: 0x080d16 }), 1)); slab.position.y = 0.11; g.add(slab);
@@ -372,7 +372,7 @@
     const pl = new THREE.PointLight(f.color.clone(), f.kind === "project" ? 40 : 9, 22, 2); pl.position.set(0, 2.6, 0); g.add(pl);
     const pl2 = new THREE.PointLight(0xffffff, f.kind === "project" ? 26 : 8, 16, 2); pl2.position.set(0, 2.7, -hw * 0.3); g.add(pl2);
     const stripM = new THREE.MeshBasicMaterial({ color: f.color.clone().multiplyScalar(0.9 * GLOW.emis) }); if (f.kind === "project" && !f.stonks) for (const z of [-hw * 0.65, -hw * 0.15]) box(g, hw * 1.6, 0.05, 0.1, stripM, 0, FH - 0.4, z);
-    const sign = new THREE.Mesh(new THREE.PlaneGeometry(7.4, 1.15), new THREE.MeshBasicMaterial({ map: signTex(f.name, col), color: 0xc8c8c8, transparent: true, depthWrite: false, toneMapped: false })); sign.position.set(0, 2.15, -hw + 0.2); if (f.kind === "project" && !f.stonks) g.add(sign);
+    const sign = new THREE.Mesh(new THREE.PlaneGeometry(7.4, 1.15), new THREE.MeshBasicMaterial({ map: signTex(f.stonks ? "Trading Floor" : f.name, col), color: 0xc8c8c8, transparent: true, depthWrite: false, toneMapped: false })); sign.position.set(0, 2.15, -hw + 0.2); if (f.kind === "project" && !f.stonks) g.add(sign);
     if (f.kind === "project" && !f.stonks) { // lounge: sofa, table, plant, coffee machine
     const sofaM = new THREE.MeshStandardMaterial({ color: 0x23304a, roughness: 0.9 });
     box(g, 2.5, 0.42, 0.95, sofaM, -3.3, 0.24, 0.6); box(g, 2.5, 0.62, 0.22, sofaM, -3.3, 0.55, 0.1); box(g, 0.22, 0.55, 0.95, sofaM, -4.6, 0.4, 0.6); box(g, 0.22, 0.55, 0.95, sofaM, -2.0, 0.4, 0.6);
@@ -821,7 +821,7 @@
     clearInterval(T.poll); T.poll = setInterval(() => { if (T.on) { sync(); } }, 2500);
     if (!T.raf) T.raf = requestAnimationFrame(frame);
   }
-  const find = (id) => T.floors.find((x) => x.id === id || x.name.toLowerCase() === String(id).toLowerCase() || (/^(stonks|stocks)$/i.test(id) && x.stonks));
+  const find = (id) => T.floors.find((x) => x.id === id || x.name.toLowerCase() === String(id).toLowerCase() || (/^(stonks|stocks|trading)$/i.test(id) && x.stonks));
   window.HQTower = { debugDesks: (n) => { if (interior) { interior.dbg = n; makeDesks(interior, n); } }, termXY: () => { const I = interior; if (!I || !I.term) return null; const v = new THREE.Vector3(); I.term.scr.getWorldPosition(v); v.project(camera); const b = renderer.domElement.getBoundingClientRect(); return { x: b.left + (v.x * 0.5 + 0.5) * b.width, y: b.top + (-v.y * 0.5 + 0.5) * b.height }; }, termFocus, term: () => interior && interior.term, setFocus: (p) => { if (p && p.pos && p.target) T.focus = { pos: p.pos, target: p.target, fov: p.fov }; }, clearFocus: () => { T.focus = null; }, show, go: (id) => { const f = find(id); if (!f) return; if (T.mode === "int" && T.cur) hopTo(f); else flyIn(f); }, demo: (on) => { if (on !== T.demo) toggleDemo(); }, state: T, enter: (id) => { const f = T.floors.find((x) => x.id === id || x.name.toLowerCase() === String(id).toLowerCase()); if (f) flyIn(f); }, exit: flyOut, hop: (id) => { const f = T.floors.find((x) => x.id === id || x.name.toLowerCase() === String(id).toLowerCase()); if (f) hopTo(f); }, enterHQ, setAz: (a) => { T.az = a; T.autoAz = false; }, summary: () => ({ floors: T.floors.map((f) => ({ name: f.name, kind: f.kind, n: f.n, act: +f.act.toFixed(2) })), total: T.groups.total }) };
   hq.on("todo-changed", () => { if (T.on) setTimeout(sync, 400); });
 })();

@@ -55,13 +55,15 @@ function loadSettings(file, legacyFile) {
 function saveSettings(file, s) { try { fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, JSON.stringify(s, null, 2)); } catch (e) {} }
 
 // ---------- projects ----------
+// Display alias (2026-11-23): the Stocks/Stonks project shows as "Trading" everywhere; folder on disk and project id stay unchanged.
+function displayName(name, folder) { return /^(stocks|stonks)$/i.test(name) && /^(stocks|stonks)$/i.test(path.basename(folder)) ? "Trading" : name; }
 function resolveProject(pr, root) {
   const folder = mapPath(pr.folder || pr.name, root), notes = path.join(folder, "Notes");
   let md = []; try { md = fs.readdirSync(notes).filter((n) => /\.md$/i.test(n)); } catch (e) {}
   const pick = (v, auto) => (v ? mapPath(v, root) : auto);
   const todoName = md.find((n) => /to-?do/i.test(n)) || md.find((n) => /board/i.test(n));
   return {
-    id: pr.id || slug(pr.name), name: pr.name, accent: pr.accent || "", pinned: !!pr.pinned,
+    id: pr.id || slug(pr.name), name: displayName(pr.name, folder), accent: pr.accent || "", pinned: !!pr.pinned,
     folder, notes, exists: isDir(folder),
     todo: pick(pr.todo, todoName ? path.join(notes, todoName) : ""),
     agents: pick(pr.agents, isFile(path.join(notes, "Agent Activity.md")) ? path.join(notes, "Agent Activity.md") : ""),

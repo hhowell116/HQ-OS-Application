@@ -354,12 +354,12 @@
   const orderFor = (id) => ((S.live && S.live.orders) || []).filter((o) => o.alertId === id).pop();
   function applyMode() {
     const t = $("#tw-stonks"), live = isLive(); if (!t) return;
-    t.classList.toggle("live", live); const tv = $("#tower-view"); if (tv) tv.classList.toggle("stk-live", live);
-    const b = $("#fl-mode"); if (b) { b.textContent = live ? "LIVE" : "PAPER"; b.className = "fl-btn fl-mode " + (live ? "live" : "paper"); b.title = live ? "LIVE view (real account, read-only). Click to go back to PAPER." : "PAPER mode. Click to switch to LIVE (read-only real account view; orders stay locked)."; }
+    t.classList.toggle("modelive", live); const tv = $("#tower-view"); if (tv) tv.classList.toggle("stk-modelive", live);
+    const b = $("#fl-mode"); if (b) { b.textContent = live ? "LIVE" : "PAPER"; b.className = "fl-btn fl-mode " + (live ? "mlive" : "mpaper"); b.title = live ? "LIVE view (real account, read-only). Click to go back to PAPER." : "PAPER mode. Click to switch to LIVE (read-only real account view; orders stay locked)."; }
     const g = $("#fl-livebadge"); if (g) g.classList.toggle("hidden", !live);
   }
   function renderLive() {
-    applyMode(); const box = $("#fl-live"); if (!box) return;
+    applyMode(); const box = $("#fl-livepanel"); if (!box) return;
     if (!changed("live", [S.mode, S.live, Math.floor(Date.now() / 30000)])) return; box.textContent = "";
     if (!isLive()) return;
     const a = (S.live && S.live.account) || {}, hd = mk("div", "fl-h"); hd.append(mk("span", "", "LIVE ACCOUNT" + (a.account ? " " + a.account : "")), mk("span", "fl-rule"), mk("span", "fl-note", a.fetchedAt ? "read-only · " + ago(a.fetchedAt) : "read-only"));
@@ -388,9 +388,9 @@
   async function setMode(m) {
     try { S.running = true; renderHead(); await hq.tfCmd(["live-mode", m]); S.mode = m; S.liveAsk = 0; applyMode(); renderAlerts(); } catch (e) { S.running = false; renderHead(); toast(e.message); }
   }
-  { const b = mk("button", "fl-btn fl-mode paper", "PAPER"); b.id = "fl-mode"; const r = $("#fl-resume"); r.parentNode.insertBefore(b, r.nextSibling);
+  { const b = mk("button", "fl-btn fl-mode mpaper", "PAPER"); b.id = "fl-mode"; const r = $("#fl-resume"); r.parentNode.insertBefore(b, r.nextSibling);
     const g = mk("span", "fl-livebadge hidden", "LIVE · REAL MONEY"); g.id = "fl-livebadge"; $("#fl-pill").before(g);
-    const lv = mk("div", "fl-sc fl-livesc"); lv.id = "fl-live"; $(".fl-rcol").prepend(lv);
+    const lv = mk("div", "fl-sc fl-livesc"); lv.id = "fl-livepanel"; $(".fl-rcol").prepend(lv);
     b.onclick = () => { if (S.running) return; if (isLive()) setMode("paper"); else if (confirm("Switch to LIVE?\n\nThis shows your real Webull agent account (read-only). Live orders are OFF: nothing can be sent. Continue?")) setMode("live"); }; }
   const busy = () => !!(S.running || S.play);
   function syncBusy() { const t = $("#tw-stonks"); if (t) t.classList.toggle("fl-busy", busy()); }

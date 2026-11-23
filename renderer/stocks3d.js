@@ -284,7 +284,7 @@
     sg("eq", "e" + eq.length + "|" + (eq[eq.length - 1] || 0), (c, w, h) => { head(c, w, "EQUITY CURVE", amb); lineChart(c, 40, 100, w - 80, h - 150, eq, up); c.font = "600 24px Consolas, monospace"; c.fillStyle = "#8fa3b0"; c.textAlign = "right"; c.fillText(eq.length ? usd(eq[eq.length - 1]) : "no ledger yet", w - 30, h - 24); });
     const total = st.totalEquity != null ? st.totalEquity : st.equity, ret = st.retPct, label = paused ? "PAUSED" : run ? "RUNNING" : "IDLE", lc = paused ? dn : run ? amb : "#5eead4";
     sg("main", label + "|" + total + "|" + ret + "|" + (run ? Math.floor(performance.now() / 700) % 2 : 0), (c, w, h) => {
-      c.textAlign = "center"; c.textBaseline = "middle"; c.fillStyle = lc; c.font = "800 64px Consolas, monospace"; c.fillText("STOCKS FLOOR", w / 2, 78);
+      c.textAlign = "center"; c.textBaseline = "middle"; c.fillStyle = lc; c.font = "800 64px Consolas, monospace"; c.fillText("TRADING FLOOR", w / 2, 78);
       c.font = "700 44px Consolas, monospace"; c.fillStyle = lc; c.fillText((run && Math.floor(performance.now() / 700) % 2 ? "● " : "○ ") + label, w / 2, 160);
       c.font = "800 92px Consolas, monospace"; c.fillStyle = "#e6edf3"; c.fillText(total != null ? usd(total) : "--", w / 2, 292);
       c.font = "700 46px Consolas, monospace"; c.fillStyle = ret > 0 ? up : ret < 0 ? dn : "#8fa3b0"; c.fillText(ret != null ? (ret > 0 ? "+" : "") + ret + "% since start" : "paper book", w / 2, 392);
