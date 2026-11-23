@@ -20,7 +20,7 @@ app.whenReady().then(async () => {
   win.setBounds({ x: 0, y: 0, width: 1600, height: 900 });
   fs.mkdirSync(out, { recursive: true });
   const run = (js) => wc.executeJavaScript(js);
-  const key = async (k) => { wc.sendInputEvent({ type: "keyDown", keyCode: k }); wc.sendInputEvent({ type: "keyUp", keyCode: k }); await sleep(450); };
+  const key = async (k) => { await run(`document.activeElement.dispatchEvent(new KeyboardEvent("keydown",{key:${JSON.stringify(k)},bubbles:true,cancelable:true}))`); await sleep(450); };
   const shot = async (name, crop) => { await wc.capturePage(); await sleep(400); let img = await wc.capturePage(); if (crop) { img = img.crop(crop.r); if (crop.z) img = img.resize({ width: crop.r.width * crop.z, quality: "best" }); } fs.writeFileSync(path.join(out, pre + "-" + name), img.toPNG()); console.log("saved", pre + "-" + name); };
   const has = (s) => steps.includes(s);
   await sleep(2500);
@@ -54,11 +54,11 @@ app.whenReady().then(async () => {
       if (p) {
         wc.sendInputEvent({ type: "mouseMove", x: Math.round(p.x), y: Math.round(p.y) }); await sleep(300);
         wc.sendInputEvent({ type: "mouseDown", x: Math.round(p.x), y: Math.round(p.y), button: "left", clickCount: 1 }); wc.sendInputEvent({ type: "mouseUp", x: Math.round(p.x), y: Math.round(p.y), button: "left", clickCount: 1 });
-        await sleep(450); await shot("term-push-" + n.replace(/\W+/g, "_") + ".png"); await sleep(1600); await shot("term-open-" + n.replace(/\W+/g, "_") + ".png");
+        await sleep(450); await shot("term-push-" + n.replace(/\W+/g, "_") + ".png"); await sleep(3200); await shot("term-open-" + n.replace(/\W+/g, "_") + ".png");
         console.log("open?", await run(`HQTowerChat.isOpen()`), "xy", await run(`JSON.stringify(HQTower.termXY())`), "focus", await run(`JSON.stringify(HQTower.state.focus)`), "fk", await run(`HQTower.state.fk`));
-        await key("Escape"); await sleep(1600); console.log("closed?", await run(`HQTowerChat.isOpen()`), "mode", await run(`HQTower.state.mode`));
+        await run(`HQTowerChat.close(); 0`); await sleep(2500); await shot("term-closed-" + n.replace(/W+/g, "_") + ".png"); console.log("closed?", await run(`HQTowerChat.isOpen()`), "mode", await run(`HQTower.state.mode`));
       }
-      await run(`HQTower.exit()`); await sleep(1700);
+      await run(`HQTower.exit()`); await sleep(5000);
     }
   }
   if (has("home")) { await run(`window.HQView("home")`); await sleep(2500); await shot("home.png"); }

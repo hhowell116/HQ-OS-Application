@@ -379,7 +379,7 @@
     } I.dark = dark; I.metal = metal; T.interior = I; interior = I; I.hostAt = null;
     if (f.kind === "deck") buildDeck(I); else if (f.kind === "lobby") buildLobby(I); else if (f.stonks && window.HQStonks3D) HQStonks3D.build(I, KIT);
     if (window.HQFloor) HQFloor.shown(!!f.stonks);
-    if (f.kind !== "lobby") buildTerminal(I);
+    if (f.kind !== "lobby" && !f.stonks) buildTerminal(I); // Stocks keeps its own CHAT button
     syncInterior();
   }
   // ---------- chat terminal: a desk with a live-preview screen on every floor but the lobby ----------
@@ -463,7 +463,7 @@
     const Tm = interior.term, h = termHit(); if (h === Tm.hover) return; Tm.hover = h; Tm.last = -9; Tm.sig = ""; renderer.domElement.style.cursor = h ? "pointer" : "";
   }
   function termPoseFocus(I) {
-    const Tm = I.term, P = Tm.P, d = Tm.sw * (I.f.kind === "deck" ? 1.3 : I.f.stonks ? 1.9 : 1.7), fx = Math.sin(P.yaw), fz = Math.cos(P.yaw), rx = Math.cos(P.yaw), rz = -Math.sin(P.yaw), shift = 0.25 * d;
+    const Tm = I.term, P = Tm.P, d = Tm.sw * (I.f.kind === "deck" ? 1.6 : 2.1), fx = Math.sin(P.yaw), fz = Math.cos(P.yaw), rx = Math.cos(P.yaw), rz = -Math.sin(P.yaw), shift = 0.25 * d;
     I.g.updateWorldMatrix(true, false); const w = (x, y, z) => I.g.localToWorld(new THREE.Vector3(x, y, z));
     const a = w(P.x + fx * d, Tm.sy + 0.25, P.z + fz * d), b = w(P.x + rx * shift, Tm.sy - 0.05, P.z + rz * shift);
     return { pos: { x: a.x, y: a.y, z: a.z }, target: { x: b.x, y: b.y, z: b.z }, fov: 40 };
