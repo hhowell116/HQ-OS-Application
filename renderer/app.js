@@ -417,6 +417,7 @@ $("#add-form").onsubmit = async (e) => { e.preventDefault(); const i = $("#add-i
 document.querySelectorAll(".winbtns button").forEach((b) => (b.onclick = () => hq.win(b.dataset.w)));
 document.addEventListener("keydown", (e) => {
   if (e.key === "F1") { e.preventDefault(); return setView("hq"); }
+  if (e.key === "F4") { e.preventDefault(); return setView(document.body.classList.contains("in-floor") ? "hq" : "floor"); }
   if (e.key === "F2") { e.preventDefault(); return setView(document.body.classList.contains("in-room") ? "hq" : "room"); }
   if (document.body.classList.contains("in-room")) return; // the war room handles its own keys
   if (e.ctrlKey && e.key.toLowerCase() === "k") { e.preventDefault(); $("#input").focus(); }
@@ -544,6 +545,7 @@ document.addEventListener("click", () => $("#needs-pop").classList.add("hidden")
 
 // ---------- views: HQ and the war room live in the same window ----------
 function setView(v) {
+  const floor = v === "floor"; document.body.classList.toggle("in-floor", floor); $("#floor-view").classList.toggle("hidden", !floor); if (floor && window.HQFloor) window.HQFloor.shown();
   const room = v === "room"; document.body.classList.toggle("in-room", room);
   $("#room-view").classList.toggle("hidden", !room);
   document.querySelectorAll("#tabs button").forEach((b) => b.classList.toggle("on", b.dataset.view === v));
@@ -577,7 +579,7 @@ $("#room-back").onclick = () => setView("hq");
   const start = S.projects.find((p) => p.id === (ui.proj || init.settings.last)) || S.projects.find((p) => p.id === init.settings.last) || activeProjects()[0] || S.projects[0];
   if (start) await selectProject(start.id);
   if (ui.conv && ui.proj === S.cur) { try { await openConv(ui.conv); } catch (e) {} }
-  if (ui.view === "room") setView("room");
+  if (ui.view === "room") setView("room"); else if (ui.view === "floor") setView("floor");
   hq.agents().then((a) => { S.agents = a; renderAgents(); renderProjects(); });
   hq.usage(false).then((u) => renderUsage(u.usage, u.err));
   setTimeout(() => setMood("idle"), 900);
@@ -627,7 +629,7 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape" && REV.cur)
 window.addEventListener("focus", loadReview); setInterval(loadReview, 45000);
 
 // ---------- reload state + dev watchers ----------
-window.addEventListener("beforeunload", () => sessionStorage.setItem("hqui", JSON.stringify({ proj: S.cur, conv: S.conv && S.conv.id, view: document.body.classList.contains("in-room") ? "room" : "hq", hide: !!S.hideChat })));
+window.addEventListener("beforeunload", () => sessionStorage.setItem("hqui", JSON.stringify({ proj: S.cur, conv: S.conv && S.conv.id, view: document.body.classList.contains("in-room") ? "room" : document.body.classList.contains("in-floor") ? "floor" : "hq", hide: !!S.hideChat })));
 hq.on("code-changed", () => $("#restart-chip").classList.remove("hidden"));
 hq.codePending().then((f) => f && $("#restart-chip").classList.remove("hidden")).catch(() => {});
 $("#restart-chip").onclick = async () => { const busy = await hq.busy(); if (busy && !confirm("A chat is still running, restart anyway?")) return; hq.restart(); };

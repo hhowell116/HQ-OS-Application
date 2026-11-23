@@ -19,7 +19,7 @@ const LEGACY = path.join(__dirname, "..", "data.json"); // the Obsidian plugin's
 const ICON = path.join(__dirname, "renderer", "icon.ico");
 const ELECTRON = process.execPath;
 let settings = D.loadSettings(SETTINGS_FILE, LEGACY);
-let win = null, chats = null, now = null;
+let win = null, chats = null, now = null, tfProc = null;
 const cache = { projects: [], agents: [], boards: [], usage: null, usageErr: "", usageAt: 0, music: null, vit: [] };
 
 // Read-only hqreview://f/<encoded path>: serves only media inside a project's Review folder.
@@ -253,6 +253,24 @@ app.whenReady().then(() => {
   ipcMain.handle("chat-delete", (_, id) => chats.remove(id));
   ipcMain.handle("chat-handoff", (_, id) => chats.handoff(id));
   ipcMain.handle("chat-compact", (_, id) => chats.compact(id));
+  // ---------- Trading Floor: runs Stonks/engine/run.js as a child process and relays its JSON lines ----------
+  const STONKS = process.env.STONKS_DIR || path.join(path.dirname(path.dirname(__dirname)), "Stonks");
+  const tfRead = (f, d) => { try { return JSON.parse(fs.readFileSync(path.join(STONKS, "data", f), "utf8")); } catch (e) { return d; } };
+  function tfStats() { try { const L = require(path.join(STONKS, "engine", "ledger.js")); return L.stats(); } catch (e) { return null; } }
+  function tfStart(mode) {
+    if (tfProc) return false;
+    const script = path.join(STONKS, "engine", "run.js"); if (!fs.existsSync(script)) throw new Error("Stonks engine not found at " + script);
+    tfProc = require("child_process").spawn(process.execPath, [script, mode], { cwd: path.dirname(script), windowsHide: true, env: Object.assign({}, process.env, { ELECTRON_RUN_AS_NODE: "1" }) });
+    let buf = ""; tfProc.stdout.on("data", (d) => { buf += d; let i; while ((i = buf.indexOf("\n")) >= 0) { const l = buf.slice(0, i); buf = buf.slice(i + 1); try { send("tf", JSON.parse(l)); } catch (e) {} } });
+    tfProc.stderr.on("data", () => {});
+    tfProc.on("close", () => { tfProc = null; send("tf", { t: "done", stats: tfStats(), state: tfRead("state.json", null) }); });
+    tfProc.on("error", () => { tfProc = null; });
+    return true;
+  }
+  ipcMain.handle("tf-state", () => ({ running: !!tfProc, state: tfRead("state.json", null), stats: tfStats(), journal: tfRead("signals.json", {}) }));
+  ipcMain.handle("tf-go", () => tfStart("go"));
+  ipcMain.handle("tf-score", () => tfStart("score"));
+  ipcMain.handle("tf-stop", () => { if (tfProc) { try { tfProc.kill(); } catch (e) {} } return true; });
   ipcMain.on("win", (e, a) => { const w = BrowserWindow.fromWebContents(e.sender); if (!w) return; if (a === "min") w.minimize(); else if (a === "max") w.isMaximized() ? w.unmaximize() : w.maximize(); else if (a === "close") w.close(); else if (a === "top") w.setAlwaysOnTop(!w.isAlwaysOnTop()); });
 
   createWindow();
@@ -267,5 +285,5 @@ app.whenReady().then(() => {
   globalShortcut.register("Control+Alt+H", () => { if (!win) return; if (win.isVisible() && win.isFocused()) win.minimize(); else { win.show(); win.focus(); } });
 });
 
-app.on("window-all-closed", () => { if (chats) chats.killAll(); if (now) now.stop(); app.quit(); });
+app.on("window-all-closed", () => { try { if (tfProc) tfProc.kill(); } catch (e) {} if (chats) chats.killAll(); if (now) now.stop(); app.quit(); });
 app.on("will-quit", () => { globalShortcut.unregisterAll(); if (now) now.stop(); });
