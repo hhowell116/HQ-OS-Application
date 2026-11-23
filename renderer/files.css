@@ -1,0 +1,41 @@
+/* File explorer: ribbon + sliding panel. Theme vars only (--acc, --bg2, --line...), so every theme incl. the album theme works. */
+:root { --fxw: 280px; --fxr: 34px; }
+#fx-rib { position: fixed; left: 0; top: 44px; bottom: 0; width: var(--fxr); z-index: 5; display: flex; flex-direction: column; align-items: center; gap: 6px; padding-top: 10px; background: linear-gradient(180deg, rgba(var(--panel-rgb),.9), rgba(var(--bg-rgb),.7)); border-right: 1px solid var(--line); }
+.fx-rb { width: 26px; height: 26px; display: grid; place-items: center; padding: 0; font: 15px var(--mono); color: var(--tx3); background: transparent; border: 1px solid transparent; border-radius: 3px; cursor: pointer; transition: color .15s, background .15s, border-color .15s, box-shadow .15s; }
+.fx-rb:hover { color: var(--acc); background: rgba(var(--acc-rgb),.08); }
+.fx-rb.on { color: var(--acc); border-color: var(--line2); background: rgba(var(--acc-rgb),.12); box-shadow: 0 0 10px var(--acc-glow); }
+#fx-panel { position: fixed; left: var(--fxr); top: 44px; bottom: 0; width: var(--fxw); z-index: 4; display: flex; flex-direction: column; background: rgba(var(--panel-rgb),.94); border-right: 1px solid var(--line2); box-shadow: 4px 0 24px rgba(0,0,0,.35); transform: translateX(calc(-100% - var(--fxr))); opacity: 0; pointer-events: none; transition: transform .26s cubic-bezier(.3,.8,.3,1), opacity .2s; }
+body.fx-open #fx-panel { transform: none; opacity: 1; pointer-events: auto; }
+body.fx-hide #fx-rib, body.fx-hide #fx-panel { display: none; }
+.layout { transition: margin-left .26s cubic-bezier(.3,.8,.3,1); }
+body:not(.fx-hide) .layout { margin-left: var(--fxr); }
+body.fx-open:not(.fx-hide) .layout { margin-left: calc(var(--fxr) + var(--fxw)); }
+body.fx-drag, body.fx-drag * { user-select: none !important; cursor: col-resize !important; }
+body.fx-drag .layout, body.fx-drag #fx-panel { transition: none; }
+.fx-h { display: flex; align-items: center; gap: 4px; padding: 9px 10px 6px 12px; font: 600 11px var(--mono); letter-spacing: .22em; color: var(--acc); }
+.fx-sp { flex: 1; } .fx-hb { padding: 1px 7px; font-size: 13px; }
+#fx-q { margin: 0 10px 8px; padding: 5px 8px; background: rgba(var(--bg-rgb),.6); border: 1px solid var(--line2); color: var(--tx); border-radius: 2px; font: 12px var(--mono); outline: none; } #fx-q:focus { border-color: var(--acc); }
+#fx-tree { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 0 0 20px; font: 12.5px var(--mono); }
+.fx-row { display: flex; align-items: center; gap: 4px; height: 22px; padding-right: 8px; color: var(--tx2); cursor: pointer; white-space: nowrap; border-left: 2px solid transparent; position: relative; }
+.fx-row:hover { background: rgba(var(--acc-rgb),.07); color: var(--tx); }
+.fx-row.sel { background: rgba(var(--acc-rgb),.13); border-left-color: var(--acc); color: var(--acc); }
+.fx-row.dir { color: var(--tx); }
+.fx-ar { width: 10px; flex: none; color: var(--tx3); font-size: 10px; text-align: center; }
+.fx-ic { width: 16px; flex: none; text-align: center; font-size: 11px; color: var(--tx3); }
+.fx-ic.fold { color: var(--acc2); } .fx-ic.k-md { color: var(--acc); } .fx-ic.k-code { color: var(--hl); } .fx-ic.k-data { color: var(--acc2); } .fx-ic.k-img { color: #d49cf6; } .fx-ic.k-av { color: #f6b36b; }
+.fx-nm { flex: 1; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.fx-pj { flex: none; font-size: 10px; color: var(--tx3); letter-spacing: .06em; }
+.fx-ld, .fx-empty { padding: 3px 12px; color: var(--tx3); font-size: 11px; font-style: italic; }
+.fx-edit { flex: 1; min-width: 0; background: rgba(var(--bg-rgb),.9); border: 1px solid var(--acc); color: var(--tx); font: 12.5px var(--mono); padding: 1px 4px; outline: none; border-radius: 2px; } .fx-edit.bad { border-color: #ff5a6a; }
+.fx-row.play { color: var(--hl); background: rgba(var(--hl-rgb),.08); animation: fxglow 1.8s ease-in-out infinite; }
+.fx-row.play .fx-nm { text-shadow: 0 0 8px var(--hl); }
+.fx-row.playin::after { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--hl); box-shadow: 0 0 6px var(--hl); margin-left: 2px; flex: none; }
+@keyframes fxglow { 50% { background: rgba(var(--hl-rgb),.2); } }
+#fx-grip { position: absolute; top: 0; right: -3px; bottom: 0; width: 6px; cursor: col-resize; z-index: 2; } #fx-grip:hover, body.fx-drag #fx-grip { background: linear-gradient(90deg, transparent, var(--acc-glow), transparent); }
+#fx-menu { position: fixed; z-index: 70; min-width: 170px; padding: 4px; background: var(--bg2); border: 1px solid var(--acc); border-radius: 3px; box-shadow: 0 0 22px var(--acc-glow); font: 12px var(--mono); }
+.fx-mi { padding: 5px 10px; color: var(--tx); cursor: pointer; border-radius: 2px; } .fx-mi:hover { background: rgba(var(--acc-rgb),.15); color: var(--acc); } .fx-mi.off { color: var(--tx3); cursor: default; }
+.fx-sep { height: 1px; margin: 3px 4px; background: var(--line); }
+#fx-ov { z-index: 60; }
+.rl-doc a.fx-wl { color: var(--hl); text-decoration: none; border-bottom: 1px dashed var(--hl); }
+.layout > .col.center { min-width: 0; }
+#fx-ov { left: var(--fxr); } body.fx-open #fx-ov { left: calc(var(--fxr) + var(--fxw)); }

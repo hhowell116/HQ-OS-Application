@@ -134,6 +134,7 @@ app.whenReady().then(() => {
     session.defaultSession.setPermissionRequestHandler((wc, perm, cb) => cb(own(wc)));
     session.defaultSession.setPermissionCheckHandler((wc) => own(wc)); }
   const pub = () => ({ person: settings.person, voice: !!settings.voice, voiceName: settings.voiceName || "af_heart", speed: settings.speed || 1.1, last: settings.last, projectsRoot: settings.projectsRoot, theme: settings.theme || "cyan", accent: settings.accent || "", audio: settings.audio !== false, autoSend: !!settings.autoSend, music: settings.music !== false, archived: settings.archived || [], startView: settings.startView || "home", nebulaMode: settings.nebulaMode || "" });
+  require("./files-ipc.js")({ ipcMain, shell, settings, send, save: () => D.saveSettings(SETTINGS_FILE, settings) }); // file explorer (files-ipc.js)
   ipcMain.handle("init", async () => ({ settings: pub(), projects: await Promise.all(cache.projects.map(projectSummary)) }));
   ipcMain.handle("settings", () => pub());
   ipcMain.handle("projects", async () => { refreshProjects(); watchTodos(); return Promise.all(cache.projects.map(projectSummary)); });
