@@ -281,7 +281,15 @@
       camera.fov = 38; camera.position.copy(orbitPos(T.az, T.el, R0 * T.k, lookY)); camera.lookAt(0, lookY, 0); camera.updateProjectionMatrix(); return;
     }
     if (T.mode === "int" && !fl) {
-      const ic = intCam(T.cur); camera.fov = ic.fov; camera.position.copy(ic.pos); camera.position.x += Math.sin(t * 0.18) * 0.28; camera.lookAt(ic.look); camera.updateProjectionMatrix(); return;
+      const ic = intCam(T.cur), fo = T.focus;
+      // Focus pose for interiors (HQTower.setFocus / clearFocus): eases between the floor's default camera and the requested pose.
+      T.fk = (T.fk || 0) + ((fo ? 1 : 0) - (T.fk || 0)) * Math.min(1, dt * 3.5); if (!fo && T.fk < 0.001) { T.fk = 0; T.lastFocus = null; }
+      const F = fo || T.lastFocus; if (fo) T.lastFocus = fo;
+      camera.fov = F && F.fov ? ic.fov + (F.fov - ic.fov) * T.fk : ic.fov;
+      camera.position.copy(ic.pos); camera.position.x += Math.sin(t * 0.18) * 0.28 * (1 - T.fk);
+      const look = ic.look.clone();
+      if (F && T.fk > 0) { camera.position.lerp(new THREE.Vector3(F.pos.x, F.pos.y, F.pos.z), T.fk); look.lerp(new THREE.Vector3(F.target.x, F.target.y, F.target.z), T.fk); }
+      camera.lookAt(look); camera.updateProjectionMatrix(); return;
     }
     if (fl.dir === "enter") {
       const k = clamp((performance.now() - fl.t0) / fl.dur, 0, 1), L = interior && interior.lobby, e = ease(k);
@@ -312,7 +320,7 @@
     T.flight = { t0: performance.now(), dur: 1200, dir: "in", floor: f, az0: a, azT, el0: T.el, k0: T.k };
     labelsEl.classList.add("gone"); hud.classList.remove("hidden"); hintEl.textContent = "Esc or scroll out · back to the tower"; paintHud();
   }
-  function flyOut() {
+  function flyOut() { T.focus = null; T.fk = 0; T.lastFocus = null;
     if (T.flight || T.mode !== "int") return; const f = T.cur;
     T.flight = { t0: performance.now(), dur: 1200, dir: "out", floor: f, az0: T.az, azT: Math.round(T.az / (Math.PI * 2)) * Math.PI * 2, el0: T.el, k0: T.k }; T.mode = "ext2"; T.autoAz = true;
     labelsEl.classList.remove("gone"); hintEl.textContent = HINT; hud.classList.add("hidden");
@@ -484,7 +492,7 @@
     const L = interior && interior.lobby; if (!L || T.flight || T.mode !== "int") return;
     T.flight = { t0: performance.now(), dur: 1500, dir: "enter", floor: T.cur, from: camera.position.clone(), look: new THREE.Vector3(L.doorX, 1.6, L.doorZ) }; hintEl.textContent = "";
   }
-  function hopTo(f) {
+  function hopTo(f) { T.focus = null; T.fk = 0; T.lastFocus = null;
     if (T.flight || T.mode !== "int" || !T.cur || f === T.cur) return;
     T.flight = { t0: performance.now(), dur: 1500, dir: "hop", from: T.cur, floor: f, swapped: false }; hintEl.textContent = "riding to " + f.name.toLowerCase();
   }
@@ -699,6 +707,6 @@
     if (!T.raf) T.raf = requestAnimationFrame(frame);
   }
   const find = (id) => T.floors.find((x) => x.id === id || x.name.toLowerCase() === String(id).toLowerCase() || (/^stonks$/i.test(id) && x.stonks));
-  window.HQTower = { show, go: (id) => { const f = find(id); if (!f) return; if (T.mode === "int" && T.cur) hopTo(f); else flyIn(f); }, demo: (on) => { if (on !== T.demo) toggleDemo(); }, state: T, enter: (id) => { const f = T.floors.find((x) => x.id === id || x.name.toLowerCase() === String(id).toLowerCase()); if (f) flyIn(f); }, exit: flyOut, hop: (id) => { const f = T.floors.find((x) => x.id === id || x.name.toLowerCase() === String(id).toLowerCase()); if (f) hopTo(f); }, enterHQ, setAz: (a) => { T.az = a; T.autoAz = false; }, summary: () => ({ floors: T.floors.map((f) => ({ name: f.name, kind: f.kind, n: f.n, act: +f.act.toFixed(2) })), total: T.groups.total }) };
+  window.HQTower = { setFocus: (p) => { if (p && p.pos && p.target) T.focus = { pos: p.pos, target: p.target, fov: p.fov }; }, clearFocus: () => { T.focus = null; }, show, go: (id) => { const f = find(id); if (!f) return; if (T.mode === "int" && T.cur) hopTo(f); else flyIn(f); }, demo: (on) => { if (on !== T.demo) toggleDemo(); }, state: T, enter: (id) => { const f = T.floors.find((x) => x.id === id || x.name.toLowerCase() === String(id).toLowerCase()); if (f) flyIn(f); }, exit: flyOut, hop: (id) => { const f = T.floors.find((x) => x.id === id || x.name.toLowerCase() === String(id).toLowerCase()); if (f) hopTo(f); }, enterHQ, setAz: (a) => { T.az = a; T.autoAz = false; }, summary: () => ({ floors: T.floors.map((f) => ({ name: f.name, kind: f.kind, n: f.n, act: +f.act.toFixed(2) })), total: T.groups.total }) };
   hq.on("todo-changed", () => { if (T.on) setTimeout(sync, 400); });
 })();
