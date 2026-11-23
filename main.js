@@ -324,10 +324,10 @@ app.whenReady().then(() => {
   const tfRead = (f, d) => { try { return JSON.parse(fs.readFileSync(path.join(stkDir(), "data", f), "utf8")); } catch (e) { return d; } };
   function tfStats() { try { return require(path.join(stkDir(), "engine", "steady.js")).book(); } catch (e) { return null; } }
   function tfHealth() { try { return require(path.join(stkDir(), "engine", "safety.js")).health(); } catch (e) { return { ok: false, why: ["engine unreadable: " + String(e.message).slice(0, 80)] }; } }
-  function tfStart(mode) {
+  function tfStart(mode, arg) {
     if (tfProc) return false;
     const script = path.join(stkDir(), "engine", "run.js"); if (!fs.existsSync(script)) throw new Error("Stonks engine not found at " + script);
-    const p = tfProc = require("child_process").spawn(process.execPath, [script, mode], { cwd: path.dirname(script), windowsHide: true, env: Object.assign({}, process.env, { ELECTRON_RUN_AS_NODE: "1" }) });
+    const p = tfProc = require("child_process").spawn(process.execPath, [script, mode].concat(arg ? [String(arg)] : []), { cwd: path.dirname(script), windowsHide: true, env: Object.assign({}, process.env, { ELECTRON_RUN_AS_NODE: "1" }) });
     let buf = ""; tfProc.stdout.on("data", (d) => { buf += d; let i; while ((i = buf.indexOf("\n")) >= 0) { const l = buf.slice(0, i); buf = buf.slice(i + 1); try { send("tf", JSON.parse(l)); } catch (e) {} } });
     tfProc.stderr.on("data", () => {});
     tfProc.on("close", () => { if (tfProc === p) tfProc = null; send("tf", { t: "done", stats: tfStats(), state: tfRead("state.json", null) }); });
@@ -335,6 +335,10 @@ app.whenReady().then(() => {
     return true;
   }
   ipcMain.handle("tf-state", () => ({ running: !!tfProc, health: tfHealth(), state: tfRead("state.json", null), stats: tfStats(), journal: tfRead("signals.json", {}), equity: tfRead("equity.json", []) }));
+  // PAPER/LIVE switch: tf-live reads the cached read-only account + order records; tf-cmd runs only these whitelisted engine commands (arg = [cmd, id]).
+  const tfOrders = () => { try { return fs.readFileSync(path.join(stkDir(), "data", "live-orders.jsonl"), "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l)).slice(-30); } catch (e) { return []; } };
+  ipcMain.handle("tf-live", () => ({ account: tfRead("live-account.json", null), orders: tfOrders() }));
+  ipcMain.handle("tf-cmd", (_, ca) => { const [c, a] = Array.isArray(ca) ? ca : []; return ["live-mode", "live-refresh", "live-approve"].includes(c) && (!a || /^[A-Za-z0-9_-]{1,80}$/.test(String(a))) ? tfStart(c, a) : false; });
   ipcMain.handle("tf-go", () => tfStart("go"));
   ipcMain.handle("tf-score", () => tfStart("score"));
   ipcMain.handle("tf-resume", () => tfStart("resume"));

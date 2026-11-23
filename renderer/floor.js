@@ -103,6 +103,11 @@
     if (!compact && a.plan && a.plan.shares > 0) {
       const l = mk("div", "fl-lad"); [["BUY NEAR", a.plan.entry, ""], ["STOP-LOSS", a.plan.stop, "s"], [a.strategy === "Steady" ? "52W HIGH" : "TAKE PROFIT", a.plan.t1, "t"]].filter((x) => x[1] != null).forEach(([k, v, z]) => { const d = mk("div", z); d.append(mk("small", "", k), document.createTextNode("$" + v)); l.append(d); }); c.append(l);
     }
+    if (isLive() && !compact && (a.action === "BUY" || a.action === "SELL") && a.plan && a.plan.shares > 0 && a.id) {
+      const o = orderFor(a.id), ap = mk("div", "fl-appr"), btn = mk("button", "fl-btn fl-approve", o ? "RECORDED" : "APPROVE"); btn.disabled = !!o; btn.title = "Records this order. Live orders are OFF, so nothing is sent.";
+      btn.onclick = async (e) => { e.stopPropagation(); if (!confirm("Approve: " + orderTxt(a) + " - " + "Live orders are OFF, so this only records the order as blocked.")) return; try { await hq.tfCmd(["live-approve", a.id]); } catch (x) { toast(x.message); } };
+      ap.append(mk("span", "fl-ot", orderTxt(a)), btn); if (o) ap.append(mk("em", "", o.status)); c.append(ap);
+    }
     c.title = "Click for the full reasoning"; c.onclick = () => openDrawer(a); return c;
   }
   // holds (Steady / Mirror / Scanner) that hit their target or stop-loss
@@ -141,7 +146,7 @@
     if (holds.length) { const hb = mk("div", "hhold"); hb.append(mk("small", "", "NEEDS ACTION")); holds.slice(0, 3).forEach((x) => hb.append(mk("div", "", x.txt))); h.append(hb); }
   }
   function renderAlerts() {
-    if (!changed("al", [S.alerts, S.passedOpen, S.finishedAt, S.stats && S.stats.positions, Math.floor(Date.now() / 60000)])) return;
+    if (!changed("al", [S.mode, S.live && S.live.orders, S.alerts, S.passedOpen, S.finishedAt, S.stats && S.stats.positions, Math.floor(Date.now() / 60000)])) return;
     renderHero(); const box = $("#fl-alerts"), keepTop = box.scrollTop; box.textContent = "";
     if (!S.alerts.length) { box.append(mk("div", "fl-empty", "No alerts yet. Hit GO to send the desks to work.")); $("#fl-when").textContent = ""; return; }
     const g = ranked(); let n = 0;
@@ -342,7 +347,51 @@
     const ag = mk("div", "fl-agstrip"); ag.id = "fl-agstrip"; $("#tw-stonks").insertBefore(ag, $(".fl-board"));
     const kd = mk("span", "fl-kinds"); kd.id = "fl-kinds"; $(".fl-scrub").append(kd); }
   setInterval(() => { if (S.dv && S.active) renderDv(); }, 5000);
-  const all = () => { collapsibles(); renderSafety(); renderCmp(); renderHead(); renderTape(); renderAlerts(); renderBook(); renderSig(); renderCurve(); renderAgents(); };
+  const all = () => { collapsibles(); renderSafety(); renderCmp(); renderHead(); renderTape(); renderAlerts(); renderBook(); renderSig(); renderCurve(); renderAgents(); renderLive(); };
+  // ---------- PAPER / LIVE mode. LIVE = read-only view of the agent's real account + locked order approvals (no order is sent while live orders are off). ----------
+  const isLive = () => S.mode === "live";
+  const orderTxt = (a) => { const p = a.plan || {}; return (a.action === "SELL" ? "SELL " : "BUY ") + p.shares + " " + a.ticker + " limit $" + p.entry + " · stop $" + p.stop + " · est. $" + Math.round((p.shares || 0) * (p.entry || 0)); };
+  const orderFor = (id) => ((S.live && S.live.orders) || []).filter((o) => o.alertId === id).pop();
+  function applyMode() {
+    const t = $("#tw-stonks"), live = isLive(); if (!t) return;
+    t.classList.toggle("live", live); const tv = $("#tower-view"); if (tv) tv.classList.toggle("stk-live", live);
+    const b = $("#fl-mode"); if (b) { b.textContent = live ? "LIVE" : "PAPER"; b.className = "fl-btn fl-mode " + (live ? "live" : "paper"); b.title = live ? "LIVE view (real account, read-only). Click to go back to PAPER." : "PAPER mode. Click to switch to LIVE (read-only real account view; orders stay locked)."; }
+    const g = $("#fl-livebadge"); if (g) g.classList.toggle("hidden", !live);
+  }
+  function renderLive() {
+    applyMode(); const box = $("#fl-live"); if (!box) return;
+    if (!changed("live", [S.mode, S.live, Math.floor(Date.now() / 30000)])) return; box.textContent = "";
+    if (!isLive()) return;
+    const a = (S.live && S.live.account) || {}, hd = mk("div", "fl-h"); hd.append(mk("span", "", "LIVE ACCOUNT" + (a.account ? " " + a.account : "")), mk("span", "fl-rule"), mk("span", "fl-note", a.fetchedAt ? "read-only · " + ago(a.fetchedAt) : "read-only"));
+    const body = mk("div", "fl-livebody"); box.append(hd, body);
+    if (a.status === "login-needed" || (!a.status && !a.fetchedAt)) { body.append(mk("div", "fl-lg", a.status ? "Webull login needed — run `node engine/broker-webull.js token` and approve in the app" : "Loading the live account...")); }
+    else if (a.status === "rate-limited" || (a.status === "error" && !a.fetchedAt)) body.append(mk("div", "fl-lg", a.error || "Webull is not answering yet. Retrying, at most once a minute."));
+    if (a.fetchedAt) {
+      if (a.status !== "ok") body.append(mk("div", "fl-lg", a.status === "login-needed" ? "Webull login needed — run `node engine/broker-webull.js token` and approve in the app (showing last snapshot)" : "Showing the last snapshot. " + (a.error || "")));
+      const kv = mk("div", "fl-kv"), row = (k, v, c) => { const d = mk("div"); d.append(mk("span", "", k), mk("b", c || "", v)); kv.append(d); };
+      row("NET VALUE", a.netValue == null ? "--" : usd(a.netValue)); row("CASH", a.cash == null ? "--" : usd(a.cash)); row("BUYING POWER", a.buyingPower == null ? "--" : usd(a.buyingPower)); row("TODAY", a.dayChange == null ? "--" : (a.dayChange > 0 ? "+" : "") + usd(a.dayChange), cls(a.dayChange || 0));
+      body.append(kv); const ps = a.positions || [], pb = mk("div", "fl-pos");
+      if (!ps.length) pb.append(mk("div", "fl-empty", "No open positions in the agent account."));
+      ps.forEach((p) => { const r = mk("div", "fl-row open"); r.append(mk("b", "", p.ticker), mk("span", "sd", p.qty + " sh"), mk("span", "lv", "$" + p.cost + " → $" + p.last), mk("span", "pl " + cls(p.pnl || 0), p.pnl == null ? "--" : (p.pnl > 0 ? "+" : "") + usd(p.pnl) + (p.pnlPct != null ? " (" + sgn(p.pnlPct) + "%)" : ""))); pb.append(r); });
+      body.append(pb);
+    }
+    const os = ((S.live && S.live.orders) || []).filter((o) => !o.kill).slice(-5).reverse();
+    body.append(mk("div", "fl-lg dim", "Live orders are OFF. Approve only records the order here; nothing is sent to Webull."));
+    os.forEach((o) => { const r = mk("div", "fl-ord"); r.append(mk("b", "", o.text), mk("span", "", o.status)); body.append(r); });
+  }
+  async function refreshLive() {
+    if (!isLive()) { renderLive(); return; }
+    try { S.live = await hq.tfLive(); } catch (e) {}
+    renderLive(); renderAlerts();
+    if (Date.now() - (S.liveAsk || 0) > 65000 && !S.running) { S.liveAsk = Date.now(); try { await hq.tfCmd(["live-refresh"]); } catch (e) {} } // engine enforces the 60s minimum and backoff
+  }
+  async function setMode(m) {
+    try { S.running = true; renderHead(); await hq.tfCmd(["live-mode", m]); S.mode = m; S.liveAsk = 0; applyMode(); renderAlerts(); } catch (e) { S.running = false; renderHead(); toast(e.message); }
+  }
+  { const b = mk("button", "fl-btn fl-mode paper", "PAPER"); b.id = "fl-mode"; const r = $("#fl-resume"); r.parentNode.insertBefore(b, r.nextSibling);
+    const g = mk("span", "fl-livebadge hidden", "LIVE · REAL MONEY"); g.id = "fl-livebadge"; $("#fl-pill").before(g);
+    const lv = mk("div", "fl-sc fl-livesc"); lv.id = "fl-live"; $(".fl-rcol").prepend(lv);
+    b.onclick = () => { if (S.running) return; if (isLive()) setMode("paper"); else if (confirm("Switch to LIVE?\n\nThis shows your real Webull agent account (read-only). Live orders are OFF: nothing can be sent. Continue?")) setMode("live"); }; }
   const busy = () => !!(S.running || S.play);
   function syncBusy() { const t = $("#tw-stonks"); if (t) t.classList.toggle("fl-busy", busy()); }
   function collapsibles() { // book/safety panels: compact, click a header to fold; Paper Book open by default
@@ -352,13 +401,13 @@
   }
   function load(r) {
     if (S.preview) return; // dev screenshot hook: HQFloor.preview() freezes the data
-    const st = r.state; if (st) { S.desks = st.desks || {}; S.alerts = st.alerts || []; S.tape = st.tape || []; S.finishedAt = st.finishedAt || 0; S.usage = st.usage || null; S.flag = st.flag || ""; }
+    const st = r.state; if (st) { S.desks = st.desks || {}; S.alerts = st.alerts || []; S.tape = st.tape || []; S.finishedAt = st.finishedAt || 0; S.usage = st.usage || null; S.flag = st.flag || ""; S.mode = st.mode === "live" ? "live" : "paper"; }
     S.health = r.health || { ok: true, why: [] }; S.running = !!r.running; S.stats = r.stats; S.sig = r.journal || {}; S.equity = r.equity || []; all();
   }
   async function refresh() {
     try { load(await hq.tfState()); if (!S.running || !S.ev.length) { S.ev = await hq.tfEvents(); renderAgents(); } } catch (e) {}
     if (S.autoPlay && !S.running && !S.play && S.ev.length) { S.autoPlay = false; startPlay(); } // idle: replay the last run
-    refreshUsage();
+    refreshUsage(); refreshLive();
   }
   hq.on("tf", async (m) => {
     if (m.t === "desk") { S.desks[m.id] = m.desk; renderHead(); if (m.id === "market" && m.desk.status === "done") { try { load(await hq.tfState()); } catch (e) {} } }
