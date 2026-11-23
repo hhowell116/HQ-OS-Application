@@ -189,8 +189,9 @@
 .fl-sc.collapsed > :not(.fl-h:first-child) { display: none; } .fl-sc.collapsed { padding-bottom: 2px; } .fl-sc.collapsed .fl-h { margin-bottom: 4px; }
 .fl-sc > .fl-h.fold:hover { color: var(--fg); }
 /* 3D desk names: only on hover, while working, or when selected */
-.tower-view[data-fl="stonks"] .tw-tag.dk { opacity: 0; pointer-events: none; transition: opacity .25s; }
-.tower-view[data-fl="stonks"] .tw-tag.dk.on, .tower-view[data-fl="stonks"] .tw-tag.dk.sel, .tower-view[data-fl="stonks"] .tw-tag.dk.hov { opacity: 1; pointer-events: auto; }
+.tower-view[data-fl="stonks"] .tw-tag.dk { opacity: 0 !important; pointer-events: none; transition: opacity .25s; }
+.tower-view[data-fl="stonks"] .tw-tag.dk.on, .tower-view[data-fl="stonks"] .tw-tag.dk.sel, .tower-view[data-fl="stonks"] .tw-tag.dk.hov { opacity: 1 !important; pointer-events: auto; }
 /* transcript: collapsed to the scrubber while idle; opens on hover or during a run/replay */
 .fl-bot .fl-log { display: none; } #tw-stonks.fl-busy .fl-bot .fl-log, .fl-bot:hover .fl-log, .fl-bot:focus-within .fl-log { display: flex; }
 #tw-stonks:not(.fl-busy) .fl-bot .fl-step { opacity: .55; }
+.tower-view[data-fl="stonks"] .tw-tag:not(.dk):not(.on) { opacity: .4 !important; }

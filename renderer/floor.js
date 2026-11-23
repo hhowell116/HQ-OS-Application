@@ -101,8 +101,9 @@
   // holds (Steady / Mirror / Scanner) that hit their target or stop-loss
   function holdsNeedingAction() {
     const out = []; for (const p of (S.stats && S.stats.positions) || []) { if (p.status !== "open" || p.last == null) continue; const st = p.strat || "Scanner";
-      if (p.t1 != null && p.last >= p.t1) out.push({ p, txt: st + ": sell " + p.ticker + (st === "Steady" ? " - hit a new high ($" + p.last + ")" : " - hit its profit target ($" + p.last + ")") });
-      else if (p.stop != null && p.last <= p.stop) out.push({ p, txt: st + ": sell " + p.ticker + " - fell to its stop-loss ($" + p.last + ")" }); }
+      const sh = p.side === "short";
+      if (p.t1 != null && (sh ? p.last <= p.t1 : p.last >= p.t1)) out.push({ p, txt: st + ": sell " + p.ticker + (st === "Steady" ? " - hit a new high ($" + p.last + ")" : " - hit its profit target ($" + p.last + ")") });
+      else if (p.stop != null && (sh ? p.last >= p.stop : p.last <= p.stop)) out.push({ p, txt: st + ": sell " + p.ticker + " - fell to its stop-loss ($" + p.last + ")" }); }
     return out;
   }
   function ensureHero() {
@@ -123,7 +124,6 @@
       const k = mk("div", "hk"); const kv = (lab, val, c, tip) => { const d = mk("div", c); d.append(mk("small", "", lab), document.createTextNode(val)); if (tip) d.title = tip; k.append(d); };
       if (p) { kv("STOP-LOSS", "$" + p.stop, "s", "Sell if it falls here"); if (p.t1 != null) kv("TAKE PROFIT", "$" + p.t1, "t", "Sell here to bank the gain"); }
       kv("CONFIDENCE", (pick.confidence || 0) + "/100", ""); h.append(k);
-      if (p) h.append(mk("div", "hsub", "Stop-loss: sell if it falls to $" + p.stop + (p.t1 != null ? ". Take profit: sell at $" + p.t1 + "." : ".")));
       h.append(mk("div", "hwhy", "Why: " + short(pick.thesis, 150)));
       h.onclick = () => openDrawer(pick); h.title = "Click for the full reasoning"; h.classList.add("clk");
       g.act.slice(1, 3).forEach((a, i) => { const r = mk("div", "hrun"); r.append(mk("b", "", "#" + (i + 2) + " " + a.action + " " + a.ticker), document.createTextNode(" " + (a.confidence || 0) + "/100 " + (a.strategy || "Scanner"))); r.onclick = (e) => { e.stopPropagation(); openDrawer(a); }; h.append(r); });
@@ -295,6 +295,7 @@
       hd.onclick = () => { const c = p.classList.toggle("collapsed"); saved[key] = c; try { localStorage.setItem("flcoll", JSON.stringify(saved)); } catch (e) {} }; });
   }
   function load(r) {
+    if (S.preview) return; // dev screenshot hook: HQFloor.preview() freezes the data
     const st = r.state; if (st) { S.desks = st.desks || {}; S.alerts = st.alerts || []; S.tape = st.tape || []; S.finishedAt = st.finishedAt || 0; S.flag = st.flag || ""; }
     S.health = r.health || { ok: true, why: [] }; S.running = !!r.running; S.stats = r.stats; S.sig = r.journal || {}; S.equity = r.equity || []; all();
   }
@@ -319,7 +320,7 @@
   window.HQFloor = {
     shown: (on) => { S.active = on !== false; if (S.active) { S.autoPlay = true; refresh(); } else { stopPlay(); closeCard(); } },
     events: () => events(), cur: () => S.cur, active: () => !!S.active, agentCard, agentClose,
-    running: () => S.running, busy, desks: deskView, onChange: (f) => listeners.push(f), NAME, HUE, ANG, SEATS,
+    preview: (al, pos) => { S.preview = true; S.alerts = al; if (pos && S.stats) S.stats = Object.assign({}, S.stats, { positions: pos }); all(); }, running: () => S.running, busy, desks: deskView, onChange: (f) => listeners.push(f), NAME, HUE, ANG, SEATS,
     data: () => ({ tape: S.tape, equity: S.equity, alerts: S.alerts, stats: S.stats }),
     select: (seat) => { S.sel = S.sel === seat ? "" : seat; renderAgents(); }, selected: () => S.sel,
     escape: () => { if (S.card) { closeCard(); return true; } const d = $("#fl-drawer"); if (!d.classList.contains("hidden")) { d.classList.add("hidden"); return true; } if (S.sel) { S.sel = ""; renderAgents(); return true; } return false; },
