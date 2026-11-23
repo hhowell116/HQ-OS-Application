@@ -321,7 +321,7 @@
     labelsEl.classList.add("gone"); hud.classList.remove("hidden"); hintEl.textContent = "Esc or scroll out · back to the tower"; paintHud();
   }
   function flyOut() { T.focus = null; T.fk = 0; T.lastFocus = null;
-    if (T.flight || T.mode !== "int") return; const f = T.cur;
+    if (T.flight || T.mode !== "int") return; const f = T.cur; if (window.HQTowerChat) HQTowerChat.close();
     T.flight = { t0: performance.now(), dur: 1200, dir: "out", floor: f, az0: T.az, azT: Math.round(T.az / (Math.PI * 2)) * Math.PI * 2, el0: T.el, k0: T.k }; T.mode = "ext2"; T.autoAz = true;
     labelsEl.classList.remove("gone"); hintEl.textContent = HINT; hud.classList.add("hidden");
   }
@@ -587,6 +587,7 @@
     paintHud();
   }
   function paintHud() {
+    if (window.HQTowerChat) HQTowerChat.sync();
     if (!interior) return; const f = interior.f, lst = [...interior.members.values()], w = lst.filter((o) => o.working).length, p = projectList().find((x) => x.id === f.id) || {};
     $("#tw-openhq").classList.toggle("hidden", f.kind !== "lobby");
     if (f.kind === "lobby") { const ps = projectList(); $("#tw-htitle").textContent = "G · LOBBY"; $("#tw-hstat").textContent = ps.length + " floors · " + T.groups.total + " working · " + ps.reduce((a, x) => a + x.wait, 0) + " need you · click a row to ride up"; return; }
@@ -700,7 +701,7 @@
     paintLabels(); applyActivity();
   }
   function show(on) {
-    T.on = on; view.classList.toggle("on", on);
+    T.on = on; view.classList.toggle("on", on); if (!on && window.HQTowerChat) HQTowerChat.close();
     if (!on) { clearInterval(T.poll); if (T.mode === "int" || T.flight) { T.flight = null; T.mode = "ext"; T.e = 0; destroyInterior(); T.cur = null; hud.classList.add("hidden"); labelsEl.classList.remove("gone"); hintEl.textContent = HINT; } return; }
     ensure(); hintEl.textContent = HINT; refreshTeams(); sync(); resize();
     clearInterval(T.poll); T.poll = setInterval(() => { if (T.on) { sync(); } }, 2500);
