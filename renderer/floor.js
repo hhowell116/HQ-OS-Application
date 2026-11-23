@@ -60,6 +60,7 @@
       const h = mk("div", "lh"); h.append(mk("b", "", NAME[m.agent] || m.agent), mk("em", "", (m.to ? "→ " + NAME[m.to] : "") + (m.kind === "veto" ? "  VETO" : m.kind === "start" ? "  working" : m.kind === "error" ? "  error" : "")), mk("time", "", m.ts ? new Date(m.ts).toLocaleTimeString([], { hour12: false }) : ""));
       row.append(h, mk("div", "lt", m.text)); row.onclick = () => { S.follow = false; S.cur = i; stopPlay(); renderAgents(); }; log.append(row);
     });
+    if (S.card) renderCard();
     if (S.follow || atEnd) { const c = log.querySelector(".cur"); if (c) log.scrollTop = c.offsetTop - log.clientHeight + c.offsetHeight + 8; else log.scrollTop = log.scrollHeight; } else log.scrollTop = keep;
   }
   function stopPlay() { if (S.play) { clearInterval(S.play); S.play = null; } }
@@ -132,8 +133,27 @@
     for (const [k, v] of e) { const r = mk("div", "fl-row"), n = mk("span", "", k); if (v.demoted) n.append(mk("span", "dem", "DEMOTED")); r.append(n, mk("span", "pl " + cls(v.pnl), Math.round(v.winRate * 100) + "% · " + v.n + " · " + usd(v.pnl))); box.append(r); }
   }
 
+  // ---------- Agent card: click a desk in the 3D room (stonks3d.js) -> the drawer shows that agent's latest output ----------
+  const AG_NAME = Object.assign({}, NAME, { steady: "Steady Desk", hub: "Lead Hub", debate: "Bull vs Bear" });
+  function closeCard() { if (window.HQStonks3D && HQStonks3D.focused()) HQStonks3D.unfocus(); else agentClose(); }
+  function agentClose() { if (!S.card) return; S.card = null; $("#fl-drawer").classList.add("hidden"); }
+  function agentCard(id) { S.card = id; S.sel = ANG[id] != null ? id : ""; renderAgents(); }
+  function renderCard() {
+    const id = S.card, d = $("#fl-drawer"), ev = events(), cur = Math.min(S.cur, ev.length - 1); d.textContent = ""; d.classList.remove("hidden");
+    const mine = (e) => (id === "hub" ? !!e.to : id === "steady" ? /steady/i.test(e.text || "") : id === "debate" ? ["debate", "bull", "bear"].includes(e.agent) : e.agent === id), upto = ev.slice(0, cur + 1), list = upto.filter(mine), last = list[list.length - 1], st = derive(ev, cur).st;
+    const sid = id === "hub" ? "lead" : id === "debate" ? "bear" : id, stat = id === "steady" ? (list.length && Date.now() - (last.ts || 0) < 6e4 ? "working" : "idle") : id === "hub" ? "routing" : (st[sid] || {}).status || "idle";
+    const x = mk("button", "fl-btn ghost", "CLOSE"); x.onclick = closeCard;
+    const top = mk("div", "dtop"); top.append(mk("b", "tk ag", AG_NAME[id] || id), mk("span", "dst " + stat, stat.toUpperCase()), mk("span", "spacer"), x); d.style.setProperty("--h", id === "debate" ? "#ffb02e" : HUE[sid] || "#4aa8ff"); d.append(top);
+    d.append(mk("div", "fl-h", "LATEST OUTPUT"));
+    if (last) { d.append(mk("div", "dpx", (last.ts ? new Date(last.ts).toLocaleTimeString([], { hour12: false }) + "  " : "") + last.kind + (last.to ? "  → " + (AG_NAME[last.to] || last.to) : "")), mk("p", "dth dtxt", last.text || "")); }
+    else d.append(mk("p", "dth", id === "steady" ? "No Steady activity in this run yet." : "Nothing yet. This desk has not reported in this run."));
+    if (id === "steady" && S.stats && S.stats.steady) { const t = S.stats.steady; d.append(mk("div", "fl-h", "STEADY SLEEVE"), mk("p", "dth", sgn(t.retPct) + "% return · " + t.open + " open · " + t.trades + " closed")); }
+    const rec = list.slice(-8, -1).reverse(); if (rec.length) { d.append(mk("div", "fl-h", id === "hub" ? "RECENT HANDOFFS" : "EARLIER THIS RUN")); const ul = mk("ul", "dl"); rec.forEach((e) => ul.append(mk("li", "", (id === "hub" ? (AG_NAME[e.agent] || e.agent) + " → " + (AG_NAME[e.to] || e.to) + ": " : e.kind + ": ") + short(e.text, 160)))); d.append(ul); }
+  }
+
   // ---------- Signals drawer ----------
   function openDrawer(a) {
+    if (S.card) { S.card = null; if (window.HQStonks3D && HQStonks3D.focused()) HQStonks3D.unfocus(); }
     const d = $("#fl-drawer"); d.textContent = ""; d.classList.remove("hidden");
     const x = mk("button", "fl-btn ghost", "CLOSE"); x.onclick = () => d.classList.add("hidden");
     const top = mk("div", "dtop"); top.append(mk("span", "dact " + a.action, a.action), mk("b", "tk", a.ticker), mk("span", "fl-strat " + (a.strategy || "Scanner"), (a.strategy || "Scanner").toUpperCase()), mk("span", "spacer"), x); d.append(top);
@@ -238,11 +258,12 @@
   const clk = () => { $("#fl-clock").textContent = new Date().toLocaleTimeString([], { hour12: false }); };
   clk(); setInterval(clk, 1000);
   window.HQFloor = {
-    shown: (on) => { S.active = on !== false; if (S.active) { S.autoPlay = true; refresh(); } else stopPlay(); },
+    shown: (on) => { S.active = on !== false; if (S.active) { S.autoPlay = true; refresh(); } else { stopPlay(); closeCard(); } },
+    events: () => events(), cur: () => S.cur, active: () => !!S.active, agentCard, agentClose,
     running: () => S.running, desks: deskView, onChange: (f) => listeners.push(f), NAME, HUE, ANG, SEATS,
     data: () => ({ tape: S.tape, equity: S.equity, alerts: S.alerts, stats: S.stats }),
     select: (seat) => { S.sel = S.sel === seat ? "" : seat; renderAgents(); }, selected: () => S.sel,
-    escape: () => { const d = $("#fl-drawer"); if (!d.classList.contains("hidden")) { d.classList.add("hidden"); return true; } if (S.sel) { S.sel = ""; renderAgents(); return true; } return false; },
+    escape: () => { if (S.card) { closeCard(); return true; } const d = $("#fl-drawer"); if (!d.classList.contains("hidden")) { d.classList.add("hidden"); return true; } if (S.sel) { S.sel = ""; renderAgents(); return true; } return false; },
   };
   all(); refresh();
   setInterval(() => { if (S.active) { refreshUsage(); if (!S.running) refresh(); } }, 30000);

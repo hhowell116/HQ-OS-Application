@@ -155,3 +155,7 @@
 .fl-scrub .fl-btn { padding: 6px 12px; } .fl-scrub input { accent-color: var(--amb); }
 .fl-drawer { background: rgba(10,14,20,.96); border-left: 1px solid var(--line); border-top: 0; backdrop-filter: blur(14px); }
 .fl-banner { background: rgba(251,113,133,.9); }
+/* agent card (opened by clicking a desk in the 3D room) */
+.fl-drawer .tk.ag { font-size: 20px; color: var(--h, var(--fg)); } .fl-drawer .dst { font-size: 10px; letter-spacing: .18em; padding: 2px 8px; border-radius: 2px; border: 1px solid var(--line); color: var(--mut); }
+.fl-drawer .dst.working { color: var(--amb); border-color: var(--amb); } .fl-drawer .dst.done { color: var(--up); border-color: var(--up); } .fl-drawer .dst.error { color: var(--dn); border-color: var(--dn); } .fl-drawer .dst.routing { color: var(--h); border-color: var(--h); }
+.fl-drawer .dtxt { white-space: pre-wrap; border-left: 2px solid var(--h, var(--amb)); padding-left: 10px; }
