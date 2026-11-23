@@ -116,7 +116,9 @@
   }
 
   // ---------- tower build ----------
-  function floorColor(p) { if (p && /^(stonks|stocks)$/i.test(p.name)) return new THREE.Color("hsl(92,36%,46%)"); /* trading floor: the hash hue was a neon yellow that flared in lights + bloom; muted moss-green fits neon-noir */ if (p && p.accent) { try { return new THREE.Color(p.accent); } catch (e) {} } return new THREE.Color(`hsl(${hueOf(p ? p.name : "x")},85%,58%)`); }
+  // Distinct neon-noir palette, one colour per project floor in tower order (no yellows; Hayden 2026-11-23: "most of them are just yellow").
+  const FLOOR_PALETTE = ["#3fa9f5", "#e0559b", "#8f6cf0", "#2fc6b0", "#f07a5a", "#5f7cf7", "#c46ae0", "#36c98a", "#e8607a", "#4dc4e0"];
+  function floorColor(p, i) { if (p && /^(stonks|stocks)$/i.test(p.name)) return new THREE.Color("hsl(92,36%,46%)"); if (Number.isInteger(i)) return new THREE.Color(FLOOR_PALETTE[i % FLOOR_PALETTE.length]); /* trading floor: the hash hue was a neon yellow that flared in lights + bloom; muted moss-green fits neon-noir */ if (p && p.accent) { try { return new THREE.Color(p.accent); } catch (e) {} } return new THREE.Color(`hsl(${hueOf(p ? p.name : "x")},85%,58%)`); }
   const disposeGroup = (g) => { g.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material) [].concat(o.material).forEach((m) => { if (m.map) m.map.dispose(); m.dispose(); }); }); };
 
   function rebuild(list) {
@@ -124,7 +126,7 @@
     for (const c of [...tower.children]) { tower.remove(c); disposeGroup(c); }
     if (win) { win.dispose && win.dispose(); }
     T.floors = []; winData = []; labelsEl.textContent = ""; svg.textContent = "";
-    const defs = [{ kind: "lobby", id: "__lobby", name: "LOBBY", color: new THREE.Color(0x19e3d0) }].concat(list.map((p) => ({ kind: "project", id: p.id, name: p.name, p, color: floorColor(p) })), [{ kind: "deck", id: "__deck", name: "COMMAND DECK", color: new THREE.Color(`rgb(${accRgb[0]},${accRgb[1]},${accRgb[2]})`) }]);
+    const defs = [{ kind: "lobby", id: "__lobby", name: "LOBBY", color: new THREE.Color(0x19e3d0) }].concat(list.map((p, i) => ({ kind: "project", id: p.id, name: p.name, p, color: floorColor(p, i) })), [{ kind: "deck", id: "__deck", name: "COMMAND DECK", color: new THREE.Color(`rgb(${accRgb[0]},${accRgb[1]},${accRgb[2]})`) }]);
     const n = defs.length; let y = 0;
     const edgeG = [];
     defs.forEach((d, i) => {
