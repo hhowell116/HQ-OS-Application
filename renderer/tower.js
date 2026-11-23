@@ -557,7 +557,7 @@
     L.board = new THREE.Mesh(new THREE.PlaneGeometry(BW, BH), new THREE.MeshBasicMaterial({ map: L.tex, transparent: true, depthWrite: false, toneMapped: false })); L.board.position.set(bx, by, bz); g.add(L.board);
     const fm = new THREE.MeshBasicMaterial({ color: col }); for (const [w, h, x, y] of [[BW + 0.1, 0.06, 0, BH / 2], [BW + 0.1, 0.06, 0, -BH / 2], [0.06, BH, -BW / 2, 0], [0.06, BH, BW / 2, 0]]) box(g, w, h, 0.05, fm, bx + x, by + y, bz - 0.02);
     // reception desk + host
-    const dg = new THREE.Group(); dg.position.set(4.3, 0, -1.4); g.add(dg);
+    const dg = new THREE.Group(); dg.position.set(3.0, 0, -1.4); g.add(dg);
     box(dg, 3.0, 1.0, 0.7, I.metal, 0, 0.5, 0); box(dg, 3.2, 0.07, 1.0, I.dark, 0, 1.03, 0.05); box(dg, 2.8, 0.04, 0.04, new THREE.MeshBasicMaterial({ color: col }), 0, 0.72, 0.36); box(dg, 2.8, 0.04, 0.04, new THREE.MeshBasicMaterial({ color: col }), 0, 0.18, 0.36);
     box(dg, 0.5, 0.04, 0.3, I.metal, -1.2, 1.09, -0.1); const scr = box(dg, 0.5, 0.3, 0.03, new THREE.MeshBasicMaterial({ map: codeT, color: 0x9fe, toneMapped: false }), -1.2, 1.28, -0.2); scr.rotation.x = -0.2;
     // the glowing HQ door: sliding glass doors under a neon ENTER HQ sign. The door is the button.
@@ -685,7 +685,7 @@
       }
       o.m = m; o.working = !!m.item; o.text = m.item ? stepOf(m.item) : ""; o.idx = i;
       if (I.f.kind === "deck") { const sp = I.seats[i] || { x: 0, z: -3, yaw: 0 }; o.tx = sp.x; o.tz = sp.z; o.sit = true; o.yawT = sp.yaw; }
-      else if (I.f.kind === "lobby") { o.tx = 4.3; o.tz = -2.4; o.sit = false; o.yawT = -0.12; }
+      else if (I.f.kind === "lobby") { o.tx = 3.0; o.tz = -2.4; o.sit = false; o.yawT = -0.12; }
       else if (I.f.stonks && I.stonks) { const p = m.desk ? I.stonks.seat[m.desk] : I.stonks.side[(i - dkN) % 6]; o.tx = p.x; o.tz = p.z; o.sit = true; o.yawT = p.yaw; }
       else if (o.working && i < nd) { const d = I.desks[i]; o.tx = d.x; o.tz = d.seatZ; o.sit = true; o.sy = 0.05; o.yawT = 0; }
       else { const k = idleK++; if (k < 3) { o.tx = -4.0 + k * 0.7; o.tz = 0.63; o.sit = true; o.sy = -0.02; } else { const kk = k - 3; o.tx = -1.6 + (kk % 4) * 0.85; o.tz = 1.5 + Math.floor(kk / 4) * 1.0; o.sit = false; } o.yawT = (o.hue % 7 - 3) * 0.12; }
