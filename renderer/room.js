@@ -72,7 +72,8 @@
       c.fillStyle = A(0.12); for (let k = 0; k < 5; k++) c.fillRect(x + 6 * d, y + 10 * d + k * 9 * d, (w - 12 * d) * (0.3 + 0.7 * Math.abs(Math.sin(t / 2200 + i * 2 + k))), 2 * d); }
   }
   // centred on the window; sized so the seats clear the chat column on the right (460px incl. margin)
-  const table = () => { const fit = Math.max(120 * d, (W / 2 - 100 * d) / 1.05); return { x: W / 2, y: H * 0.64, rx: Math.min(W * 0.3, H * 0.62, fit), ry: Math.min(H * 0.13, W * 0.07) }; };
+  const ZOOM = 1.08; // table + agents 8% bigger (Hayden 2026-11-23)
+  const table = () => { const fit = Math.max(120 * d, (W / 2 - 100 * d) / 1.05); return { x: W / 2, y: H * 0.64, rx: Math.min(W * 0.3, H * 0.62, fit) * ZOOM, ry: Math.min(H * 0.13, W * 0.07) * ZOOM }; };
   function seats(n) { // host at the head (top centre), others spread along the back arc
     // others split left/right of the host, leaving a gap around the head seat
     const T = table(), out = [{ ang: -Math.PI / 2 }], others = n - 1, gap = 0.36, edge = Math.PI * 0.43;
@@ -118,7 +119,7 @@
     }
   }
   function drawChar(ch, p, t) {
-    const a = ch.a, s = (0.85 + 0.3 * ((p.y - H * 0.5) / (H * 0.2))) * (H / 560), host = ch.id === "hq";
+    const a = ch.a, s = (0.85 + 0.3 * ((p.y - H * 0.5) / (H * 0.2))) * (H / 560) * ZOOM, host = ch.id === "hq";
     const col = host ? `rgb(${acc})` : `hsl(${ch.hue},85%,62%)`, colA = (al) => (host ? A(al) : `hsla(${ch.hue},85%,62%,${al})`);
     const stalled = a.status === "stalled", talking = t < ch.talk, bob = Math.sin(t / 900 + ch.phase) * 2.2 * s, intro = Math.min(1, (t - ch.born) / 700);
     c.save(); c.translate(p.x, p.y + (1 - intro) * 30 * s); c.globalAlpha = intro;
