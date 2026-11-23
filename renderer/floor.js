@@ -1,4 +1,4 @@
-// Trading Floor panels: the HTML HUD of the Stocks floor in the tower (#tw-stonks). The 3D room is stonks3d.js, mounted by tower.js; this file owns the data, panels and controls.
+// Trading Floor panels: the HTML HUD of the Stocks floor in the tower (#tw-stonks). The 3D room is stocks3d.js, mounted by tower.js; this file owns the data, panels and controls.
 // Data comes from Stonks/engine via main.js: IPC "tf" live lines (desk + msg events), tf-state, tf-events (replay), tf-usage, kn-*.
 (function () {
   const $ = (s) => document.querySelector(s);
