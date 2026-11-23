@@ -1,4 +1,4 @@
-// Trading Floor: sub-tabs (Agents roundtable, Signals, Book, Chat, Knowledge) under a persistent header.
+// Trading Floor: one screen (office view + signal board + book strip). Office art is in office.js.
 // Data comes from Stonks/engine via main.js: IPC "tf" live lines (desk + msg events), tf-state, tf-events (replay), tf-usage, kn-*.
 (function () {
   const $ = (s) => document.querySelector(s);
@@ -8,10 +8,10 @@
   const HUE = { market: "#4aa8ff", news: "#b58cff", sentiment: "#ff8fd0", analyst: "#ffb02e", bull: "#00f5a0", bear: "#ff3d6b", backtest: "#5ee6ff", risk: "#ff7a45", lead: "#ffe066", score: "#9ad17a", reflect: "#c0a0ff" };
   // seat angle in degrees clockwise from the top; bull (270) and bear (90) sit opposite each other
   const ANG = { market: 325, news: 0, sentiment: 35, bear: 90, backtest: 135, risk: 165, lead: 195, reflect: 222, score: 248, bull: 270, analyst: 298 };
-  const SEATS = Object.keys(ANG);
+  const SEATS = Object.keys(ANG).concat("steady");
   const NEXT = { score: "market", market: "analyst", news: "analyst", sentiment: "analyst", analyst: "bull", bull: "bear", bear: "backtest", debate: "backtest", backtest: "risk", risk: "lead", lead: "reflect", reflect: "" };
   const STAGES = [["SCORE", ["score"]], ["DATA", ["market", "news", "sentiment"]], ["ANALYST", ["analyst"]], ["DEBATE", ["bull", "bear"]], ["BACKTEST", ["backtest"]], ["RISK", ["risk"]], ["LEAD", ["lead"]], ["REFLECT", ["reflect"]]];
-  const S = { health: { ok: true, why: [] }, running: false, desks: {}, alerts: [], tape: [], stats: null, sig: {}, equity: [], finishedAt: 0, ev: [], cur: -1, follow: true, sel: "", play: null, tab: localStorage.getItem("fl-tab") || "agents", usage: null };
+  const S = { health: { ok: true, why: [] }, running: false, desks: {}, alerts: [], tape: [], stats: null, sig: {}, equity: [], finishedAt: 0, ev: [], cur: -1, follow: true, sel: "", play: null, usage: null };
   const sgn = (n) => (n > 0 ? "+" : "") + n;
   const cls = (n) => (n > 0 ? "up" : n < 0 ? "dn" : "");
   const usd = (n) => (n < 0 ? "-$" : "$") + Math.abs(n).toLocaleString(undefined, { maximumFractionDigits: 2 });
@@ -41,51 +41,48 @@
     return { st, veto };
   }
 
-  // ---------- Agents: roundtable ----------
-  const pos = (s) => { const a = (ANG[s] * Math.PI) / 180; return { x: 50 + 41 * Math.sin(a), y: 50 - 38 * Math.cos(a) }; };
+  // ---------- Office (canvas, see office.js) ----------
+  const O = window.FloOffice; let animCur = -1, pinned = "";
+  const roomOfA = (a) => (a ? O.roomOf(a) : "");
+  function roomMsgs(k, cur) { return events().slice(0, cur + 1).filter((m) => m.text && roomOfA(m.agent) === k); }
+  function popFor(k, x, y, pin) {
+    const p = $("#fl-pop"); if (!k) { if (!pinned) p.classList.add("hidden"); return; }
+    if (pinned && !pin) return;
+    const ev = events(), st = derive(ev, S.cur).st, ag = O.agentsOf(k), msgs = roomMsgs(k, S.cur).slice(-3);
+    p.textContent = ""; p.style.setProperty("--h", O.HUE[ag[0]] || "#ffb02e");
+    const h = mk("div", "ph"); h.append(mk("b", "", O.NAME[k]), mk("em", "", ag.map((a) => (st[a] ? st[a].status : "idle")).join(" / "))); p.append(h);
+    if (!msgs.length) p.append(mk("div", "pm", "Nothing from this desk in the current run."));
+    msgs.forEach((m) => { const d = mk("div", "pm"); d.append(mk("small", "", NAME[m.agent] + (m.to ? " → " + NAME[m.to] : "")), document.createTextNode(m.text)); p.append(d); });
+    p.append(mk("div", "pf", pin ? "pinned · click the room again to unpin (transcript filtered to this desk)" : "click to pin and filter the transcript"));
+    p.classList.remove("hidden"); const box = $("#fl-office").getBoundingClientRect(), pw = p.offsetWidth, ph = p.offsetHeight;
+    p.style.left = Math.max(6, Math.min(box.width - pw - 6, x - box.left + 16)) + "px"; p.style.top = Math.max(6, Math.min(box.height - ph - 6, y - box.top + 10)) + "px";
+  }
+  O.init($("#fl-cv"), {
+    shown: () => document.body.classList.contains("in-floor") && !document.hidden,
+    onHover: (k, e) => { if (!pinned) popFor(k, e ? e.clientX : 0, e ? e.clientY : 0, false); },
+    onClick: (k, e) => { if (!k || pinned === k) { pinned = ""; S.sel = ""; $("#fl-pop").classList.add("hidden"); } else { pinned = k; S.sel = k; popFor(k, e.clientX, e.clientY, true); } renderAgents(); },
+  });
   function renderAgents() {
     const ev = events(), n = ev.length; if (S.follow || S.cur >= n) S.cur = n - 1;
     const cur = S.cur, { st, veto } = derive(ev, cur), e = ev[cur];
-    // stepper
+    if (cur !== animCur) {
+      if (cur > animCur && cur - animCur <= 6) for (let i = animCur + 1; i <= cur; i++) O.trigger(ev[i]);
+      else { O.reset(); if (cur >= 0) O.trigger(ev[cur], true); }
+      animCur = cur;
+    }
+    const cl = ((S.stats && S.stats.positions) || []).filter((p) => p.status === "closed");
+    O.setView({ st, veto, running: S.running, tape: S.tape, eq: (S.equity || []).map((p) => p.total).filter((v) => v != null), wins: cl.filter((p) => p.pnl > 0).length, losses: cl.filter((p) => p.pnl <= 0).length });
     const stp = $("#fl-stepper"); stp.textContent = "";
     STAGES.forEach(([label, ids], i) => { const ss = ids.map((x) => st[x].status), c = ss.includes("working") ? "working" : ss.includes("error") ? "error" : ss.every((x) => x === "done") ? "done" : ss.includes("done") ? "working" : ""; stp.append(mk("span", "stp " + c, label)); if (i < STAGES.length - 1) stp.append(mk("i")); });
-    // seats
-    const seats = $("#fl-seats"); seats.textContent = "";
-    for (const id of SEATS) {
-      const p = pos(id), q = st[id], sp = e && seatOf(e.agent) === id, d = mk("div", "seat " + q.status + (sp ? " speaking" : "") + (S.sel === id ? " sel" : ""));
-      d.style.left = p.x + "%"; d.style.top = p.y + "%"; d.style.setProperty("--h", HUE[id]);
-      const av = mk("div", "av", ICON[id]); d.append(av, mk("div", "nm", NAME[id]), mk("div", "stt", q.status === "idle" ? "standing by" : q.status));
-      d.onclick = () => { S.sel = S.sel === id ? "" : id; renderAgents(); }; seats.append(d);
-    }
-    // bubbles: last three messages, fading
-    const rec = ev.slice(Math.max(0, cur - 2), cur + 1).filter((x) => x.text);
-    rec.forEach((m, i) => {
-      const sid = seatOf(m.agent); if (!ANG.hasOwnProperty(sid)) return; const p = pos(sid), age = rec.length - 1 - i;
-      const b = mk("div", "bub a" + age + (m.kind === "veto" ? " veto" : "")); b.style.setProperty("--h", HUE[sid]);
-      const k = 0.3, bx = p.x + (50 - p.x) * k, by = p.y + (50 - p.y) * k + (p.y < 50 ? 4 : -4);
-      b.style.left = bx + "%"; b.style.top = by + "%";
-      b.append(mk("b", "", NAME[sid] + (m.to ? " → " + NAME[m.to] : "")), mk("span", "", short(m.text, 120))); seats.append(b);
-    });
-    // arrow from the speaker to the addressee
-    const ar = $("#fl-arrows"); ar.textContent = "";
-    if (e && e.to && ANG.hasOwnProperty(e.to) && ANG.hasOwnProperty(seatOf(e.agent))) {
-      const a = pos(seatOf(e.agent)), b = pos(e.to), ns = "http://www.w3.org/2000/svg", l = document.createElementNS(ns, "line");
-      l.setAttribute("x1", a.x); l.setAttribute("y1", a.y); l.setAttribute("x2", b.x); l.setAttribute("y2", b.y); l.setAttribute("class", "arr"); l.style.stroke = HUE[seatOf(e.agent)];
-      ar.append(l);
-    }
-    // table centre + veto stamp
-    const tc = $("#fl-tc"); tc.textContent = "";
-    tc.append(mk("small", "", S.running ? "RUN IN PROGRESS" : n ? "LAST RUN" : "NO RUN YET"), mk("b", "", e ? NAME[seatOf(e.agent)] : "ROUNDTABLE"), mk("span", "", n ? (cur + 1) + " / " + n + " messages" : "hit GO to seat the desks"));
-    const sp = $("#fl-stamp"); if (veto) { const m = /^([A-Z.]{1,6})\b/.exec(veto.text || ""); sp.textContent = "VETO" + (m ? " · " + m[1] : ""); sp.classList.remove("hidden"); sp.classList.toggle("fresh", e === veto); } else sp.classList.add("hidden");
     // scrubber
     const r = $("#fl-range"); r.max = Math.max(0, n - 1); r.value = Math.max(0, cur); $("#fl-spos").textContent = n ? (cur + 1) + "/" + n : "0/0";
     $("#fl-live").classList.toggle("on", S.follow); $("#fl-play").textContent = S.play ? "PAUSE" : "PLAY";
     // transcript
     const log = $("#fl-log"), keep = log.scrollTop, atEnd = log.scrollHeight - log.scrollTop - log.clientHeight < 40; log.textContent = "";
-    $("#fl-filter").textContent = S.sel ? NAME[S.sel] + " only (click seat to clear)" : "";
+    $("#fl-filter").textContent = S.sel ? O.NAME[S.sel] + " only (click the room to clear)" : "";
     if (!n) log.append(mk("div", "fl-empty", "No messages yet. Hit GO and watch the desks hand work to each other."));
     ev.forEach((m, i) => {
-      if (S.sel && seatOf(m.agent) !== S.sel && m.to !== S.sel) return;
+      if (S.sel && O.roomOf(m.agent) !== S.sel && O.roomOf(m.to || "") !== S.sel) return;
       const sid = seatOf(m.agent), row = mk("div", "ln " + m.kind + (i === cur ? " cur" : "") + (i > cur ? " future" : "")); row.style.setProperty("--h", HUE[sid] || "#888");
       const h = mk("div", "lh"); h.append(mk("b", "", NAME[m.agent] || m.agent), mk("em", "", (m.to ? "→ " + NAME[m.to] : "") + (m.kind === "veto" ? "  VETO" : m.kind === "start" ? "  working" : m.kind === "error" ? "  error" : "")), mk("time", "", m.ts ? new Date(m.ts).toLocaleTimeString([], { hour12: false }) : ""));
       row.append(h, mk("div", "lt", m.text)); row.onclick = () => { S.follow = false; S.cur = i; stopPlay(); renderAgents(); }; log.append(row);
@@ -93,9 +90,8 @@
     if (S.follow || atEnd) { const c = log.querySelector(".cur"); if (c) log.scrollTop = c.offsetTop - log.clientHeight + c.offsetHeight + 8; else log.scrollTop = log.scrollHeight; } else log.scrollTop = keep;
   }
   function stopPlay() { if (S.play) { clearInterval(S.play); S.play = null; } }
-  function startPlay() { const n = events().length; if (!n) return; S.follow = false; if (S.cur >= n - 1) S.cur = -1; S.play = setInterval(() => { const m = events().length; if (S.cur >= m - 1) { stopPlay(); S.follow = S.running; renderAgents(); return; } S.cur++; renderAgents(); }, 1100); renderAgents(); }
+  function startPlay() { const n = events().length; if (!n) return; S.follow = false; if (S.cur >= n - 1) S.cur = -1; S.play = setInterval(() => { const m = events().length; if (S.cur >= m - 1) { stopPlay(); S.follow = S.running; renderAgents(); return; } S.cur++; renderAgents(); }, 1400); renderAgents(); }
   $("#fl-play").onclick = () => (S.play ? (stopPlay(), renderAgents()) : startPlay());
-  $("#fl-tr").onclick = () => { const r = $(".fl-rail"); r.classList.toggle("open"); $("#fl-tr").classList.toggle("on", r.classList.contains("open")); renderAgents(); };
   $("#fl-live").onclick = () => { stopPlay(); S.follow = true; renderAgents(); };
   $("#fl-range").oninput = (x) => { stopPlay(); S.follow = false; S.cur = +x.target.value; renderAgents(); };
   function renderTape() {
@@ -183,9 +179,9 @@
   // ---------- Book: equity curve (inline SVG) ----------
   function renderCurve() {
     const box = $("#fl-curve"); box.textContent = ""; const h = S.equity || [], s = S.stats;
-    box.append(mk("div", "fl-h", "EQUITY CURVE vs SPY"));
+
     if (h.length < 2) { box.append(mk("div", "fl-empty", "The curve fills in as runs finish. Each GO or SCORE adds a point.")); return; }
-    const cap = (s && s.capital) || h[0].total || 1000, W = 640, H = 200, P = { l: 46, r: 12, t: 12, b: 22 };
+    const cap = (s && s.capital) || h[0].total || 1000, W = 380, H = 92, P = { l: 34, r: 8, t: 6, b: 16 };
     const pct = (v) => (v == null ? null : (v / cap - 1) * 100);
     const series = [["TOTAL", "#ffb02e", h.map((p) => pct(p.total))], ["SCANNER", "#00f5a0", h.map((p) => (p.scanner == null ? null : (p.scanner / (cap / 2) - 1) * 100))], ["STEADY", "#4aa8ff", h.map((p) => (p.steady == null ? null : (p.steady / (cap / 2) - 1) * 100))], ["SPY", "#8a9a94", h.map((p) => p.spy)]];
     const vals = series.flatMap((x) => x[2]).filter((v) => v != null), lo = Math.min(0, ...vals), hi = Math.max(0.5, ...vals), pad = (hi - lo) * 0.1 || 1, y0 = lo - pad, y1 = hi + pad;
@@ -221,7 +217,7 @@
       const reset = b.resets_at && b.resets_at * 1000 < Date.now(), p = reset ? 0 : Math.max(0, Math.min(100, Math.round(b.used_percentage)));
       bar.style.width = p + "%"; bar.className = lvl(p); t.textContent = p + "%" + (reset ? " (reset)" : b.resets_at ? " · resets " + until(b.resets_at) : "");
     }
-    $("#fl-uage").textContent = fresh ? "updated " + ago(u.updated) + (u.via ? " via " + u.via : "") + (box.classList.contains("stale") ? " (stale)" : "") : "no data yet";
+    box.title = "Claude usage. " + ($("#fl-uage").textContent = fresh ? "updated " + ago(u.updated) + (u.via ? " via " + u.via : "") + (box.classList.contains("stale") ? " (stale)" : "") : "no data yet");
   }
   async function refreshUsage() {
     try { S.usage = await hq.tfUsage(); } catch (e) { S.usage = null; }
@@ -235,58 +231,25 @@
     renderUsage();
   }
 
-  // ---------- Knowledge ----------
-  const VCOL = { legit: "up", mixed: "amb", selling: "dn" };
-  async function refreshKn() {
-    let r; try { r = await hq.knList(); } catch (e) { r = { sources: [], backlog: [] }; }
-    const box = $("#kn-list"); box.textContent = ""; $("#kn-n").textContent = r.sources.length + " sources";
-    if (!r.sources.length) box.append(mk("div", "fl-empty", "Nothing ingested yet. Paste a transcript, a URL or a note on the left."));
-    for (const s of r.sources) {
-      const c = mk("div", "src"), h = mk("div", "sh"); h.append(mk("span", "ty", s.type.toUpperCase()), mk("b", "", s.title), mk("span", "vd " + (VCOL[s.verdict] || ""), s.verdict.toUpperCase()), mk("time", "", s.date)); c.append(h, mk("p", "", s.summary));
-      if (s.verdictWhy) c.append(mk("div", "why", s.verdictWhy));
-      const ul = mk("ul"); (s.lessons || []).forEach((l) => ul.append(mk("li", "", l))); (s.ideas || []).forEach((l) => ul.append(mk("li", "idea", "Borrow: " + l))); c.append(ul);
-      const f = mk("div", "sf"); (s.noted || []).forEach((n) => f.append(mk("span", "nt", "→ " + n)));
-      const o = mk("button", "fl-btn ghost", "OPEN SOURCE"); o.onclick = () => hq.knOpen(s.file); f.append(o); if (s.url) f.append(mk("span", "url", s.url)); c.append(f); box.append(c);
-    }
-    const ol = $("#kn-back"); ol.textContent = ""; (r.backlog || []).forEach((b) => ol.append(mk("li", "", b)));
-  }
-  $("#kn-go").onclick = async () => {
-    const title = $("#kn-title").value.trim(), url = $("#kn-url").value.trim(), text = $("#kn-text").value, msg = $("#kn-msg"), btn = $("#kn-go");
-    if (!title) return (msg.textContent = "Give it a title.");
-    if (!url && !text.trim()) return (msg.textContent = "Paste text or enter a URL.");
-    btn.disabled = true; msg.textContent = "Saving and reviewing with Claude (can take a minute)…";
-    const r = await hq.knIngest({ title, type: $("#kn-type").value, url, text });
-    btn.disabled = false;
-    if (r && r.ok) { msg.textContent = "Done: " + r.entry.verdict.toUpperCase() + ", filed to " + (r.entry.noted || []).join(", "); $("#kn-title").value = $("#kn-url").value = $("#kn-text").value = ""; refreshKn(); }
-    else msg.textContent = "Failed: " + ((r && r.error) || "unknown error");
-  };
-
-  // ---------- Tabs, wiring ----------
-  function placeChat() {
-    if (!document.body.classList.contains("in-floor")) return;
-    const con = document.getElementById("console"), host = S.tab === "chat" ? $("#fl-chat-full") : $("#fl-chat");
-    if (con && host && con.parentNode !== host) host.append(con);
-  }
-  function setTab(t) {
-    S.tab = t; localStorage.setItem("fl-tab", t);
-    document.querySelectorAll("#fl-tabs button").forEach((b) => b.classList.toggle("on", b.dataset.t === t));
-    document.querySelectorAll(".fl-page").forEach((p) => p.classList.toggle("hidden", p.id !== "fl-p-" + t));
-    placeChat(); if (t === "agents") renderAgents(); if (t === "know") refreshKn(); if (t === "book") renderCurve();
-  }
-  document.querySelectorAll("#fl-tabs button").forEach((b) => (b.onclick = () => setTab(b.dataset.t)));
-  $("#fl-dockh").onclick = () => $("#fl-dockwrap").classList.toggle("shut");
-  $("#fl-dockwrap").classList.add("shut");
-
+  // ---------- Wiring ----------
+  const closePanels = (except) => { for (const [id, b] of [["fl-rail", "fl-tr"], ["fl-chatpanel", "fl-chbtn"]]) if (id !== except) { $("#" + id).classList.remove("open"); $("#" + b).classList.remove("on"); } };
+  const togglePanel = (id, b) => { const p = $("#" + id), o = !p.classList.contains("open"); closePanels(o ? id : ""); p.classList.toggle("open", o); $("#" + b).classList.toggle("on", o); renderAgents(); };
+  $("#fl-tr").onclick = () => togglePanel("fl-rail", "fl-tr");
+  $("#fl-chbtn").onclick = () => togglePanel("fl-chatpanel", "fl-chbtn");
   const all = () => { renderSafety(); renderCmp(); renderHead(); renderTape(); renderAlerts(); renderBook(); renderSig(); renderCurve(); renderAgents(); };
   function load(r) {
     const st = r.state; if (st) { S.desks = st.desks || {}; S.alerts = st.alerts || []; S.tape = st.tape || []; S.finishedAt = st.finishedAt || 0; S.flag = st.flag || ""; }
     S.health = r.health || { ok: true, why: [] }; S.running = !!r.running; S.stats = r.stats; S.sig = r.journal || {}; S.equity = r.equity || []; all();
   }
-  async function refresh() { try { load(await hq.tfState()); if (!S.running || !S.ev.length) { S.ev = await hq.tfEvents(); renderAgents(); } } catch (e) {} refreshUsage(); }
+  async function refresh() {
+    try { load(await hq.tfState()); if (!S.running || !S.ev.length) { S.ev = await hq.tfEvents(); renderAgents(); } } catch (e) {}
+    if (S.autoPlay && !S.running && !S.play && S.ev.length) { S.autoPlay = false; startPlay(); } // idle: replay the last run
+    refreshUsage();
+  }
   hq.on("tf", async (m) => {
     if (m.t === "desk") { S.desks[m.id] = m.desk; renderHead(); if (m.id === "market" && m.desk.status === "done") { try { load(await hq.tfState()); } catch (e) {} } }
     else if (m.t === "msg" && m.ev) { if (m.ev.seq === 1) { S.ev = []; S.cur = -1; S.follow = true; } if (!S.ev.some((x) => x.seq === m.ev.seq && x.ts === m.ev.ts)) S.ev.push(m.ev); if (S.follow) renderAgents(); }
-    else if (m.t === "start") { S.running = true; S.alerts = []; S.ev = []; S.follow = true; renderAlerts(); renderHead(); renderAgents(); }
+    else if (m.t === "start") { stopPlay(); S.autoPlay = false; S.running = true; S.alerts = []; S.ev = []; S.cur = -1; S.follow = true; renderAlerts(); renderHead(); renderAgents(); }
     else if (m.t === "done") { S.running = false; await refresh(); }
   });
   async function start(fn) { try { S.running = true; renderHead(); if ((await fn()) === false) await refresh(); } catch (e) { S.running = false; renderHead(); toast(e.message); } }
@@ -296,8 +259,8 @@
   $("#fl-score").onclick = () => start(() => hq.tfScore());
   const clk = () => { $("#fl-clock").textContent = new Date().toLocaleTimeString([], { hour12: false }); };
   clk(); setInterval(clk, 1000);
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && document.body.classList.contains("in-floor")) { const d = $("#fl-drawer"); if (!d.classList.contains("hidden")) d.classList.add("hidden"); else window.HQView("hq"); } });
-  window.HQFloor = { shown: () => { refresh(); setTimeout(() => setTab(S.tab), 0); } };
-  setTab(S.tab); all(); refresh();
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && document.body.classList.contains("in-floor")) { const d = $("#fl-drawer"); if (!d.classList.contains("hidden")) d.classList.add("hidden"); else if (pinned) { pinned = ""; S.sel = ""; $("#fl-pop").classList.add("hidden"); renderAgents(); } else if (document.querySelector(".fl-rail.open,.fl-chatpanel.open")) closePanels(""); else window.HQView("hq"); } });
+  window.HQFloor = { shown: () => { S.autoPlay = true; refresh(); } };
+  all(); refresh();
   setInterval(() => { if (document.body.classList.contains("in-floor")) { refreshUsage(); if (!S.running) refresh(); } }, 30000);
 })();
