@@ -41,7 +41,7 @@
     return { st, veto };
   }
 
-  const matchSel = (m) => !S.sel || seatsFor(m.agent).includes(S.sel) || seatsFor(m.to || "").includes(S.sel);
+  const matchSel = (m) => (!S.kind || m.kind === S.kind) && (!S.sel || seatsFor(m.agent).includes(S.sel) || seatsFor(m.to || "").includes(S.sel));
   function renderAgents() {
     syncBusy();
     const ev = events(), n = ev.length; if (S.follow || S.cur >= n) S.cur = n - 1;
@@ -61,7 +61,7 @@
       const h = mk("div", "lh"); h.append(mk("b", "", NAME[m.agent] || m.agent), mk("em", "", (m.to ? "→ " + NAME[m.to] : "") + (m.kind === "veto" ? "  VETO" : m.kind === "start" ? "  working" : m.kind === "error" ? "  error" : "")), mk("time", "", m.ts ? new Date(m.ts).toLocaleTimeString([], { hour12: false }) : ""));
       row.append(h, mk("div", "lt", m.text)); row.onclick = () => { S.follow = false; S.cur = i; stopPlay(); renderAgents(); }; log.append(row);
     });
-    if (S.card) renderCard();
+    if (S.card) renderCard(); renderDv();
     if (S.follow || atEnd) { const c = log.querySelector(".cur"); if (c) log.scrollTop = c.offsetTop - log.clientHeight + c.offsetHeight + 8; else log.scrollTop = log.scrollHeight; } else log.scrollTop = keep;
   }
   function stopPlay() { if (S.play) { clearInterval(S.play); S.play = null; } }
@@ -90,10 +90,10 @@
   }
   function card(a, rank, compact) {
     const c = mk("div", "fl-card " + a.action + (compact ? " compact" : "") + (rank === 1 ? " top1" : "")), top = mk("div", "top"), px = mk("div", "px");
-    px.append(mk("div", "", a.px ? "$" + a.px : ""), mk("div", cls(a.chg), a.chg != null ? sgn(a.chg) + "% today" : ""));
+    px.append(mk("div", "", a.px ? "$" + a.px : ""), mk("div", cls(a.chg), a.chg != null ? sgn(a.chg) + "%" + " today" : ""));
     top.append(...(rank ? [mk("span", "rk", "#" + rank)] : []), mk("span", "act", a.action), mk("span", "tk", a.ticker), mk("span", "fl-strat " + (a.strategy || "Scanner"), (a.strategy || "Scanner").toUpperCase()), px); c.append(top, mk("div", "stline", statusLine(a)));
-    if (!compact) c.append(mk("div", "thesis", short(a.thesis, 120)));
-    if (!compact && a.confidence != null) { const cf = mk("div", "fl-conf"), bar = mk("i"), fill = mk("b"); fill.style.width = Math.max(0, Math.min(100, a.confidence || 0)) + "%"; bar.append(fill); cf.append(mk("span", "", "CONFIDENCE " + (a.confidence || 0) + "/100"), bar); c.append(cf); }
+    if (!compact) c.append(Object.assign(mk("div", "thesis", short(a.thesis, 120)), { title: a.thesis || "" }));
+    if (!compact && a.confidence != null) { const cf = mk("div", "fl-conf"), bar = mk("i"), fill = mk("b"); fill.style.width = Math.max(0, Math.min(100, a.confidence || 0)) + "%"; bar.append(fill); cf.dataset.c = a.confidence || 0; cf.append(mk("span", "", "CONFIDENCE " + (a.confidence || 0) + "/100"), bar); c.append(cf); }
     if (!compact && a.plan && a.plan.shares > 0) {
       const l = mk("div", "fl-lad"); [["BUY NEAR", a.plan.entry, ""], ["STOP-LOSS", a.plan.stop, "s"], [a.strategy === "Steady" ? "52W HIGH" : "TAKE PROFIT", a.plan.t1, "t"]].filter((x) => x[1] != null).forEach(([k, v, z]) => { const d = mk("div", z); d.append(mk("small", "", k), document.createTextNode("$" + v)); l.append(d); }); c.append(l);
     }
@@ -287,6 +287,39 @@
     if (S.running && S.follow) for (const id in S.desks) { const k = S.desks[id]; if (k && k.status === "working") seatsFor(id).forEach((x) => { if (st[x]) { st[x].status = "working"; if (!st[x].text) st[x].text = k.step || ""; } }); }
     return (dv = { st, cur, veto: d.veto, running: S.running });
   }
+  // ---------- DATA VIEW: dense dashboard over the same panels (CSS re-layout in floor.css, class .dv on #tw-stonks). Entered from the wall button in the 3D room. ----------
+  const ROLE = { market: "prices & data", news: "news & policy", sentiment: "social mood", analyst: "picks ideas", bull: "argues buy", bear: "argues pass", backtest: "tests history", risk: "sizes & vetoes", lead: "final call", score: "prices book", reflect: "lessons", mirror: "copy trades", steady: "long holds" };
+  const sAgo = (ts) => { if (!ts) return "--"; const s = Math.max(0, Math.round((Date.now() - ts) / 1000)); return s < 60 ? s + "s" : s < 3600 ? Math.floor(s / 60) + "m" : s < 86400 ? Math.floor(s / 3600) + "h" : Math.floor(s / 86400) + "d"; };
+  function renderDv() {
+    if (!S.dv) return; const box = $("#fl-agstrip"), ev = events(), { st } = derive(ev, S.cur), last = {}; if (!box) return;
+    for (let i = 0; i <= S.cur && i < ev.length; i++) seatsFor(ev[i].agent).forEach((x) => (last[x] = ev[i]));
+    box.textContent = "";
+    SEATS.forEach((id) => {
+      const s = st[id] || { status: "idle", text: "" }, e = last[id], b = mk("div", "dvag " + s.status + (S.sel === id ? " sel" : "")), h = mk("div", "dvah"), full = s.text || "no activity yet";
+      b.style.setProperty("--h", HUE[id] || "#4aa8ff"); h.append(mk("i", "dvdt"), mk("b", "", AG_NAME[id] || id), mk("em", "", ROLE[id] || ""), mk("time", "", sAgo(e && e.ts)));
+      b.append(h, mk("div", "dvl", short(full, 80))); b.title = (AG_NAME[id] || id) + " · " + s.status + "\n" + full; b.onclick = () => { S.sel = S.sel === id ? "" : id; renderAgents(); }; box.append(b);
+    });
+    const kb = $("#fl-kinds"); if (kb) { kb.textContent = ""; const cnt = {}; ev.forEach((m) => (cnt[m.kind] = (cnt[m.kind] || 0) + 1));
+      [["", "ALL", ev.length], ...Object.keys(cnt).map((k) => [k, k.toUpperCase(), cnt[k]])].forEach(([k, l, n]) => { const c = mk("button", "kc" + ((S.kind || "") === k ? " on" : ""), l + " " + n); c.onclick = () => { S.kind = k; renderAgents(); }; kb.append(c); }); }
+  }
+  const DVK = "hqStocksDV", dvStore = (v) => { try { sessionStorage.setItem(DVK, v ? "1" : "0"); } catch (e) {} };
+  function dvApply(on) { S.dv = on; const t = $("#tw-stonks"), tv = $("#tower-view"); t.classList.toggle("dv", on); if (tv) tv.classList.toggle("stk-dv", on); $("#fl-view").classList.toggle("hidden", !on); if (on) renderAgents(); notify(); }
+  function dvSwap(fn) { const t = $("#tw-stonks"); t.style.transition = "opacity .2s"; t.style.opacity = "0"; setTimeout(() => { fn(); t.style.opacity = ""; setTimeout(() => { t.style.transition = ""; }, 260); }, 200); } // 0.4s cross-fade of the whole HUD
+  function dvEnter(instant, n) {
+    if (S.dv || S.dvBusy) return; const fp = window.HQStocks3D && HQStocks3D.wallFocus && HQStocks3D.wallFocus();
+    if (instant && !fp) { if ((n || 0) < 30 && S.active) setTimeout(() => dvEnter(true, (n || 0) + 1), 100); return; }
+    dvStore(true); if (fp && window.HQTower) { HQTower.setFocus(fp); S.focusSet = true; }
+    if (instant) { dvApply(true); return; }
+    S.dvBusy = true; setTimeout(() => dvSwap(() => { dvApply(true); S.dvBusy = false; }), 800); // camera pushes in ~0.8s, then cross-fade
+  }
+  function dvExit() {
+    if (!S.dv || S.dvBusy) return; dvStore(false); S.dvBusy = true;
+    dvSwap(() => { dvApply(false); setTimeout(() => { if (S.focusSet && window.HQTower) { HQTower.clearFocus(); S.focusSet = false; } S.dvBusy = false; }, 60); }); // fade back, then the camera eases back to the desk
+  }
+  { const b = mk("button", "fl-btn ghost hidden", "DESK VIEW"); b.id = "fl-view"; b.title = "Back to the 3D desk (Esc)"; b.onclick = dvExit; b.className += " fl-viewbtn"; const sc = $("#fl-score"); sc.parentNode.insertBefore(b, sc);
+    const ag = mk("div", "fl-agstrip"); ag.id = "fl-agstrip"; $("#tw-stonks").insertBefore(ag, $(".fl-board"));
+    const kd = mk("span", "fl-kinds"); kd.id = "fl-kinds"; $(".fl-scrub").append(kd); }
+  setInterval(() => { if (S.dv && S.active) renderDv(); }, 5000);
   const all = () => { collapsibles(); renderSafety(); renderCmp(); renderHead(); renderTape(); renderAlerts(); renderBook(); renderSig(); renderCurve(); renderAgents(); };
   const busy = () => !!(S.running || S.play);
   function syncBusy() { const t = $("#tw-stonks"); if (t) t.classList.toggle("fl-busy", busy()); }
@@ -319,12 +352,13 @@
   const clk = () => { $("#fl-clock").textContent = new Date().toLocaleTimeString([], { hour12: false }); };
   clk(); setInterval(clk, 1000);
   window.HQFloor = {
-    shown: (on) => { S.active = on !== false; if (S.active) { S.autoPlay = true; refresh(); } else { stopPlay(); closeCard(); } },
+    shown: (on) => { S.active = on !== false; if (S.active) { S.autoPlay = true; refresh(); let st = ""; try { st = sessionStorage.getItem(DVK); } catch (e) {} if (st === "1" && !S.dv) dvEnter(true); } else { stopPlay(); closeCard(); if (S.dv || S.focusSet) { dvApply(false); if (S.focusSet && window.HQTower) HQTower.clearFocus(); S.focusSet = false; S.dvBusy = false; } } },
+    dv: () => !!S.dv, dataView: (on) => (on === false ? dvExit() : dvEnter()),
     events: () => events(), cur: () => S.cur, active: () => !!S.active, agentCard, agentClose,
     preview: (al, pos) => { S.preview = true; S.alerts = al; if (pos && S.stats) S.stats = Object.assign({}, S.stats, { positions: pos }); all(); }, running: () => S.running, busy, desks: deskView, onChange: (f) => listeners.push(f), NAME, HUE, ANG, SEATS,
     data: () => ({ tape: S.tape, equity: S.equity, alerts: S.alerts, stats: S.stats }),
     select: (seat) => { S.sel = S.sel === seat ? "" : seat; renderAgents(); }, selected: () => S.sel,
-    escape: () => { if (S.card) { closeCard(); return true; } const d = $("#fl-drawer"); if (!d.classList.contains("hidden")) { d.classList.add("hidden"); return true; } if (S.sel) { S.sel = ""; renderAgents(); return true; } return false; },
+    escape: () => { if (S.dv) { dvExit(); return true; } if (S.card) { closeCard(); return true; } const d = $("#fl-drawer"); if (!d.classList.contains("hidden")) { d.classList.add("hidden"); return true; } if (S.sel) { S.sel = ""; renderAgents(); return true; } return false; },
   };
   all(); refresh();
   setInterval(() => { if (S.active) { refreshUsage(); if (!S.running) refresh(); } }, 30000);

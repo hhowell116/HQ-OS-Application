@@ -215,3 +215,53 @@
 .fl-rcol .fl-kv { grid-template-columns: 1fr 1fr; gap: 1px 12px; font-size: 9px; } .fl-rcol .fl-kv b { font-size: 11px; }
 .fl-rcol .fl-cmp b { font-size: 13px; }
 @media (max-height: 960px) { .fl-hero .hsay { font-size: 13.5px; } .fl-hero .htk { font-size: 28px; } .fl-hero .hwhy { font-size: 11.5px; } .fl-card .thesis { display: none; } }
+
+/* ===== DATA VIEW (Stocks floor): minimal, dense dashboard. Same panels, re-laid-out; the 3D room is hidden behind an opaque background and paused (stocks3d.js). Toggled by floor.js (#tw-stonks.dv). ===== */
+.fl-agstrip, .fl-kinds, .fl-viewbtn { display: none; }
+#tw-stonks.dv { --dvt: 84px; background: radial-gradient(1200px 700px at 50% 0, #0d141c, #05080d 70%); }
+#tw-stonks.dv:has(.fl-banner:not(.hidden)) { --dvt: 118px; }
+#tw-stonks.dv .fl-viewbtn { display: inline-block; }
+.stk-dv #tw-tags, .stk-dv #tw-labels, .stk-dv #tw-lines, .stk-dv #tw-feed, .stk-dv .tw-roster { visibility: hidden; pointer-events: none; }
+#tw-stonks.dv .fl-agstrip { display: grid; position: absolute; left: 12px; right: 12px; top: var(--dvt); z-index: 2; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 5px; }
+#tw-stonks.dv .dvag { display: block; max-width: none; background: rgba(255,255,255,.03); border: 1px solid var(--line); border-left: 3px solid var(--h); border-radius: 6px; padding: 4px 8px 5px; min-width: 0; cursor: pointer; }
+#tw-stonks.dv .dvag:hover { background: rgba(255,255,255,.07); } #tw-stonks.dv .dvag.sel { box-shadow: 0 0 0 1px var(--amb); }
+#tw-stonks.dv .dvah { display: flex; align-items: baseline; gap: 6px; font-size: 10.5px; min-width: 0; }
+#tw-stonks.dv .dvah b { flex: none; color: var(--fg); font-weight: 600; white-space: nowrap; } #tw-stonks.dv .dvah em { font-style: normal; color: var(--mut); font-size: 9px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } #tw-stonks.dv .dvah time { color: var(--mut); font-size: 9.5px; }
+#tw-stonks.dv .dvag .dvdt { width: 7px; height: 7px; border-radius: 50%; background: #2a3846; align-self: center; flex: none; }
+#tw-stonks.dv .dvag.working .dvdt { background: var(--amb); animation: dvdot 1.6s ease-in-out infinite; } #tw-stonks.dv .dvag.done .dvdt { background: var(--up); } #tw-stonks.dv .dvag.error .dvdt { background: var(--dn); }
+@keyframes dvdot { 50% { opacity: .35; } }
+#tw-stonks.dv .dvag .dvl { font-size: 10px; color: #8fa3b0; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#tw-stonks.dv .dvag.working .dvl { color: #c9d6dd; }
+/* columns: signal board | events feed | book (the rest of the screen under the agent strip) */
+#tw-stonks.dv .fl-board { top: calc(var(--dvt) + 106px); width: 38%; left: 12px; }
+#tw-stonks.dv .fl-rcol { top: calc(var(--dvt) + 106px); width: 32%; right: 12px; }
+#tw-stonks.dv .fl-bot { top: calc(var(--dvt) + 106px); left: calc(38% + 22px); right: calc(32% + 22px); max-height: none; }
+#tw-stonks.dv .fl-drawer { top: calc(var(--dvt) + 106px); right: calc(32% + 22px); left: auto; width: min(460px, 34%); }
+#tw-stonks.dv .fl-bot .fl-log { display: flex; flex: 1; min-height: 0; max-height: none; gap: 3px; }
+#tw-stonks.dv .fl-bot .fl-step { opacity: 1; }
+#tw-stonks.dv .fl-scrub { flex-wrap: wrap; row-gap: 5px; }
+#tw-stonks.dv .fl-kinds { display: flex; flex-wrap: wrap; gap: 4px; flex-basis: 100%; }
+#tw-stonks.dv .kc { font: 600 9.5px var(--mono); letter-spacing: .12em; padding: 3px 8px; border-radius: 999px; background: transparent; color: var(--mut); border: 1px solid var(--line); cursor: pointer; } #tw-stonks.dv .kc:hover { color: var(--fg); } #tw-stonks.dv .kc.on { color: var(--amb); border-color: rgba(245,185,74,.45); }
+#tw-stonks.dv .ln { padding: 3px 8px; } #tw-stonks.dv .ln .lt { font-size: 10.5px; margin-top: 0; }
+/* signal board as a table: one row per signal, reason truncated (hover = full text) */
+#tw-stonks.dv .fl-alerts { grid-template-columns: minmax(0, 1fr); gap: 3px; padding-bottom: 6px; }
+#tw-stonks.dv .fl-card { display: grid; grid-template-columns: 24px 44px 58px 70px 84px 104px minmax(0, 1fr); align-items: center; gap: 8px; padding: 5px 8px; border-radius: 6px; }
+#tw-stonks.dv .fl-card::before { inset: 0 auto 0 0; width: 3px; height: auto; box-shadow: none; }
+#tw-stonks.dv .fl-card .top { display: contents; } #tw-stonks.dv .fl-card .stline, #tw-stonks.dv .fl-card .fl-lad, #tw-stonks.dv .fl-card ul, #tw-stonks.dv .fl-card .veto, #tw-stonks.dv .fl-card .sz { display: none; }
+#tw-stonks.dv .fl-card .rk { order: 1; font-size: 10px; color: var(--mut); } #tw-stonks.dv .fl-card .act { order: 2; font-size: 10px; padding: 1px 6px; box-shadow: none; text-align: center; }
+#tw-stonks.dv .fl-card .tk { order: 3; font-size: 15px; } #tw-stonks.dv .fl-card .fl-strat { order: 4; font-size: 8.5px; }
+#tw-stonks.dv .fl-card .px { order: 5; margin: 0; display: flex; gap: 6px; font-size: 11px; text-align: left; white-space: nowrap; }
+#tw-stonks.dv .fl-card .fl-conf { order: 6; font-size: 9px; letter-spacing: .04em; gap: 5px; white-space: nowrap; } #tw-stonks.dv .fl-card .fl-conf span { display: none; } #tw-stonks.dv .fl-card .fl-conf::before { content: attr(data-c); color: var(--fg); font-size: 11px; min-width: 20px; }
+#tw-stonks.dv .fl-card .thesis { order: 7; margin: 0; font-size: 11px; color: #9fb3ab; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+/* book: larger equity curve */
+#tw-stonks.dv .fl-rcol .fl-curve .crv { max-height: 230px; }
+#tw-stonks.dv .fl-rcol .fl-pos { max-height: none; }
+.stk-dv .tw-bar { background: #070b10; }
+#tw-stonks.dv .dvdt { width: 7px; height: 7px; }
+#tw-stonks.dv .fl-card.compact { grid-template-columns: 24px 44px 58px 70px 84px minmax(0, 1fr); } #tw-stonks.dv .fl-card.compact .stline { display: block; order: 7; font-size: 11px; color: #8fa3b0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+#tw-stonks.dv .fl-fold { margin-top: 4px; }
+#tw-stonks.dv .fl-hero { display: none; }
+#tw-stonks.dv .fl-card { grid-template-columns: 24px 44px 58px 70px 150px 96px minmax(0, 1fr); } #tw-stonks.dv .fl-card.compact { grid-template-columns: 24px 44px 58px 70px 150px minmax(0, 1fr); }
+#tw-stonks.dv .fl-card .px { gap: 10px; } #tw-stonks.dv .fl-card .px div:last-child { font-size: 10px; }
+#tw-stonks.dv .fl-bot { overflow: hidden; } #tw-stonks.dv .fl-step { gap: 3px; } #tw-stonks.dv .fl-step .stp { font-size: 9px; padding: 2px 7px; letter-spacing: .06em; }
+#tw-stonks.dv .fl-card.compact { grid-template-columns: 52px 58px 70px 150px minmax(0, 1fr); }

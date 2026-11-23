@@ -5,7 +5,7 @@
   "use strict";
   const SEAT_R = 3.05, TABLE_R = 1.95, CANDLES = 24;
   const F = () => window.HQFloor;
-  const emis = (K) => (K.GLOW && K.GLOW.emis) || 0.7;
+  const emis = (K) => ((K.GLOW && K.GLOW.emis) || 0.7) * 0.6; // 40% softer: the amber floor glow was harsh
   const up = "#34d399", dn = "#fb7185", amb = "#f5b94a";
   const seatPos = (id) => { const a = (F().ANG[id] * Math.PI) / 180, x = Math.sin(a) * SEAT_R, z = -Math.cos(a) * SEAT_R; return { x, z, yaw: Math.atan2(-x, -z) }; };
   const short = (t, n) => { t = String(t || "").replace(/\s+/g, " ").trim(); return t.length > n ? t.slice(0, n - 1) + "…" : t; };
@@ -69,7 +69,10 @@
     sc.main = screen(K, I, 4.2, 2.35, 896, 500, 0, 2.05, z, 0, fc);
     sc.sig = screen(K, I, 3.5, 1.95, 768, 428, hw * 0.62, 2.0, z, 0, fc);
     const stripM = new T.MeshBasicMaterial({ color: col.clone().multiplyScalar(0.8), toneMapped: false }); for (const x of [-hw + 0.1, hw - 0.1]) K.box(g, 0.06, 3.0, 0.06, stripM, x, 1.5, -hw + 0.12);
-    buildExtras(I, K);
+    // DATA VIEW button on the back wall (below the big screen): raycast-clickable, gentle hover
+    const bd = (S.dvBtn = screen(K, I, 1.8, 0.45, 384, 96, 0, 3.6, z + 0.03, 0, col.clone().multiplyScalar(0.55))); bd.hov = null;
+    bd.draw = (h) => { if (bd.hov === h) return; bd.hov = h; const c = bd.ctx; c.clearRect(0, 0, 384, 96); c.fillStyle = h ? "rgba(26,20,8,.96)" : "rgba(5,9,14,.94)"; c.fillRect(0, 0, 384, 96); c.strokeStyle = h ? "#f5b94acc" : "#f5b94a66"; c.lineWidth = 3; c.strokeRect(6, 6, 372, 84); c.font = "700 36px Consolas, monospace"; c.textAlign = "center"; c.textBaseline = "middle"; c.fillStyle = h ? "#f2d79a" : "#b8955a"; c.fillText("▤  DATA VIEW", 192, 50); bd.tex.needsUpdate = true; }; bd.draw(false);
+    buildExtras(I, K); bd.m.userData.id = "dataview"; S.prox.push(bd.m);
     I.anim = (t, dt) => anim(I, K, t, dt);
   }
 
@@ -158,7 +161,7 @@
     let down = null; const on = (n, fn) => { cv.addEventListener(n, fn); S.hooks.push([n, fn]); };
     on("pointermove", rel); on("pointerleave", () => { S.mouse.set(-9, -9, 0); S.md = true; });
     on("pointerdown", (e) => { down = { x: e.clientX, y: e.clientY }; });
-    on("pointerup", (e) => { if (!down || !I.g.parent) return; const moved = Math.abs(e.clientX - down.x) + Math.abs(e.clientY - down.y); down = null; if (moved > 6) return; rel(e); const id = pick(I); if (id) { if (S.focus === id) unfocusI(I); else focusI(I, K, id); } else if (S.focus) unfocusI(I); });
+    on("pointerup", (e) => { if (!down || !I.g.parent) return; const moved = Math.abs(e.clientX - down.x) + Math.abs(e.clientY - down.y); down = null; if (moved > 6) return; rel(e); const id = pick(I); if (id === "dataview") { if (F().dataView) F().dataView(true); } else if (id) { if (S.focus === id) unfocusI(I); else focusI(I, K, id); } else if (S.focus) unfocusI(I); });
   }
   function pick(I) { const S = I.stonks; if (!S.ray || !S.cam || S.mouse.x < -2) return ""; S.ray.setFromCamera(S.mouse, S.cam); const h = S.ray.intersectObjects(S.prox, false); return h.length ? h[0].object.userData.id : ""; }
   function cleanup(I) {
@@ -228,7 +231,7 @@
     S.cm += ((f.busy && f.busy() ? 1 : 0) - S.cm) * Math.min(1, dt * 2.5); const CM = S.cm, CK = 0.12 + 0.88 * CM, PK = 0.3 + 0.7 * CM;
     for (const id in S.lbl) S.lbl[id].material.opacity = Math.max(id === "hub" ? 1 : CM * 0.85, S.hov === id || S.focus === id ? 1 : 0);
     if (S.md && S.cam) { S.md = false; S.hov = I.g.parent ? pick(I) : ""; if (S.cv) S.cv.style.cursor = S.hov ? "pointer" : ""; }
-    S.fk += (S.fgoal - S.fk) * Math.min(1, dt * 4.5); if (Math.abs(S.fgoal - S.fk) < 0.002) S.fk = S.fgoal;
+    if (S.dvBtn) S.dvBtn.draw(S.hov === "dataview"); S.fk += (S.fgoal - S.fk) * Math.min(1, dt * 4.5); if (Math.abs(S.fgoal - S.fk) < 0.002) S.fk = S.fgoal;
     // hub: glass breathes, flashes on handoffs and vetoes
     S.hubFlash = Math.max(0, S.hubFlash - dt * 1.6); const vetoing = S.stamp && t - S.stamp.t0 < 1.2;
     S.glass.material.opacity = (0.08 + 0.02 * Math.sin(t * 1.6) + 0.12 * S.hubFlash + (V.running ? 0.03 : 0)) * E; S.hubTop.material.opacity = (0.06 + 0.1 * S.hubFlash) * E;
@@ -294,7 +297,7 @@
   }
 
   function anim(I, K, t, dt) {
-    const S = I.stonks, f = F(); if (!S || !f || S.dead || !I.g.parent || document.hidden) return; const V = f.desks(), D = f.data(), E = emis(K);
+    const S = I.stonks, f = F(); if (!S || !f || S.dead || !I.g.parent || document.hidden || (f.dv && f.dv())) return; const V = f.desks(), D = f.data(), E = emis(K);
     if (t - S.last > 0.4) { S.last = t; drawScreens(I, K); }
     S.globe.rotation.y = t * 0.5; S.ring.rotation.z = t * 0.6; S.pl.intensity = (5 + 1.5 * Math.sin(t * 2.1) + (V.running ? 2 : 0)) * emis(K);
     S.globe.material.color.copy(V.running ? K.amber : I.f.color);
@@ -324,5 +327,10 @@
     }
   }
   const cur = () => { const I = window.HQTower && HQTower.state && HQTower.state.interior; return I && I.stonks && !I.stonks.dead ? I : null; };
-  window.HQStocks3D = window.HQStonks3D = { build, deskMembers, seatPos, sidePos, applyDesks, SEAT_R, focus: (id) => { const I = cur(); if (I && I.stonks.cam) focusI(I, I.stonks.K, id); }, unfocus: () => { const I = cur(); if (I) unfocusI(I); }, focused: () => { const I = cur(); return !!(I && I.stonks.focus); } };
+  // camera pose that fills the view with the big back-wall screen (world coords, for HQTower.setFocus); null until the room exists
+  function wallFocus() {
+    const I = cur(); if (!I || !I.stonks.K) return null; const V = I.stonks.K.THREE.Vector3, z = -I.hw + 0.1; I.g.updateWorldMatrix(true, false);
+    const p = I.g.localToWorld(new V(0, 2.05, z + 3.3)), q = I.g.localToWorld(new V(0, 1.95, z)); return { pos: { x: p.x, y: p.y, z: p.z }, target: { x: q.x, y: q.y, z: q.z }, fov: 50 };
+  }
+  window.HQStocks3D = window.HQStonks3D = { build, wallFocus, deskMembers, seatPos, sidePos, applyDesks, SEAT_R, focus: (id) => { const I = cur(); if (I && I.stonks.cam) focusI(I, I.stonks.K, id); }, unfocus: () => { const I = cur(); if (I) unfocusI(I); }, focused: () => { const I = cur(); return !!(I && I.stonks.focus); } };
 })();
