@@ -19,7 +19,7 @@
   let accRgb = [25, 227, 208]; if (window.HQTheme) HQTheme.onAccent((rgb) => (accRgb = rgb));
 
   // ---------- state ----------
-  const T = { on: false, ready: false, floors: [], sig: "", projects: [], teams: { projects: {}, core: [] }, hover: null, cur: null, mode: "ext", flight: null, e: 0, drag: null, az: 0.7, el: 0.17, k: 1, autoAz: true, groups: { byProj: new Map(), deck: [], total: 0 }, lastFrame: 0, demo: false, feed: [], fseen: new Map(), feedPaint: "" };
+  const T = { on: false, ready: false, floors: [], sig: null, projects: [], teams: { projects: {}, core: [] }, hover: null, cur: null, mode: "ext", flight: null, e: 0, drag: null, az: 0.7, el: 0.17, k: 1, autoAz: true, groups: { byProj: new Map(), deck: [], total: 0 }, lastFrame: 0, demo: false, feed: [], fseen: new Map(), feedPaint: "" };
   let maxAni = 4, renderer, composer, bloom, scene, camera, tower, city, rain, rainMat, win, winMirror, deskLights, interior = null, clock0 = performance.now();
   let winData = [], R0 = 50, lookY = 18, totalH = 40;
   const ray = new THREE.Raycaster(), mouse = new THREE.Vector2(-9, -9), tmpM = new THREE.Matrix4(), tmpC = new THREE.Color(), tmpV = new THREE.Vector3(), tmpQ = new THREE.Quaternion(), tmpE = new THREE.Euler(), ONE = new THREE.Vector3(1, 1, 1);
@@ -246,6 +246,7 @@
       if (f.beacon) { f.beacon.material.color.setRGB(2.2 * (0.5 + 0.5 * Math.sin(t * 2.4)) + 0.2, 0.2, 0.7); }
     }
     // windows
+    if (!win || !winMirror) return; // not built yet (e.g. first frame)
     const col = win.instanceColor.array, mc = winMirror.instanceColor.array;
     for (let i = 0; i < winData.length; i++) {
       const d = winData[i], f = d.f; let v = d.base + (1.3 + 0.4 * Math.sin(t * 2.7 + d.ph) - d.base) * f.act;
