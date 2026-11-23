@@ -442,7 +442,7 @@
     x.fillStyle = acc; x.globalAlpha = 0.16; x.fillRect(0, 0, W, 62); x.globalAlpha = 1; x.fillStyle = acc; x.globalAlpha = 0.7; x.fillRect(0, 62, W, 2); x.globalAlpha = 1;
     x.textBaseline = "middle"; x.textAlign = "left"; x.font = "800 27px Consolas, monospace"; x.fillStyle = acc; x.fillText((f.kind === "deck" ? "COMMAND DECK" : f.name.toUpperCase()).slice(0, 18) + " TERMINAL", 22, 33);
     x.textAlign = "right"; x.font = "700 22px Consolas, monospace";
-    if (busy) { x.fillStyle = "#ffb02e"; x.globalAlpha = blink ? 1 : 0.55; x.fillText("● WORKING", W - 20, 33); } else if (unread) { x.fillStyle = "#ff5d8f"; x.globalAlpha = blink ? 1 : 0.6; x.fillText("● NEW REPLY", W - 20, 33); } else { x.fillStyle = "#6f8799"; x.fillText("READY", W - 20, 33); }
+    if (busy) { x.fillStyle = "#b8873a"; x.globalAlpha = blink ? 0.75 : 0.5; x.fillText("● WORKING", W - 20, 33); } else if (unread) { x.fillStyle = "#ff5d8f"; x.globalAlpha = blink ? 1 : 0.6; x.fillText("● NEW REPLY", W - 20, 33); } else { x.fillStyle = "#6f8799"; x.fillText("READY", W - 20, 33); }
     x.globalAlpha = 1; x.textAlign = "left"; x.font = "600 24px Consolas, monospace"; let y = 98; const maxW = W - 64;
     if (!Tm.lines.length) { x.fillStyle = "#6f8799"; x.fillText("no messages yet.", 28, y); x.fillText("give this team a task.", 28, y + 32); y += 64; }
     for (const l of Tm.lines) {
@@ -459,7 +459,8 @@
     const Tm = I.term; if (t - Tm.last > 0.22) { Tm.last = t; drawTerm(I, t); }
     if (t > Tm.nextLoad) { Tm.nextLoad = t + 3; termLoad(I); }
     Tm.hk += ((Tm.hover || T.termF ? 1 : 0) - Tm.hk) * Math.min(1, dt * 8);
-    const pulse = Tm.busy ? 0.25 * Math.sin(t * 5) : 0; Tm.edge.color.copy(I.f.color).multiplyScalar((0.7 + 1.0 * Tm.hk + pulse) * GLOW.emis);
+    // working: a slow, faint breathing edge instead of a bright pulse (Hayden: "dim that down substantially")
+    const pulse = Tm.busy ? 0.06 * Math.sin(t * 2.2) : 0; Tm.edge.color.copy(I.f.color).multiplyScalar(((Tm.busy ? 0.35 : 0.7) + 1.0 * Tm.hk + pulse) * GLOW.emis);
   }
   function termHit() { const Tm = interior && interior.term; if (!Tm) return false; ray.setFromCamera(mouse, camera); return ray.intersectObject(Tm.hit, false).length > 0; }
   function termHover() {
