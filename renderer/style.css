@@ -457,3 +457,14 @@ mark.rl-hit { background: rgba(var(--hl-rgb),.35); color: #fff; border-radius: 2
 .projmenu { position: fixed; z-index: 60; background: var(--panel, #0b1b24); border: 1px solid var(--acc, #4dabf7); border-radius: 6px; padding: 3px; box-shadow: 0 6px 20px #0008; }
 .projmenu button { display: block; background: transparent; color: inherit; border: 0; padding: 5px 14px; font: inherit; font-size: 12px; cursor: pointer; border-radius: 4px; }
 .projmenu button:hover { background: rgba(77,171,247,.2); }
+
+/* Usage hover card (title-bar session chip) */
+#usage-card { position: fixed; z-index: 80; width: 260px; padding: 10px 12px; background: var(--bg2); border: 1px solid var(--line2); border-radius: 4px; box-shadow: 0 10px 28px rgba(0,0,0,.55); font: 11px var(--mono); color: var(--tx2); pointer-events: none; }
+#usage-card.hidden { display: none; }
+#usage-card .uc-row { margin-bottom: 9px; }
+#usage-card .uc-top { display: flex; justify-content: space-between; letter-spacing: .14em; }
+#usage-card .uc-k { color: var(--acc); } #usage-card .uc-v { color: var(--tx); font-weight: 600; letter-spacing: 0; }
+#usage-card .uc-bar { height: 3px; margin: 5px 0 4px; background: rgba(var(--acc-rgb),.12); border-radius: 2px; overflow: hidden; }
+#usage-card .uc-bar i { display: block; height: 100%; background: var(--acc); }
+#usage-card .uc-row.warn .uc-bar i { background: #ffb02e; } #usage-card .uc-row.bad .uc-bar i { background: #ff5d6c; }
+#usage-card .uc-r { color: var(--tx3); } #usage-card .uc-foot, #usage-card .uc-none { color: var(--tx3); font-size: 10px; }

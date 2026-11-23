@@ -149,7 +149,7 @@ function renderAgents() {
   $("#chip-agents").textContent = run.length + " agent" + (run.length === 1 ? "" : "s") + " live";
   $("#chip-agents").className = "chip" + (run.length ? "" : " dim");
 }
-function renderUsage(u, err) {
+function renderUsage(u, err) { S.usageLast = { u, err, at: Date.now() };
   const box = $("#rings"); box.textContent = "";
   if (err && !u) { box.append(el("div", "none", err)); $("#chip-usage").textContent = "usage n/a"; return; }
   // minimal rows: label, %, hairline bar, reset time
@@ -644,3 +644,24 @@ $("#restart-chip").onclick = async () => { const busy = await hq.busy(); if (bus
 
 // Tiny restart button in the title bar (Hayden 2026-11-23)
 { const b = document.getElementById("btn-restart"); if (b) b.onclick = async () => { if (await hq.busy().catch(() => false) && !confirm("A chat is still running. Restart anyway?")) return; hq.restart(); }; }
+
+// Usage hover card on the title-bar chip: session + week %, bar, reset countdown and clock time (Hayden 2026-11-23)
+{
+  const chip = document.getElementById("chip-usage"), card = document.createElement("div"); card.id = "usage-card"; card.className = "hidden"; document.body.append(card);
+  const clock = (iso) => { try { return new Date(iso).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" }); } catch (e) { return ""; } };
+  const paint = () => {
+    const L = S.usageLast || {}, u = L.u; card.textContent = "";
+    if (!u) { card.append(el("div", "uc-none", L.err || "Usage not loaded yet")); return; }
+    for (const [label, x] of [["SESSION", u.five_hour], ["WEEK", u.seven_day]]) {
+      const p = Math.round((x && x.utilization) || 0), row = el("div", "uc-row" + (p >= 90 ? " bad" : p >= 75 ? " warn" : ""));
+      const top = el("div", "uc-top"); top.append(el("span", "uc-k", label), el("span", "uc-v", p + "%")); row.append(top);
+      const bar = el("div", "uc-bar"), fill = el("i"); fill.style.width = Math.min(100, p) + "%"; bar.append(fill); row.append(bar);
+      row.append(el("div", "uc-r", x && x.resets_at ? "resets in " + left(x.resets_at) + " · " + clock(x.resets_at) : "no reset time"));
+      card.append(row);
+    }
+    if (L.at) card.append(el("div", "uc-foot", "updated " + Math.max(0, Math.round((Date.now() - L.at) / 60000)) + " min ago"));
+  };
+  const show = () => { paint(); const r = chip.getBoundingClientRect(); card.style.left = Math.max(8, Math.min(innerWidth - 268, r.left)) + "px"; card.style.top = (r.bottom + 6) + "px"; card.classList.remove("hidden"); };
+  chip.addEventListener("mouseenter", show); chip.addEventListener("mouseleave", () => card.classList.add("hidden"));
+  chip.style.webkitAppRegion = "no-drag";
+}
