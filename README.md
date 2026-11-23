@@ -1,6 +1,14 @@
 # HQ OS v2 (standalone)
 
-A desktop command center for the projects in `C:\Users\Hhowe\Projects`. It doesn't need Obsidian.
+A desktop command center for the projects in your `%USERPROFILE%\Projects` folder (change it with `projectsRoot` in settings). It doesn't need Obsidian. This repo holds only the app: no projects, notes, chats or settings.
+
+## Set up on a new computer
+1. Install [Node.js LTS](https://nodejs.org), Git, and [Claude Code](https://docs.claude.com/en/docs/claude-code). Run `claude` once and sign in.
+2. `git clone https://github.com/hhowell116/HQ-OS-Application.git "%USERPROFILE%\Projects\HQ OS\app"`
+3. In that folder run `pwsh -NoProfile -File .\setup.ps1`. It installs dependencies and makes Desktop and Start menu shortcuts.
+4. Open **HQ OS**. Any folder in `Projects` with a `Notes\` folder shows up as a project; the **+** next to PROJECTS makes a new one.
+
+The speech models (Kokoro voice, Whisper for the mic) download on first use into `%APPDATA%\HQ OS\`.
 
 ## Launch
 - Use the **HQ OS** shortcut on the Desktop or in the Start menu.
@@ -30,7 +38,7 @@ A desktop command center for the projects in `C:\Users\Hhowe\Projects`. It doesn
 | Ctrl+1 to 9 | Switch project |
 | Enter / Shift+Enter | Send / new line |
 | Esc | Stop Claude |
-| F5 | Refresh |
+| F5 | Reload project list |
 | F1 / F2 | HQ / war room |
 | Ctrl+Shift+H | Handoff |
 
