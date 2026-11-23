@@ -1,4 +1,4 @@
-// Trading Floor panels: the HTML HUD of the Stonks floor in the tower (#tw-stonks). The 3D room is stonks3d.js, mounted by tower.js; this file owns the data, panels and controls.
+// Trading Floor panels: the HTML HUD of the Stocks floor in the tower (#tw-stonks). The 3D room is stonks3d.js, mounted by tower.js; this file owns the data, panels and controls.
 // Data comes from Stonks/engine via main.js: IPC "tf" live lines (desk + msg events), tf-state, tf-events (replay), tf-usage, kn-*.
 (function () {
   const $ = (s) => document.querySelector(s);
@@ -185,9 +185,9 @@
     for (const [k, v] of e) { const r = mk("div", "fl-row"), n = mk("span", "", k); if (v.demoted) n.append(mk("span", "dem", "DEMOTED")); r.append(n, mk("span", "pl " + cls(v.pnl), Math.round(v.winRate * 100) + "% · " + v.n + " · " + usd(v.pnl))); box.append(r); }
   }
 
-  // ---------- Agent card: click a desk in the 3D room (stonks3d.js) -> the drawer shows that agent's latest output ----------
+  // ---------- Agent card: click a desk in the 3D room (stocks3d.js) -> the drawer shows that agent's latest output ----------
   const AG_NAME = Object.assign({}, NAME, { steady: "Steady Desk", hub: "Lead Hub", debate: "Bull vs Bear" });
-  function closeCard() { if (window.HQStonks3D && HQStonks3D.focused()) HQStonks3D.unfocus(); else agentClose(); }
+  function closeCard() { if (window.HQStocks3D && HQStocks3D.focused()) HQStocks3D.unfocus(); else agentClose(); }
   function agentClose() { if (!S.card) return; const id = S.card; S.card = null; $("#fl-drawer").classList.add("hidden"); if (S.sel === id) { S.sel = ""; renderAgents(); } }
   function agentCard(id) { S.card = id; S.sel = ANG[id] != null ? id : ""; renderAgents(); }
   function renderCard() {
@@ -205,7 +205,7 @@
 
   // ---------- Signals drawer ----------
   function openDrawer(a) {
-    if (S.card) { S.card = null; if (window.HQStonks3D && HQStonks3D.focused()) HQStonks3D.unfocus(); }
+    if (S.card) { S.card = null; if (window.HQStocks3D && HQStocks3D.focused()) HQStocks3D.unfocus(); }
     const d = $("#fl-drawer"); d.textContent = ""; d.classList.remove("hidden");
     const x = mk("button", "fl-btn ghost", "CLOSE"); x.onclick = () => d.classList.add("hidden");
     const top = mk("div", "dtop"); top.append(mk("span", "dact " + a.action, a.action), mk("b", "tk", a.ticker), mk("span", "fl-strat " + (a.strategy || "Scanner"), (a.strategy || "Scanner").toUpperCase()), mk("span", "spacer"), x); d.append(top);
@@ -267,7 +267,7 @@
   }
   async function refreshUsage() {
     try { S.usage = await hq.tfUsage(); } catch (e) { S.usage = null; }
-    // the statusline file only updates in interactive Claude Code sessions in Stonks; HQ chats run headless, so fall back to HQ's own usage poll
+    // the statusline file only updates in interactive Claude Code sessions in Stocks; HQ chats run headless, so fall back to HQ's own usage poll
     if (!S.usage || !S.usage.updated || Date.now() - S.usage.updated > 15 * 60000) {
       try {
         const r = await hq.usage(false), u = r && r.usage, m = (x) => (x && x.utilization != null ? { used_percentage: x.utilization, resets_at: x.resets_at ? Math.floor(new Date(x.resets_at).getTime() / 1000) : null } : null);

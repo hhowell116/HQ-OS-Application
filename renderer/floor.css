@@ -1,4 +1,4 @@
-/* STONKS FLOOR HUD: the Trading Floor panels, overlaid on the 3D Stonks floor inside the tower (#tw-stonks in #tower-view). 3D room: stonks3d.js. */
+/* STONKS FLOOR HUD: the Trading Floor panels, overlaid on the 3D Stocks floor inside the tower (#tw-stonks in #tower-view). 3D room: stonks3d.js. */
 #tw-stonks { --up: #34d399; --dn: #fb7185; --amb: #f5b94a; --fg: #e6edf3; --mut: #7d8b99; --card: rgba(255,255,255,.04); --line: rgba(255,255,255,.08); --glass: rgba(14,20,28,.78);
   position: absolute; left: 0; right: 0; top: 42px; bottom: 0; z-index: 6; pointer-events: none; font-family: var(--mono); visibility: hidden; opacity: 0; transition: opacity .5s, visibility 0s .5s; }
 #tw-stonks.show { visibility: visible; opacity: 1; transition: opacity .5s; }
