@@ -1,0 +1,31 @@
+// Tests the + new-project flow against a TEMP projects root and screenshots it. Run: node_modules/electron/dist/electron.exe tools/newproj-test.js <outDir>
+const { app, BrowserWindow } = require("electron");
+const fs = require("fs"), os = require("os"), path = require("path");
+const out = process.argv[2] || path.join(__dirname, "shots");
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "hqos-np-")), root = path.join(tmp, "Projects");
+fs.mkdirSync(path.join(root, "Existing", "Notes"), { recursive: true });
+fs.writeFileSync(path.join(tmp, "settings.json"), JSON.stringify({ projectsRoot: root }));
+app.setPath("userData", tmp);
+process.on("uncaughtException", (e) => console.log("UNCAUGHT", e && e.stack));
+require("../main.js");
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+app.whenReady().then(async () => {
+  await sleep(1500);
+  const win = BrowserWindow.getAllWindows()[0]; win.setBounds({ x: -4000, y: 0, width: 1600, height: 900 }); win.showInactive(); const wc = win.webContents;
+  const errs = []; wc.on("console-message", (e, lvl, msg) => { if (lvl >= 3) errs.push(msg); });
+  await sleep(1500);
+  const ev = (s) => wc.executeJavaScript(s);
+  fs.mkdirSync(out, { recursive: true });
+  for (const bad of ["..", "a/b", "CON", "Existing", "  "]) console.log("invalid", JSON.stringify(bad), JSON.stringify(await ev(`hq.projectCreate(${JSON.stringify(bad)})`)));
+  await ev(`document.querySelector('#btn-newproj').click()`); await sleep(300);
+  await ev(`(()=>{const i=document.querySelector('#newproj-name');i.value='Existing';i.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}))})()`); await sleep(500);
+  console.log("err shown:", await ev(`document.querySelector('#newproj-err').textContent`));
+  fs.writeFileSync(path.join(out, "new-project-box.png"), (await wc.capturePage()).toPNG());
+  await ev(`(()=>{const i=document.querySelector('#newproj-name');i.value='Demo Project';i.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}))})()`); await sleep(1500);
+  console.log("selected:", await ev(`document.querySelector('#p-name').textContent`), "box hidden:", await ev(`document.querySelector('#newproj').classList.contains('hidden')`));
+  console.log("files:", JSON.stringify(fs.readdirSync(path.join(root, "Demo Project", "Notes"))), JSON.stringify(fs.readdirSync(path.join(root, "Demo Project", "Notes", "Claude"))));
+  console.log("todo:", JSON.stringify(fs.readFileSync(path.join(root, "Demo Project", "Notes", "Demo Project To-Do.md"), "utf8")));
+  console.log("list:", await ev(`[...document.querySelectorAll('#projects > *')].map(e=>e.textContent.slice(0,20)).join(' | ')`));
+  console.log("console errors:", JSON.stringify(errs));
+  app.exit(0);
+});

@@ -32,7 +32,8 @@
 
 <main class="layout">
   <aside class="col left">
-    <div class="panel-h"><span>PROJECTS</span><button class="ghost" id="btn-refresh" title="Refresh (F5)">⟳</button></div>
+    <div class="panel-h"><span>PROJECTS</span><button class="ghost" id="btn-newproj" title="New project">+</button></div>
+    <div class="newproj hidden" id="newproj"><input id="newproj-name" type="text" maxlength="60" placeholder="New project name…  (Enter creates, Esc cancels)" spellcheck="false"><div class="np-err" id="newproj-err"></div></div>
     <div id="projects" class="projects"></div>
     <div class="panel-h sub rules-h" id="rules-open" title="Read the shared rules (F3)"><span>RULES</span><span class="spacer"></span><span class="rules-go">open ▸</span></div>
     <div class="panel-h sub live-h"><span>LIVE AGENTS</span><span class="count zero" id="c-live">0</span><span class="spacer"></span><button class="ghost" id="live-room" title="Watch them in the war room (F2)">⛶</button></div>

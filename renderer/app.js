@@ -402,7 +402,17 @@ addEventListener("keydown", (e) => {
 addEventListener("keyup", (e) => { if (MIC.hold && (e.code === "Space" || e.key === "Control")) { MIC.hold = false; if (MIC.st === "rec" && Date.now() - MIC.t0 > 600) micStop(); } }, true);
 $("#btn-vset").onclick = (e) => { e.stopPropagation(); if ($("#vpop")) closeVpop(); else openVpop(); };
 $("#btn-voice").onclick = () => { S.voice = !S.voice; hq.set({ voice: S.voice }); $("#btn-voice").textContent = S.voice ? "🔊 voice on" : "🔈 voice off"; if (!S.voice) stopSpeech(); else speak("Voice online."); };
-$("#btn-refresh").onclick = async () => { await loadProjects(); if (S.cur) { S.detail = await hq.project(S.cur); renderDetail(); } hq.usage(true); toast("Refreshed"); };
+{ const box = $("#newproj"), inp = $("#newproj-name"), err = $("#newproj-err"); let busy = false;
+  const close = () => { box.classList.add("hidden"); inp.value = ""; err.textContent = ""; };
+  $("#btn-newproj").onclick = () => { if (box.classList.contains("hidden")) { box.classList.remove("hidden"); inp.focus(); } else close(); };
+  inp.addEventListener("input", () => (err.textContent = ""));
+  inp.addEventListener("keydown", async (e) => {
+    e.stopPropagation();
+    if (e.key === "Escape") { e.preventDefault(); close(); }
+    else if (e.key === "Enter") { e.preventDefault(); if (busy) return; busy = true;
+      try { const r = await hq.projectCreate(inp.value); if (!r.ok) err.textContent = r.err; else { close(); await loadProjects(); if (r.id) await selectProject(r.id); toast("Created " + r.name); } }
+      catch (x) { err.textContent = /No handler/.test(x.message) ? "Restart HQ OS to use this" : x.message; } busy = false; } });
+}
 $("#add-form").onsubmit = async (e) => { e.preventDefault(); const i = $("#add-input"), t = i.value.trim(); if (!t || !S.cur) return; try { S.detail = await hq.todoAdd({ id: S.cur, text: t }); i.value = ""; renderDetail(); loadProjects(); } catch (er) { toast(er.message, true); } };
 document.querySelectorAll(".winbtns button").forEach((b) => (b.onclick = () => hq.win(b.dataset.w)));
 document.addEventListener("keydown", (e) => {
@@ -412,7 +422,7 @@ document.addEventListener("keydown", (e) => {
   if (e.ctrlKey && e.key.toLowerCase() === "k") { e.preventDefault(); $("#input").focus(); }
   else if (e.ctrlKey && e.key.toLowerCase() === "n") { e.preventDefault(); newConv(); }
   else if (e.ctrlKey && /^[1-9]$/.test(e.key)) { const p = activeProjects()[+e.key - 1]; if (p) { e.preventDefault(); selectProject(p.id); } }
-  else if (e.key === "F5") { e.preventDefault(); $("#btn-refresh").click(); }
+  else if (e.key === "F5") { e.preventDefault(); loadProjects(); }
   else if (e.key === "Escape") { if (TTS.started) stopSpeech(); if (S.conv && S.conv.busy) hq.chatStop(S.conv.id); }
   else if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "h") { e.preventDefault(); $("#btn-handoff").click(); }
 });

@@ -142,6 +142,26 @@ app.whenReady().then(() => {
   ipcMain.handle("todo-add", async (_, { id, text }) => { const p = projById(id); if (!p) throw new Error("Unknown project");
     // no To-Do note yet: create one in the project's Notes folder so the sidebar list just works
     if (!p.todo) { const dir = p.notes || path.join(p.folder, "Notes"); fs.mkdirSync(dir, { recursive: true }); const f = path.join(dir, p.name + " To-Do.md"); if (!fs.existsSync(f)) fs.writeFileSync(f, "# " + p.name + " To-Do\n\n## Now\n\n## Next\n\n## Waiting on Hayden\n\n## Done\n"); p.todo = f; } await D.addTodo(p.todo, p, String(text).trim()); return projectDetail(id); });
+  // New project: <projectsRoot>/<Name>/Notes with a To-Do note and an empty Claude/Index.md (listProjects discovers it by its Notes folder).
+  ipcMain.handle("project-create", async (_, raw) => {
+    const name = String(raw == null ? "" : raw).trim();
+    if (!name) return { ok: false, err: "Enter a name" };
+    if (name.length > 60) return { ok: false, err: "Name too long (60 max)" };
+    if (/[\/:*?"<>|\x00-\x1f]/.test(name) || name.includes("..") || /[. ]$/.test(name) || name.startsWith(".")) return { ok: false, err: "Name has characters that can't be in a folder name" };
+    if (/^(con|prn|aux|nul|com[0-9]|lpt[0-9])(\..*)?$/i.test(name)) return { ok: false, err: "That is a reserved Windows name" };
+    const root = settings.projectsRoot; if (!root || !fs.existsSync(root)) return { ok: false, err: "Projects folder not found" };
+    const folder = path.join(root, name);
+    if (path.dirname(path.resolve(folder)).toLowerCase() !== path.resolve(root).toLowerCase()) return { ok: false, err: "Invalid name" };
+    if (fs.existsSync(folder) || fs.readdirSync(root).some((n) => n.toLowerCase() === name.toLowerCase())) return { ok: false, err: "A project with that name already exists" };
+    try {
+      fs.mkdirSync(path.join(folder, "Notes", "Claude"), { recursive: true });
+      fs.writeFileSync(path.join(folder, "Notes", name + " To-Do.md"), "# " + name + " To-Do\n\n## Now\n\n## Next\n\n## Waiting on Hayden\n\n## Done\n");
+      fs.writeFileSync(path.join(folder, "Notes", "Claude", "Index.md"), "");
+    } catch (e) { return { ok: false, err: "Could not create: " + e.message }; }
+    refreshProjects(); watchTodos();
+    const p = cache.projects.find((x) => path.basename(x.folder).toLowerCase() === name.toLowerCase());
+    return { ok: true, id: p ? p.id : "", name };
+  });
   ipcMain.handle("review-list", async (_, id) => { const p = projById(id); if (!p) return []; return (await D.reviewList(p)).map((i) => ({ key: i.key, title: i.title, status: i.status, created: i.created, note: i.note, video: i.video, media: i.files.map((f) => "hqreview://f/" + encodeURIComponent(f)) })); });
   ipcMain.handle("review-set", async (_, { id, key, status, comment }) => { const p = projById(id); if (!p) throw new Error("Unknown project"); await D.reviewSet(p, String(key), String(status), comment); return true; });
   ipcMain.handle("busy", () => !!(chats && chats.active().length));

@@ -502,3 +502,10 @@ mark.rl-hit { background: rgba(var(--hl-rgb),.35); color: #fff; border-radius: 2
 @keyframes micpulse { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--acc, #4dabf7) 70%, transparent); } 50% { box-shadow: 0 0 0 6px transparent; } }
 @keyframes micblink { 50% { opacity: .35; } }
 
+/* New-project inline name box (left sidebar) */
+#btn-newproj { font-size: 16px; line-height: 1; padding: 0 8px; }
+.newproj { padding: 6px 8px; border-bottom: 1px solid var(--line, #1c3a4a); }
+.newproj.hidden { display: none; }
+.newproj input { width: 100%; box-sizing: border-box; background: transparent; color: inherit; border: 1px solid var(--acc, #4dabf7); border-radius: 4px; padding: 4px 6px; font: inherit; font-size: 12px; outline: none; }
+.np-err { color: #ff6b6b; font-size: 11px; min-height: 0; }
+.np-err:not(:empty) { margin-top: 3px; }
