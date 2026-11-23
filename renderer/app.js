@@ -588,6 +588,7 @@ document.querySelectorAll("#tabs button").forEach((b) => (b.onclick = () => setV
   if (start) await selectProject(start.id);
   if (ui.conv && ui.proj === S.cur) { try { await openConv(ui.conv); } catch (e) {} }
   if (ui.view === "tower") setView("tower"); else if (ui.view === "home" || ui.view === "nebula") setView("home"); else if (!ui.view && (init.settings.startView || "home") === "home") setView("home", true);
+  requestAnimationFrame(() => document.body.classList.remove("booting")); // start view chosen: reveal (no HQ flash before home)
   hq.agents().then((a) => { S.agents = a; renderAgents(); renderProjects(); });
   hq.usage(false).then((u) => renderUsage(u.usage, u.err));
   setTimeout(() => setMood("idle"), 900);
@@ -665,3 +666,5 @@ $("#restart-chip").onclick = async () => { const busy = await hq.busy(); if (bus
   chip.addEventListener("mouseenter", show); chip.addEventListener("mouseleave", () => card.classList.add("hidden"));
   chip.style.webkitAppRegion = "no-drag";
 }
+
+setTimeout(() => document.body.classList.remove("booting"), 4000);

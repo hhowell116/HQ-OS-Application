@@ -468,3 +468,6 @@ mark.rl-hit { background: rgba(var(--hl-rgb),.35); color: #fff; border-radius: 2
 #usage-card .uc-bar i { display: block; height: 100%; background: var(--acc); }
 #usage-card .uc-row.warn .uc-bar i { background: #ffb02e; } #usage-card .uc-row.bad .uc-bar i { background: #ff5d6c; }
 #usage-card .uc-r { color: var(--tx3); } #usage-card .uc-foot, #usage-card .uc-none { color: var(--tx3); font-size: 10px; }
+
+/* Startup: hide everything under the title bar until the start view is picked, so HQ does not flash before the home nebula */
+body.booting .layout, body.booting #console, body.booting .viz, body.booting .music { visibility: hidden; }
