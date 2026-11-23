@@ -133,7 +133,7 @@ app.whenReady().then(() => {
     // Only the app's own window gets permissions: mic (voice input) and display-capture/loopback (visualizer) both need "media".
     session.defaultSession.setPermissionRequestHandler((wc, perm, cb) => cb(own(wc)));
     session.defaultSession.setPermissionCheckHandler((wc) => own(wc)); }
-  const pub = () => ({ person: settings.person, voice: !!settings.voice, voiceName: settings.voiceName || "af_heart", speed: settings.speed || 1.1, last: settings.last, projectsRoot: settings.projectsRoot, theme: settings.theme || "cyan", accent: settings.accent || "", audio: settings.audio !== false, autoSend: !!settings.autoSend, music: settings.music !== false, archived: settings.archived || [] });
+  const pub = () => ({ person: settings.person, voice: !!settings.voice, voiceName: settings.voiceName || "af_heart", speed: settings.speed || 1.1, last: settings.last, projectsRoot: settings.projectsRoot, theme: settings.theme || "cyan", accent: settings.accent || "", audio: settings.audio !== false, autoSend: !!settings.autoSend, music: settings.music !== false, archived: settings.archived || [], startView: settings.startView || "home", nebulaMode: settings.nebulaMode || "" });
   ipcMain.handle("init", async () => ({ settings: pub(), projects: await Promise.all(cache.projects.map(projectSummary)) }));
   ipcMain.handle("settings", () => pub());
   ipcMain.handle("projects", async () => { refreshProjects(); watchTodos(); return Promise.all(cache.projects.map(projectSummary)); });
@@ -239,7 +239,7 @@ app.whenReady().then(() => {
   ipcMain.handle("usage", async (_, force) => { await pollUsage(!!force); return { usage: cache.usage, err: cache.usageErr }; });
   ipcMain.handle("music", () => { now.start(); return cache.music; });
   ipcMain.handle("music-ctl", (_, cmd) => now.control(cmd));
-  ipcMain.handle("set", (_, kv) => { for (const k of ["voice", "voiceName", "speed", "person", "theme", "accent", "audio", "music", "autoSend"]) if (k in kv) settings[k] = kv[k]; if (Array.isArray(kv.archived)) settings.archived = kv.archived.filter((x) => typeof x === "string"); D.saveSettings(SETTINGS_FILE, settings); send("settings", pub()); if ("music" in kv) kv.music ? now.start() : (now.stop(), send("music", null)); return true; });
+  ipcMain.handle("set", (_, kv) => { for (const k of ["voice", "voiceName", "speed", "person", "theme", "accent", "audio", "music", "autoSend", "startView", "nebulaMode"]) if (k in kv) settings[k] = kv[k]; if (Array.isArray(kv.archived)) settings.archived = kv.archived.filter((x) => typeof x === "string"); D.saveSettings(SETTINGS_FILE, settings); send("settings", pub()); if ("music" in kv) kv.music ? now.start() : (now.stop(), send("music", null)); return true; });
   ipcMain.handle("open-path", (_, p) => { const target = p === "settings" ? SETTINGS_FILE : p; if (target && fs.existsSync(target)) shell.openPath(target); });
   // Rules viewer: read-only, exactly one file (CLAUDE.md in the Projects root). The renderer never supplies a path.
   const rulesFile = () => path.join(settings.projectsRoot || path.join(require("os").homedir(), "Projects"), "CLAUDE.md");

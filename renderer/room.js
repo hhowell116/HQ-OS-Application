@@ -216,7 +216,7 @@
     const typing = /^(TEXTAREA|INPUT|SELECT)$/.test((e.target && e.target.tagName) || "");
     if (typing) { if (e.key === "Escape") { if (S_busy()) document.getElementById("btn-stop").click(); else e.target.blur(); } return; }
     if (e.ctrlKey && e.key.toLowerCase() === "d") { e.preventDefault(); toggleDemo(); }
-    else if (e.key === "Escape") { if (selected) closeDetail(); else window.HQView && window.HQView("hq"); }
+    else if (e.key === "Escape") { if (selected) closeDetail(); else window.HQView && window.HQView("home"); }
   });
 
   // ---------- wiring (theme + music are handled by app.js for the whole window) ----------

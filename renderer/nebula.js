@@ -6,7 +6,9 @@
   if (!view || !window.NebulaLib) return;
   const { ForceGraph3D, THREE, UnrealBloomPass } = window.NebulaLib;
 
-  const N = { data: null, g: null, objs: new Map(), hidden: new Set(), ghosts: true, sel: null, hover: null, on: false, scanAt: 0, rotTimer: 0, nb: new Map(), loading: false };
+  const N = { data: null, g: null, objs: new Map(), hidden: new Set(), ghosts: true, sel: null, hover: null, on: false, scanAt: 0, rotTimer: 0, nb: new Map(), loading: false, mode: null, tw: null, dust: null, dustA: 0, raf: 0, gather: 0 };
+  const saveMode = (m) => { try { localStorage.setItem("nbMode", m); } catch (e) {} try { hq.set({ nebulaMode: m }); } catch (e) {} };
+  N.mode = (() => { try { return localStorage.getItem("nbMode") === "graph" ? "graph" : "brain"; } catch (e) { return "brain"; } })();
   const hue = (id) => { let h = 0; for (const c of id) h = (h * 31 + c.charCodeAt(0)) >>> 0; return (h * 137.508) % 360; };
   const col = (n) => n.kind === "core" ? new THREE.Color("#ffffff") : n.kind === "ghost" ? new THREE.Color("#6a7a92") : new THREE.Color().setHSL(hue(n.project) / 360, 0.85, n.kind === "project" ? 0.62 : 0.58);
   const accCol = () => new THREE.Color((getComputedStyle(document.documentElement).getPropertyValue("--acc") || "#19e3d0").trim() || "#19e3d0");
@@ -50,7 +52,10 @@
     const ids = new Set(nodes.map((n) => n.id));
     const links = d.links.filter((l) => ids.has(l.source.id || l.source) && ids.has(l.target.id || l.target)).map((l) => ({ source: l.source.id || l.source, target: l.target.id || l.target, type: l.type }));
     N.nb = new Map(); links.forEach((l) => { if (l.type !== "link") return; (N.nb.get(l.source) || N.nb.set(l.source, new Set()).get(l.source)).add(l.target); (N.nb.get(l.target) || N.nb.set(l.target, new Set()).get(l.target)).add(l.source); });
-    N.fitted = false; N.objs.clear(); N.g.graphData({ nodes, links });
+    N.fitted = false; N.objs.clear();
+    if (N.mode === "brain") { const gath = N.gather; N.gather = 0; brainPin(nodes, gath); }
+    N.g.graphData({ nodes, links });
+    if (N.tw) N.tw.nodes = nodes;
     N.g.d3ReheatSimulation();
     $("#nb-count").textContent = d.nodes.filter((n) => n.kind !== "ghost" && n.kind !== "project" && n.kind !== "core").length + " notes · " + d.links.filter((l) => l.type === "link").length + " links · " + d.nodes.filter((n) => n.kind === "ghost").length + " ghosts";
     N.sel && paintSel();
@@ -70,6 +75,66 @@
       o.sp.material.color.copy(id === N.sel ? a : o.sp.userData.c || (o.sp.userData.c = o.sp.material.color.clone()));
     }
     N.g.linkColor(linkColor).linkDirectionalParticles((l) => (l.type === "orbit" ? 0 : N.sel && ((l.source.id || l.source) === N.sel || (l.target.id || l.target) === N.sel) ? 3 : 1));
+  }
+
+  // ---- brain layout: fixed targets on a brain, one lobe per project ----
+  function brainTargets(nodes) {
+    const by = {}; N.data.nodes.forEach((n) => { if (n.kind === "note") by[n.project] = (by[n.project] || 0) + 1; });
+    const ids = N.data.projects.map((p) => p.id).sort((a, b) => (by[b] || 0) - (by[a] || 0) || (a < b ? -1 : 1));
+    const key = ids.join("|"); if (!N.brain || N.brainKey !== key) { N.brain = HQBrain.layout(ids); N.brainKey = key; N.dustBuilt = false; }
+    N.brain.reset(); const t = new Map();
+    const ord = nodes.slice().sort((a, b) => (a.id < b.id ? -1 : 1));
+    for (const n of ord) t.set(n.id, n.kind === "core" ? N.brain.core() : n.kind === "project" ? N.brain.centroid(n.project) : N.brain.place(n.project));
+    return t;
+  }
+  // pin nodes at their brain targets (scatter first when gathering for the welcome)
+  function brainPin(nodes, gather) {
+    const t = brainTargets(nodes);
+    for (const n of nodes) {
+      const to = t.get(n.id); n.__to = to;
+      if (gather) { const a = Math.random() * 6.2832, b = Math.acos(2 * Math.random() - 1), r = 330 + Math.random() * 380; n.x = r * Math.sin(b) * Math.cos(a); n.y = r * Math.sin(b) * Math.sin(a); n.z = r * Math.cos(b); }
+      if (n.x == null) { n.x = to[0]; n.y = to[1]; n.z = to[2]; }
+      n.__from = [n.x, n.y, n.z]; n.fx = n.x; n.fy = n.y; n.fz = n.z;
+    }
+    N.tw = { nodes, t0: performance.now(), ms: gather || 2000 };
+    if (!N.on || !gather) { /* tween only runs while visible; snap when hidden */ }
+    buildDust();
+  }
+  function buildDust() {
+    if (N.dust && N.dustBuilt) return; N.dustBuilt = true;
+    if (N.dust) { N.g.scene().remove(N.dust); N.dust.geometry.dispose(); N.dust.material.dispose(); }
+    const d = N.brain.dust(3600), colr = new Float32Array(3600 * 3), cs = d.ids.map((id) => new THREE.Color().setHSL(hue(id) / 360, 0.7, 0.55));
+    for (let i = 0; i < 3600; i++) { const c = cs[d.lobe[i]] || new THREE.Color("#7aa6ff"); const k = 0.55 + Math.random() * 0.6; colr.set([c.r * k, c.g * k, c.b * k], i * 3); }
+    const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.BufferAttribute(d.pos, 3)); g.setAttribute("color", new THREE.BufferAttribute(colr, 3));
+    N.dust = new THREE.Points(g, new THREE.PointsMaterial({ size: 4, map: glowTex, alphaTest: 0.01, sizeAttenuation: false, vertexColors: true, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
+    N.dust.visible = false; N.g.scene().add(N.dust);
+  }
+  function setMode(m, quiet) {
+    if (m === N.mode && !quiet) return; N.mode = m; if (!quiet) saveMode(m);
+    const b = $("#nb-mode"); if (b) { b.textContent = m === "brain" ? "◉ brain" : "✶ graph"; b.classList.toggle("on", m === "brain"); }
+    if (!N.g || !N.data) return;
+    const nodes = N.g.graphData().nodes;
+    if (m === "brain") { brainPin(nodes, 0); for (const n of nodes) { n.fx = n.x; n.fy = n.y; n.fz = n.z; } }
+    else { N.tw = null; for (const n of nodes) { n.fx = n.fy = n.fz = undefined; } N.g.d3ReheatSimulation(); N.fitted = false; }
+  }
+  // welcome: every star starts far out and gathers into the brain
+  function gather(ms) {
+    N.mode = "brain"; setMode("brain", true);
+    if (N.g) N.g.cameraPosition({ x: 560, y: 300, z: 760 }, { x: 0, y: 0, z: 0 }, 0);
+    if (N.data && N.g) { N.gather = ms; build(); } else N.gather = ms;
+  }
+  function loop(now) {
+    if (!N.on) { N.raf = 0; return; }
+    N.raf = requestAnimationFrame(loop);
+    if (N.tw && N.tw.nodes) {
+      const k = Math.min(1, (now - N.tw.t0) / N.tw.ms), e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+      for (const n of N.tw.nodes) if (n.__from) { const f = n.__from, t = n.__to; n.fx = f[0] + (t[0] - f[0]) * e; n.fy = f[1] + (t[1] - f[1]) * e; n.fz = f[2] + (t[2] - f[2]) * e; }
+      N.g.d3ReheatSimulation(); if (k >= 1) { N.tw = null; N.fitted = false; }
+    }
+    if (N.dust) {
+      N.dustA += ((N.mode === "brain" ? 1 : 0) - N.dustA) * 0.04; N.dust.visible = N.dustA > 0.01;
+      N.dust.material.opacity = N.dustA * (0.5 + 0.2 * Math.sin(now * 0.0011)); const s = 1 + 0.008 * Math.sin(now * 0.0011); N.dust.scale.set(s, s, s);
+    }
   }
 
   function fly(n, dist) {
@@ -165,7 +230,7 @@
   function show(on) {
     N.on = !!on;
     if (!on) { if (N.g) N.g.pauseAnimation(); return; }
-    init(); fit(); N.g.resumeAnimation();
+    init(); fit(); N.g.resumeAnimation(); if (!N.raf) N.raf = requestAnimationFrame(loop);
     if (!N.data || Date.now() - N.scanAt > 60000) scan(false); else if (N.sel) paintSel();
   }
 
@@ -177,8 +242,10 @@
   inp.onblur = () => setTimeout(() => res.classList.add("hidden"), 150);
   $("#nb-ghosts").onclick = (e) => { N.ghosts = !N.ghosts; e.currentTarget.classList.toggle("on", N.ghosts); build(); };
   $("#nb-refresh").onclick = () => scan(true);
+  $("#nb-mode").onclick = () => setMode(N.mode === "brain" ? "graph" : "brain");
+  setMode(N.mode, true);
   $("#nb-back").onclick = () => window.HQView("hq");
   hq.on("todo-changed", () => { if (N.on) scan(true); else N.scanAt = 0; });
 
-  window.HQNebula = { show, scan, select: (id) => N.g && select(id), _state: N };
+  window.HQNebula = { show, scan, gather, setMode, select: (id) => N.g && select(id), _state: N };
 })();

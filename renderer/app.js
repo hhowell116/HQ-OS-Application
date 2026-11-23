@@ -418,14 +418,19 @@ document.querySelectorAll(".winbtns button").forEach((b) => (b.onclick = () => h
 document.addEventListener("keydown", (e) => {
   if (e.key === "F1") { e.preventDefault(); return setView("hq"); }
   if (e.key === "F4") { e.preventDefault(); return setView(document.body.classList.contains("in-floor") ? "hq" : "floor"); }
-  if (e.key === "F5") { e.preventDefault(); return setView(document.body.classList.contains("in-nebula") ? "hq" : "nebula"); }
+  if (e.key === "F5") { e.preventDefault(); return setView(document.body.classList.contains("in-nebula") ? "hq" : "home"); }
   if (e.key === "F2") { e.preventDefault(); return setView(document.body.classList.contains("in-room") ? "hq" : "room"); }
   if (document.body.classList.contains("in-room")) return; // the war room handles its own keys
   if (e.ctrlKey && e.key.toLowerCase() === "k") { e.preventDefault(); $("#input").focus(); }
   else if (e.ctrlKey && e.key.toLowerCase() === "n") { e.preventDefault(); newConv(); }
   else if (e.ctrlKey && /^[1-9]$/.test(e.key)) { const p = activeProjects()[+e.key - 1]; if (p) { e.preventDefault(); selectProject(p.id); } }
   else if (e.key === "F5") { e.preventDefault(); loadProjects(); }
-  else if (e.key === "Escape") { if (TTS.started) stopSpeech(); if (S.conv && S.conv.busy) hq.chatStop(S.conv.id); }
+  else if (e.key === "Escape") {
+    let did = false; if (TTS.started) { stopSpeech(); did = true; } if (S.conv && S.conv.busy) { hq.chatStop(S.conv.id); did = true; }
+    const a = document.activeElement, typing = a && /^(INPUT|TEXTAREA)$/.test(a.tagName) && a.value;
+    // nothing to stop, no popup open, nothing typed: Esc goes home
+    if (!did && !e.defaultPrevented && !typing && !REV.cur && !document.querySelector("#vpop, #newproj:not(.hidden), #needs-pop:not(.hidden), #acc-pop:not(.hidden)") && document.body.classList.contains("in-nebula") === false && !document.body.classList.contains("in-floor")) setView("home");
+  }
   else if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "h") { e.preventDefault(); $("#btn-handoff").click(); }
 });
 
@@ -545,9 +550,10 @@ $("#needs-pop").onclick = (e) => e.stopPropagation();
 document.addEventListener("click", () => $("#needs-pop").classList.add("hidden"));
 
 // ---------- views: HQ and the war room live in the same window ----------
-function setView(v) {
+function setView(v, welcome) {
+  if (v === "nebula") v = "home";
   const floor = v === "floor"; document.body.classList.toggle("in-floor", floor); $("#floor-view").classList.toggle("hidden", !floor); if (floor && window.HQFloor) window.HQFloor.shown();
-  const neb = v === "nebula"; document.body.classList.toggle("in-nebula", neb); $("#nebula-view").classList.toggle("hidden", !neb); if (window.HQNebula) window.HQNebula.show(neb);
+  const neb = v === "home"; document.body.classList.toggle("in-nebula", neb); $("#nebula-view").classList.toggle("hidden", !neb); if (window.HQNebula) window.HQNebula.show(neb); if (window.HQHome) window.HQHome.show(neb, neb && !!welcome);
   const room = v === "room"; document.body.classList.toggle("in-room", room);
   $("#room-view").classList.toggle("hidden", !room);
   document.querySelectorAll("#tabs button").forEach((b) => b.classList.toggle("on", b.dataset.view === v));
@@ -584,7 +590,7 @@ $("#room-back").onclick = () => setView("hq");
   const start = S.projects.find((p) => p.id === (ui.proj || init.settings.last)) || S.projects.find((p) => p.id === init.settings.last) || activeProjects()[0] || S.projects[0];
   if (start) await selectProject(start.id);
   if (ui.conv && ui.proj === S.cur) { try { await openConv(ui.conv); } catch (e) {} }
-  if (ui.view === "room") setView("room"); else if (ui.view === "floor") setView("floor"); else if (ui.view === "nebula") setView("nebula");
+  if (ui.view === "room") setView("room"); else if (ui.view === "floor") setView("floor"); else if (ui.view === "home" || ui.view === "nebula") setView("home"); else if (!ui.view && (init.settings.startView || "home") === "home") setView("home", true);
   hq.agents().then((a) => { S.agents = a; renderAgents(); renderProjects(); });
   hq.usage(false).then((u) => renderUsage(u.usage, u.err));
   setTimeout(() => setMood("idle"), 900);
@@ -634,7 +640,7 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape" && REV.cur)
 window.addEventListener("focus", loadReview); setInterval(loadReview, 45000);
 
 // ---------- reload state + dev watchers ----------
-window.addEventListener("beforeunload", () => sessionStorage.setItem("hqui", JSON.stringify({ proj: S.cur, conv: S.conv && S.conv.id, view: document.body.classList.contains("in-room") ? "room" : document.body.classList.contains("in-floor") ? "floor" : document.body.classList.contains("in-nebula") ? "nebula" : "hq", hide: !!S.hideChat })));
+window.addEventListener("beforeunload", () => sessionStorage.setItem("hqui", JSON.stringify({ proj: S.cur, conv: S.conv && S.conv.id, view: document.body.classList.contains("in-room") ? "room" : document.body.classList.contains("in-floor") ? "floor" : document.body.classList.contains("in-nebula") ? "home" : "hq", hide: !!S.hideChat })));
 hq.on("code-changed", () => $("#restart-chip").classList.remove("hidden"));
 hq.codePending().then((f) => f && $("#restart-chip").classList.remove("hidden")).catch(() => {});
 $("#restart-chip").onclick = async () => { const busy = await hq.busy(); if (busy && !confirm("A chat is still running, restart anyway?")) return; hq.restart(); };
