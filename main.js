@@ -317,13 +317,14 @@ app.whenReady().then(() => {
   ipcMain.handle("chat-handoff", (_, id) => chats.handoff(id));
   ipcMain.handle("chat-compact", (_, id) => chats.compact(id));
   // ---------- Trading Floor: runs Stonks/engine/run.js as a child process and relays its JSON lines ----------
-  const STONKS = process.env.STONKS_DIR || path.join(path.dirname(path.dirname(__dirname)), "Stonks");
-  const tfRead = (f, d) => { try { return JSON.parse(fs.readFileSync(path.join(STONKS, "data", f), "utf8")); } catch (e) { return d; } };
-  function tfStats() { try { return require(path.join(STONKS, "engine", "steady.js")).book(); } catch (e) { return null; } }
-  function tfHealth() { try { return require(path.join(STONKS, "engine", "safety.js")).health(); } catch (e) { return { ok: false, why: ["engine unreadable: " + String(e.message).slice(0, 80)] }; } }
+  // Project was renamed Stonks -> Stocks (2026-11-23); resolve at call time so both names work during the switch.
+  const stkDir = () => { if (process.env.STONKS_DIR) return process.env.STONKS_DIR; const root = path.dirname(path.dirname(__dirname)); for (const n of ["Stocks", "Stonks"]) { const p = path.join(root, n); if (fs.existsSync(p)) return p; } return path.join(root, "Stocks"); };
+  const tfRead = (f, d) => { try { return JSON.parse(fs.readFileSync(path.join(stkDir(), "data", f), "utf8")); } catch (e) { return d; } };
+  function tfStats() { try { return require(path.join(stkDir(), "engine", "steady.js")).book(); } catch (e) { return null; } }
+  function tfHealth() { try { return require(path.join(stkDir(), "engine", "safety.js")).health(); } catch (e) { return { ok: false, why: ["engine unreadable: " + String(e.message).slice(0, 80)] }; } }
   function tfStart(mode) {
     if (tfProc) return false;
-    const script = path.join(STONKS, "engine", "run.js"); if (!fs.existsSync(script)) throw new Error("Stonks engine not found at " + script);
+    const script = path.join(stkDir(), "engine", "run.js"); if (!fs.existsSync(script)) throw new Error("Stonks engine not found at " + script);
     const p = tfProc = require("child_process").spawn(process.execPath, [script, mode], { cwd: path.dirname(script), windowsHide: true, env: Object.assign({}, process.env, { ELECTRON_RUN_AS_NODE: "1" }) });
     let buf = ""; tfProc.stdout.on("data", (d) => { buf += d; let i; while ((i = buf.indexOf("\n")) >= 0) { const l = buf.slice(0, i); buf = buf.slice(i + 1); try { send("tf", JSON.parse(l)); } catch (e) {} } });
     tfProc.stderr.on("data", () => {});
@@ -338,17 +339,17 @@ app.whenReady().then(() => {
   ipcMain.handle("tf-kill", () => { if (tfProc) { try { tfProc.kill(); } catch (e) {} tfProc = null; } return tfStart("kill"); });
   ipcMain.handle("tf-stop", () => { if (tfProc) { try { tfProc.kill(); } catch (e) {} } return true; });
   // roundtable feed (data/events.jsonl, rewritten by every GO), usage meter (data/usage.json written by Stonks' statusline script), knowledge ingest
-  ipcMain.handle("tf-events", () => { try { return fs.readFileSync(path.join(STONKS, "data", "events.jsonl"), "utf8").split("\n").filter(Boolean).map((l) => { try { return JSON.parse(l); } catch (e) { return null; } }).filter(Boolean).slice(-400); } catch (e) { return []; } });
+  ipcMain.handle("tf-events", () => { try { return fs.readFileSync(path.join(stkDir(), "data", "events.jsonl"), "utf8").split("\n").filter(Boolean).map((l) => { try { return JSON.parse(l); } catch (e) { return null; } }).filter(Boolean).slice(-400); } catch (e) { return []; } });
   ipcMain.handle("tf-usage", () => tfRead("usage.json", null));
-  ipcMain.handle("kn-list", () => { try { return JSON.parse(require("child_process").execFileSync(process.execPath, [path.join(STONKS, "engine", "ingest.js"), "list"], { cwd: path.join(STONKS, "engine"), windowsHide: true, env: Object.assign({}, process.env, { ELECTRON_RUN_AS_NODE: "1" }), encoding: "utf8", timeout: 15000 })); } catch (e) { return { sources: [], backlog: [] }; } });
+  ipcMain.handle("kn-list", () => { try { return JSON.parse(require("child_process").execFileSync(process.execPath, [path.join(stkDir(), "engine", "ingest.js"), "list"], { cwd: path.join(stkDir(), "engine"), windowsHide: true, env: Object.assign({}, process.env, { ELECTRON_RUN_AS_NODE: "1" }), encoding: "utf8", timeout: 15000 })); } catch (e) { return { sources: [], backlog: [] }; } });
   ipcMain.handle("kn-ingest", (_, o) => new Promise((res) => {
-    const p = require("child_process").spawn(process.execPath, [path.join(STONKS, "engine", "ingest.js")], { cwd: path.join(STONKS, "engine"), windowsHide: true, env: Object.assign({}, process.env, { ELECTRON_RUN_AS_NODE: "1" }) });
+    const p = require("child_process").spawn(process.execPath, [path.join(stkDir(), "engine", "ingest.js")], { cwd: path.join(stkDir(), "engine"), windowsHide: true, env: Object.assign({}, process.env, { ELECTRON_RUN_AS_NODE: "1" }) });
     let b = ""; p.stdout.on("data", (d) => (b += d)); p.stderr.on("data", () => {});
     p.on("error", (e) => res({ ok: false, error: e.message }));
     p.on("close", () => { try { res(JSON.parse(b.trim().split("\n").pop())); } catch (e) { res({ ok: false, error: "ingest failed" }); } });
     p.stdin.end(JSON.stringify({ title: o && o.title, type: o && o.type, url: o && o.url, text: o && o.text }));
   }));
-  ipcMain.handle("kn-open", (_, rel) => { const f = path.join(STONKS, String(rel || "")); if (!f.startsWith(STONKS) || /\.\./.test(rel)) return false; return require("electron").shell.openPath(f).then(() => true); });
+  ipcMain.handle("kn-open", (_, rel) => { const S0 = stkDir(), f = path.join(S0, String(rel || "")); if (!f.startsWith(S0) || /\.\./.test(rel)) return false; return require("electron").shell.openPath(f).then(() => true); });
   ipcMain.on("win", (e, a) => { const w = BrowserWindow.fromWebContents(e.sender); if (!w) return; if (a === "min") w.minimize(); else if (a === "max") w.isMaximized() ? w.unmaximize() : w.maximize(); else if (a === "close") w.close(); else if (a === "top") w.setAlwaysOnTop(!w.isAlwaysOnTop()); });
 
   createWindow();

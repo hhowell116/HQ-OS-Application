@@ -7,7 +7,7 @@
   const CARDS = [
     { id: "hq", name: "HQ", sub: () => (H.needs == null ? "command center" : H.needs + (H.needs === 1 ? " item needs you" : " items need you")), hot: () => H.needs > 0 },
     { id: "tower", name: "TOWER", sub: () => (H.running == null ? "a floor per project" : H.running + " working"), hot: () => H.running > 0 },
-    { id: "stonks", name: "STONKS FLOOR", sub: () => (window.HQFloor && HQFloor.running() ? "engine running" : "trading desks, in the tower"), hot: () => !!(window.HQFloor && HQFloor.running()), go: () => window.HQGoStonks && window.HQGoStonks() },
+    { id: "stonks", name: "STOCKS FLOOR", sub: () => (window.HQFloor && HQFloor.running() ? "engine running" : "trading desks, in the tower"), hot: () => !!(window.HQFloor && HQFloor.running()), go: () => window.HQGoStonks && window.HQGoStonks() },
   ];
   CARDS.forEach((c) => {
     const b = document.createElement("button"); b.className = "hm-card" + (c.off ? " off" : ""); b.dataset.id = c.id; b.disabled = !!c.off;

@@ -128,7 +128,7 @@
     const edgeG = [];
     defs.forEach((d, i) => {
       const h = d.kind === "lobby" ? LH : FH, t = i / Math.max(1, n - 1), w = d.kind === "lobby" ? 17 : 14.2 - 3.2 * t, g = new THREE.Group(); g.position.y = y; tower.add(g);
-      const f = Object.assign(d, { stonks: d.kind === "project" && /stonks/i.test(d.name), i, y0: y, h, w, group: g, act: 0, hov: 0, n: 0, fade: 1, mats: [], pulse: 0 });
+      const f = Object.assign(d, { stonks: d.kind === "project" && /^(stonks|stocks)$/i.test(d.name), i, y0: y, h, w, group: g, act: 0, hov: 0, n: 0, fade: 1, mats: [], pulse: 0 });
       const add = (m, base) => { m.transparent = true; f.mats.push({ m, base }); return m; };
       const glass = new THREE.Mesh(new THREE.BoxGeometry(w, h - 0.22, w), add(new THREE.MeshBasicMaterial({ color: f.color.clone().multiplyScalar(0.35), opacity: 0.09, depthWrite: false, side: THREE.DoubleSide }), 0.09)); glass.position.y = h / 2 + 0.11; g.add(glass); f.glass = glass;
       const slab = new THREE.Mesh(new THREE.BoxGeometry(w + 0.3, 0.22, w + 0.3), add(new THREE.MeshBasicMaterial({ color: 0x080d16 }), 1)); slab.position.y = 0.11; g.add(slab);
@@ -707,7 +707,7 @@
     clearInterval(T.poll); T.poll = setInterval(() => { if (T.on) { sync(); } }, 2500);
     if (!T.raf) T.raf = requestAnimationFrame(frame);
   }
-  const find = (id) => T.floors.find((x) => x.id === id || x.name.toLowerCase() === String(id).toLowerCase() || (/^stonks$/i.test(id) && x.stonks));
+  const find = (id) => T.floors.find((x) => x.id === id || x.name.toLowerCase() === String(id).toLowerCase() || (/^(stonks|stocks)$/i.test(id) && x.stonks));
   window.HQTower = { setFocus: (p) => { if (p && p.pos && p.target) T.focus = { pos: p.pos, target: p.target, fov: p.fov }; }, clearFocus: () => { T.focus = null; }, show, go: (id) => { const f = find(id); if (!f) return; if (T.mode === "int" && T.cur) hopTo(f); else flyIn(f); }, demo: (on) => { if (on !== T.demo) toggleDemo(); }, state: T, enter: (id) => { const f = T.floors.find((x) => x.id === id || x.name.toLowerCase() === String(id).toLowerCase()); if (f) flyIn(f); }, exit: flyOut, hop: (id) => { const f = T.floors.find((x) => x.id === id || x.name.toLowerCase() === String(id).toLowerCase()); if (f) hopTo(f); }, enterHQ, setAz: (a) => { T.az = a; T.autoAz = false; }, summary: () => ({ floors: T.floors.map((f) => ({ name: f.name, kind: f.kind, n: f.n, act: +f.act.toFixed(2) })), total: T.groups.total }) };
   hq.on("todo-changed", () => { if (T.on) setTimeout(sync, 400); });
 })();
