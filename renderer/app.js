@@ -550,7 +550,10 @@ function setView(v) {
   $("#room-view").classList.toggle("hidden", !room);
   document.querySelectorAll("#tabs button").forEach((b) => b.classList.toggle("on", b.dataset.view === v));
   // the one console moves between views, so the chat, handoff and compact work the same in both
-  const con = $("#console"); if (room) $("#room-comms").append(con); else $(".col.center").append(con);
+  const con = $("#console"); if (room) $("#room-comms").append(con); else if (floor) $("#fl-chat").append(con); else $(".col.center").append(con);
+  // the Trading Floor chat is the Stonks project's chat: switch to it on entry, back on exit
+  if (floor && S.floorPrev == null) { const st = S.projects.find((p) => /stonks/i.test(p.id + " " + p.name)); if (st && st.id !== S.cur) { S.floorPrev = S.cur || ""; selectProject(st.id); } }
+  else if (!floor && S.floorPrev != null) { const pv = S.floorPrev; S.floorPrev = null; if (pv && pv !== S.cur) selectProject(pv); }
   requestAnimationFrame(() => window.HQPinLog && window.HQPinLog());
   if (room) renderRoomProj();
   if (room && window.HQRoom) window.HQRoom.shown();

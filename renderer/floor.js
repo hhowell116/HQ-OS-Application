@@ -37,7 +37,7 @@
     if (a.vetoWhy && a.vetoWhy.length) c.append(mk("div", "veto", "Risk: " + a.vetoWhy.join("; ")));
     const ul = mk("ul"); (a.reasons || []).forEach((r) => ul.append(mk("li", "", r))); c.append(ul);
     const ch = mk("div", "fl-chips"); (a.signals || []).forEach((s) => ch.append(mk("span", "sg", s))); (a.sources || []).forEach((s) => { const e = mk("span", "", s); e.title = s; ch.append(e); }); c.append(ch);
-    c.append(mk("div", "dis", "Research only, paper-traded, not financial advice.")); return c;
+    return c;
   }
   const RANK = { BUY: 0, SELL: 1, WATCH: 2 };
   function renderAlerts() {
