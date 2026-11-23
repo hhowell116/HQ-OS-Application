@@ -268,12 +268,24 @@ app.whenReady().then(() => {
     tfProc.on("error", () => { tfProc = null; });
     return true;
   }
-  ipcMain.handle("tf-state", () => ({ running: !!tfProc, health: tfHealth(), state: tfRead("state.json", null), stats: tfStats(), journal: tfRead("signals.json", {}) }));
+  ipcMain.handle("tf-state", () => ({ running: !!tfProc, health: tfHealth(), state: tfRead("state.json", null), stats: tfStats(), journal: tfRead("signals.json", {}), equity: tfRead("equity.json", []) }));
   ipcMain.handle("tf-go", () => tfStart("go"));
   ipcMain.handle("tf-score", () => tfStart("score"));
   ipcMain.handle("tf-resume", () => tfStart("resume"));
   ipcMain.handle("tf-kill", () => { if (tfProc) { try { tfProc.kill(); } catch (e) {} tfProc = null; } return tfStart("kill"); });
   ipcMain.handle("tf-stop", () => { if (tfProc) { try { tfProc.kill(); } catch (e) {} } return true; });
+  // roundtable feed (data/events.jsonl, rewritten by every GO), usage meter (data/usage.json written by Stonks' statusline script), knowledge ingest
+  ipcMain.handle("tf-events", () => { try { return fs.readFileSync(path.join(STONKS, "data", "events.jsonl"), "utf8").split("\n").filter(Boolean).map((l) => { try { return JSON.parse(l); } catch (e) { return null; } }).filter(Boolean).slice(-400); } catch (e) { return []; } });
+  ipcMain.handle("tf-usage", () => tfRead("usage.json", null));
+  ipcMain.handle("kn-list", () => { try { return JSON.parse(require("child_process").execFileSync(process.execPath, [path.join(STONKS, "engine", "ingest.js"), "list"], { cwd: path.join(STONKS, "engine"), windowsHide: true, env: Object.assign({}, process.env, { ELECTRON_RUN_AS_NODE: "1" }), encoding: "utf8", timeout: 15000 })); } catch (e) { return { sources: [], backlog: [] }; } });
+  ipcMain.handle("kn-ingest", (_, o) => new Promise((res) => {
+    const p = require("child_process").spawn(process.execPath, [path.join(STONKS, "engine", "ingest.js")], { cwd: path.join(STONKS, "engine"), windowsHide: true, env: Object.assign({}, process.env, { ELECTRON_RUN_AS_NODE: "1" }) });
+    let b = ""; p.stdout.on("data", (d) => (b += d)); p.stderr.on("data", () => {});
+    p.on("error", (e) => res({ ok: false, error: e.message }));
+    p.on("close", () => { try { res(JSON.parse(b.trim().split("\n").pop())); } catch (e) { res({ ok: false, error: "ingest failed" }); } });
+    p.stdin.end(JSON.stringify({ title: o && o.title, type: o && o.type, url: o && o.url, text: o && o.text }));
+  }));
+  ipcMain.handle("kn-open", (_, rel) => { const f = path.join(STONKS, String(rel || "")); if (!f.startsWith(STONKS) || /\.\./.test(rel)) return false; return require("electron").shell.openPath(f).then(() => true); });
   ipcMain.on("win", (e, a) => { const w = BrowserWindow.fromWebContents(e.sender); if (!w) return; if (a === "min") w.minimize(); else if (a === "max") w.isMaximized() ? w.unmaximize() : w.maximize(); else if (a === "close") w.close(); else if (a === "top") w.setAlwaysOnTop(!w.isAlwaysOnTop()); });
 
   createWindow();

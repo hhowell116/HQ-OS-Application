@@ -1,26 +1,102 @@
-// Trading Floor tab: live desk cards, ticker tape, signal board and paper book. Data comes from Stonks/engine via main.js (IPC "tf").
+// Trading Floor: sub-tabs (Agents roundtable, Signals, Book, Chat, Knowledge) under a persistent header.
+// Data comes from Stonks/engine via main.js: IPC "tf" live lines (desk + msg events), tf-state, tf-events (replay), tf-usage, kn-*.
 (function () {
   const $ = (s) => document.querySelector(s);
   const mk = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
-  const ORDER = ["market", "news", "sentiment", "analyst", "debate", "backtest", "risk", "lead", "score", "reflect"];
-  const ICON = { market: "▦", news: "✉", sentiment: "☺", analyst: "∿", debate: "⚔", backtest: "⟲", risk: "⛨", lead: "★", score: "✓", reflect: "✎" };
-  const NAME = { market: "Market Data", news: "News & Policy", sentiment: "Sentiment", analyst: "Analyst", debate: "Bull vs Bear", backtest: "Backtester", risk: "Risk Manager", lead: "Lead", score: "Scorekeeper", reflect: "Reflector" };
-  const S = { health: { ok: true, why: [] }, running: false, desks: {}, alerts: [], tape: [], stats: null, sig: {}, finishedAt: 0 };
+  const ICON = { market: "▦", news: "✉", sentiment: "☺", analyst: "∿", bull: "▲", bear: "▼", backtest: "⟲", risk: "⛨", lead: "★", score: "✓", reflect: "✎" };
+  const NAME = { market: "Market Data", news: "News & Policy", sentiment: "Sentiment", analyst: "Analyst", debate: "Bull vs Bear", bull: "Bull", bear: "Bear", backtest: "Backtester", risk: "Risk Manager", lead: "Lead", score: "Scorekeeper", reflect: "Reflector" };
+  const HUE = { market: "#4aa8ff", news: "#b58cff", sentiment: "#ff8fd0", analyst: "#ffb02e", bull: "#00f5a0", bear: "#ff3d6b", backtest: "#5ee6ff", risk: "#ff7a45", lead: "#ffe066", score: "#9ad17a", reflect: "#c0a0ff" };
+  // seat angle in degrees clockwise from the top; bull (270) and bear (90) sit opposite each other
+  const ANG = { market: 325, news: 0, sentiment: 35, bear: 90, backtest: 135, risk: 165, lead: 195, reflect: 222, score: 248, bull: 270, analyst: 298 };
+  const SEATS = Object.keys(ANG);
+  const NEXT = { score: "market", market: "analyst", news: "analyst", sentiment: "analyst", analyst: "bull", bull: "bear", bear: "backtest", debate: "backtest", backtest: "risk", risk: "lead", lead: "reflect", reflect: "" };
+  const STAGES = [["SCORE", ["score"]], ["DATA", ["market", "news", "sentiment"]], ["ANALYST", ["analyst"]], ["DEBATE", ["bull", "bear"]], ["BACKTEST", ["backtest"]], ["RISK", ["risk"]], ["LEAD", ["lead"]], ["REFLECT", ["reflect"]]];
+  const S = { health: { ok: true, why: [] }, running: false, desks: {}, alerts: [], tape: [], stats: null, sig: {}, equity: [], finishedAt: 0, ev: [], cur: -1, follow: true, sel: "", play: null, tab: localStorage.getItem("fl-tab") || "agents", usage: null };
   const sgn = (n) => (n > 0 ? "+" : "") + n;
   const cls = (n) => (n > 0 ? "up" : n < 0 ? "dn" : "");
   const usd = (n) => (n < 0 ? "-$" : "$") + Math.abs(n).toLocaleString(undefined, { maximumFractionDigits: 2 });
+  const toast = (m) => { const t = $("#toast"); if (t) { t.textContent = m; t.classList.remove("hidden"); setTimeout(() => t.classList.add("hidden"), 4000); } };
+  const seatOf = (a) => (a === "debate" ? "bear" : a);
+  const seatsFor = (a) => (a === "debate" ? ["bull", "bear"] : [a]);
+  const short = (t, n) => { t = String(t || "").replace(/\s+/g, " ").trim(); return t.length > n ? t.slice(0, n - 1) + "…" : t; };
+  const ago = (ts) => { const m = Math.round((Date.now() - ts) / 60000); return m < 1 ? "just now" : m < 60 ? m + "m ago" : m < 1440 ? Math.floor(m / 60) + "h ago" : Math.floor(m / 1440) + "d ago"; };
 
-  function renderDesks() {
-    const box = $("#fl-desks"); box.textContent = "";
-    for (const id of ORDER) {
-      const d = S.desks[id] || { id, name: NAME[id], status: "idle", step: "", out: "" };
-      const c = mk("div", "fl-desk " + d.status), h = mk("div", "hd"); h.append(mk("span", "", (ICON[id] || "•") + " " + d.name), mk("span", "st", d.status), mk("span", "led"));
-      c.append(h, mk("div", "step", d.step || (d.status === "idle" ? "standing by" : "")), mk("div", "out", d.out || "")); box.append(c);
-    }
-    const w = Object.values(S.desks).filter((d) => d.status === "working");
-    $("#fl-sub").textContent = S.running ? (w.length ? w.map((d) => d.name).join(" + ") + " working" : "run in progress") : S.finishedAt ? "last run " + new Date(S.finishedAt).toLocaleTimeString() : "desks idle";
-    const go = $("#fl-go"); go.textContent = S.running ? "RUNNING" : "GO"; go.classList.toggle("run", S.running); go.disabled = S.running; $("#fl-score").disabled = S.running;
+  // ---------- events: live feed, with a fallback built from the desk cards when no run has logged any yet ----------
+  function events() {
+    if (S.ev.length) return S.ev;
+    return Object.values(S.desks).filter((d) => (d.status === "done" || d.status === "error") && (d.out || d.step)).sort((a, b) => (a.t || 0) - (b.t || 0))
+      .map((d, i) => ({ seq: i + 1, ts: d.t || 0, agent: d.id, kind: d.status === "error" ? "error" : "done", to: NEXT[d.id] || "", text: [d.step, d.out].filter(Boolean).join(" | ") }));
   }
+  function derive(ev, cur) {
+    const st = {}; SEATS.forEach((s) => (st[s] = { status: "idle", text: "" }));
+    let veto = null;
+    for (let i = 0; i <= cur && i < ev.length; i++) {
+      const e = ev[i];
+      if (e.kind === "start") seatsFor(e.agent).forEach((s) => st[s] && (st[s].status = "working"));
+      else if (e.kind === "done") seatsFor(e.agent).forEach((s) => st[s] && (st[s].status = "done"));
+      else if (e.kind === "error") seatsFor(e.agent).forEach((s) => st[s] && (st[s].status = "error"));
+      if (st[seatOf(e.agent)]) st[seatOf(e.agent)].text = e.text;
+      if (e.kind === "veto") veto = e;
+    }
+    return { st, veto };
+  }
+
+  // ---------- Agents: roundtable ----------
+  const pos = (s) => { const a = (ANG[s] * Math.PI) / 180; return { x: 50 + 41 * Math.sin(a), y: 50 - 38 * Math.cos(a) }; };
+  function renderAgents() {
+    const ev = events(), n = ev.length; if (S.follow || S.cur >= n) S.cur = n - 1;
+    const cur = S.cur, { st, veto } = derive(ev, cur), e = ev[cur];
+    // stepper
+    const stp = $("#fl-stepper"); stp.textContent = "";
+    STAGES.forEach(([label, ids], i) => { const ss = ids.map((x) => st[x].status), c = ss.includes("working") ? "working" : ss.includes("error") ? "error" : ss.every((x) => x === "done") ? "done" : ss.includes("done") ? "working" : ""; stp.append(mk("span", "stp " + c, label)); if (i < STAGES.length - 1) stp.append(mk("i")); });
+    // seats
+    const seats = $("#fl-seats"); seats.textContent = "";
+    for (const id of SEATS) {
+      const p = pos(id), q = st[id], sp = e && seatOf(e.agent) === id, d = mk("div", "seat " + q.status + (sp ? " speaking" : "") + (S.sel === id ? " sel" : ""));
+      d.style.left = p.x + "%"; d.style.top = p.y + "%"; d.style.setProperty("--h", HUE[id]);
+      const av = mk("div", "av", ICON[id]); d.append(av, mk("div", "nm", NAME[id]), mk("div", "stt", q.status === "idle" ? "standing by" : q.status));
+      d.onclick = () => { S.sel = S.sel === id ? "" : id; renderAgents(); }; seats.append(d);
+    }
+    // bubbles: last three messages, fading
+    const rec = ev.slice(Math.max(0, cur - 2), cur + 1).filter((x) => x.text);
+    rec.forEach((m, i) => {
+      const sid = seatOf(m.agent); if (!ANG.hasOwnProperty(sid)) return; const p = pos(sid), age = rec.length - 1 - i;
+      const b = mk("div", "bub a" + age + (m.kind === "veto" ? " veto" : "")); b.style.setProperty("--h", HUE[sid]);
+      const k = 0.3, bx = p.x + (50 - p.x) * k, by = p.y + (50 - p.y) * k + (p.y < 50 ? 4 : -4);
+      b.style.left = bx + "%"; b.style.top = by + "%";
+      b.append(mk("b", "", NAME[sid] + (m.to ? " → " + NAME[m.to] : "")), mk("span", "", short(m.text, 120))); seats.append(b);
+    });
+    // arrow from the speaker to the addressee
+    const ar = $("#fl-arrows"); ar.textContent = "";
+    if (e && e.to && ANG.hasOwnProperty(e.to) && ANG.hasOwnProperty(seatOf(e.agent))) {
+      const a = pos(seatOf(e.agent)), b = pos(e.to), ns = "http://www.w3.org/2000/svg", l = document.createElementNS(ns, "line");
+      l.setAttribute("x1", a.x); l.setAttribute("y1", a.y); l.setAttribute("x2", b.x); l.setAttribute("y2", b.y); l.setAttribute("class", "arr"); l.style.stroke = HUE[seatOf(e.agent)];
+      ar.append(l);
+    }
+    // table centre + veto stamp
+    const tc = $("#fl-tc"); tc.textContent = "";
+    tc.append(mk("small", "", S.running ? "RUN IN PROGRESS" : n ? "LAST RUN" : "NO RUN YET"), mk("b", "", e ? NAME[seatOf(e.agent)] : "ROUNDTABLE"), mk("span", "", n ? (cur + 1) + " / " + n + " messages" : "hit GO to seat the desks"));
+    const sp = $("#fl-stamp"); if (veto) { const m = /^([A-Z.]{1,6})\b/.exec(veto.text || ""); sp.textContent = "VETO" + (m ? " · " + m[1] : ""); sp.classList.remove("hidden"); sp.classList.toggle("fresh", e === veto); } else sp.classList.add("hidden");
+    // scrubber
+    const r = $("#fl-range"); r.max = Math.max(0, n - 1); r.value = Math.max(0, cur); $("#fl-spos").textContent = n ? (cur + 1) + "/" + n : "0/0";
+    $("#fl-live").classList.toggle("on", S.follow); $("#fl-play").textContent = S.play ? "PAUSE" : "PLAY";
+    // transcript
+    const log = $("#fl-log"), keep = log.scrollTop, atEnd = log.scrollHeight - log.scrollTop - log.clientHeight < 40; log.textContent = "";
+    $("#fl-filter").textContent = S.sel ? NAME[S.sel] + " only (click seat to clear)" : "";
+    if (!n) log.append(mk("div", "fl-empty", "No messages yet. Hit GO and watch the desks hand work to each other."));
+    ev.forEach((m, i) => {
+      if (S.sel && seatOf(m.agent) !== S.sel && m.to !== S.sel) return;
+      const sid = seatOf(m.agent), row = mk("div", "ln " + m.kind + (i === cur ? " cur" : "") + (i > cur ? " future" : "")); row.style.setProperty("--h", HUE[sid] || "#888");
+      const h = mk("div", "lh"); h.append(mk("b", "", NAME[m.agent] || m.agent), mk("em", "", (m.to ? "→ " + NAME[m.to] : "") + (m.kind === "veto" ? "  VETO" : m.kind === "start" ? "  working" : m.kind === "error" ? "  error" : "")), mk("time", "", m.ts ? new Date(m.ts).toLocaleTimeString([], { hour12: false }) : ""));
+      row.append(h, mk("div", "lt", m.text)); row.onclick = () => { S.follow = false; S.cur = i; stopPlay(); renderAgents(); }; log.append(row);
+    });
+    if (S.follow || atEnd) { const c = log.querySelector(".cur"); if (c) log.scrollTop = c.offsetTop - log.clientHeight + c.offsetHeight + 8; else log.scrollTop = log.scrollHeight; } else log.scrollTop = keep;
+  }
+  function stopPlay() { if (S.play) { clearInterval(S.play); S.play = null; } }
+  function startPlay() { const n = events().length; if (!n) return; S.follow = false; if (S.cur >= n - 1) S.cur = -1; S.play = setInterval(() => { const m = events().length; if (S.cur >= m - 1) { stopPlay(); S.follow = S.running; renderAgents(); return; } S.cur++; renderAgents(); }, 1100); renderAgents(); }
+  $("#fl-play").onclick = () => (S.play ? (stopPlay(), renderAgents()) : startPlay());
+  $("#fl-live").onclick = () => { stopPlay(); S.follow = true; renderAgents(); };
+  $("#fl-range").oninput = (x) => { stopPlay(); S.follow = false; S.cur = +x.target.value; renderAgents(); };
   function renderTape() {
     const t = S.tape.length ? S.tape : [{ s: "SPY", px: 0, chg: 0 }]; const inn = $("#fl-tape-in"); inn.textContent = "";
     for (const x of [...t, ...t]) { const s = mk("span", "fl-tk " + cls(x.chg)); s.append(mk("b", "", x.s), document.createTextNode((x.chg > 0 ? "▲ " : x.chg < 0 ? "▼ " : "") + (x.px ? x.px + " " : "") + sgn(x.chg) + "%")); inn.append(s); }
@@ -37,7 +113,7 @@
     if (a.vetoWhy && a.vetoWhy.length) c.append(mk("div", "veto", "Risk: " + a.vetoWhy.join("; ")));
     const ul = mk("ul"); (a.reasons || []).forEach((r) => ul.append(mk("li", "", r))); c.append(ul);
     const ch = mk("div", "fl-chips"); (a.signals || []).forEach((s) => ch.append(mk("span", "sg", s))); (a.sources || []).forEach((s) => { const e = mk("span", "", s); e.title = s; ch.append(e); }); c.append(ch);
-    return c;
+    c.onclick = () => openDrawer(a); return c;
   }
   const RANK = { BUY: 0, SELL: 1, WATCH: 2 };
   function renderAlerts() {
@@ -85,22 +161,132 @@
     if (!e.length) { box.append(mk("div", "fl-empty", "Signals are scored once trades close.")); return; }
     for (const [k, v] of e) { const r = mk("div", "fl-row"), n = mk("span", "", k); if (v.demoted) n.append(mk("span", "dem", "DEMOTED")); r.append(n, mk("span", "pl " + cls(v.pnl), Math.round(v.winRate * 100) + "% · " + v.n + " · " + usd(v.pnl))); box.append(r); }
   }
-  const all = () => { renderSafety(); renderCmp(); renderDesks(); renderTape(); renderAlerts(); renderBook(); renderSig(); };
-  function load(r) { const st = r.state; if (st) { S.desks = st.desks || {}; S.alerts = st.alerts || []; S.tape = st.tape || []; S.finishedAt = st.finishedAt || 0; S.flag = st.flag || ""; } S.health = r.health || { ok: true, why: [] }; S.running = !!r.running; S.stats = r.stats; S.sig = r.journal || {}; all(); }
-  async function refresh() { try { load(await hq.tfState()); } catch (e) {} }
+
+  // ---------- Signals drawer ----------
+  function openDrawer(a) {
+    const d = $("#fl-drawer"); d.textContent = ""; d.classList.remove("hidden");
+    const x = mk("button", "fl-btn ghost", "CLOSE"); x.onclick = () => d.classList.add("hidden");
+    const top = mk("div", "dtop"); top.append(mk("span", "dact " + a.action, a.action), mk("b", "tk", a.ticker), mk("span", "fl-strat " + (a.strategy || "Scanner"), (a.strategy || "Scanner").toUpperCase()), mk("span", "spacer"), x); d.append(top);
+    d.append(mk("div", "dpx", (a.px ? "$" + a.px + "  " : "") + (a.chg != null ? sgn(a.chg) + "% today" : "") + (a.confidence != null ? "   confidence " + a.confidence : "")), mk("p", "dth", a.thesis || ""));
+    const sec = (t, rows) => { if (!rows.length) return; d.append(mk("div", "fl-h", t)); const ul = mk("ul", "dl"); rows.forEach((r) => ul.append(mk("li", "", r))); d.append(ul); };
+    sec("REASONS", a.reasons || []);
+    const lines = S.ev.filter((m) => (m.kind === "say" || m.kind === "veto") && new RegExp("^" + a.ticker + "\\b").test(m.text || ""));
+    sec("DESK VERDICTS", lines.map((m) => NAME[m.agent] + ": " + m.text));
+    sec("BACKTEST", a.backtest && a.backtest.text ? [a.backtest.text] : []);
+    sec("RISK CHECK", (a.vetoWhy && a.vetoWhy.length ? a.vetoWhy.map((v) => "Veto: " + v) : a.plan ? ["Approved: size " + a.plan.shares + " sh, risk $" + (a.plan.riskUsd != null ? a.plan.riskUsd : "?")] : []));
+    if (a.plan) { const l = mk("div", "fl-lad"); [["ENTRY", a.plan.entry, ""], ["STOP", a.plan.stop, "s"], ["TARGET 1", a.plan.t1, "t"], ["TARGET 2", a.plan.t2, "t"]].filter((z) => z[1] != null).forEach(([k, v, z]) => { const e = mk("div", z); e.append(mk("small", "", k), document.createTextNode("$" + v)); l.append(e); }); d.append(l); }
+    sec("SIGNALS", a.signals || []); sec("SOURCES", a.sources || []);
+    d.append(mk("div", "dis", a.disclaimer || "Research only, paper-traded, not financial advice."));
+  }
+
+  // ---------- Book: equity curve (inline SVG) ----------
+  function renderCurve() {
+    const box = $("#fl-curve"); box.textContent = ""; const h = S.equity || [], s = S.stats;
+    box.append(mk("div", "fl-h", "EQUITY CURVE vs SPY"));
+    if (h.length < 2) { box.append(mk("div", "fl-empty", "The curve fills in as runs finish. Each GO or SCORE adds a point.")); return; }
+    const cap = (s && s.capital) || h[0].total || 1000, W = 640, H = 200, P = { l: 46, r: 12, t: 12, b: 22 };
+    const pct = (v) => (v == null ? null : (v / cap - 1) * 100);
+    const series = [["TOTAL", "#ffb02e", h.map((p) => pct(p.total))], ["SCANNER", "#00f5a0", h.map((p) => (p.scanner == null ? null : (p.scanner / (cap / 2) - 1) * 100))], ["STEADY", "#4aa8ff", h.map((p) => (p.steady == null ? null : (p.steady / (cap / 2) - 1) * 100))], ["SPY", "#8a9a94", h.map((p) => p.spy)]];
+    const vals = series.flatMap((x) => x[2]).filter((v) => v != null), lo = Math.min(0, ...vals), hi = Math.max(0.5, ...vals), pad = (hi - lo) * 0.1 || 1, y0 = lo - pad, y1 = hi + pad;
+    const t0 = h[0].ts, t1 = h[h.length - 1].ts || t0 + 1, X = (t) => P.l + ((t - t0) / Math.max(1, t1 - t0)) * (W - P.l - P.r), Y = (v) => P.t + (1 - (v - y0) / (y1 - y0)) * (H - P.t - P.b);
+    const ns = "http://www.w3.org/2000/svg", el = (n, a) => { const e = document.createElementNS(ns, n); for (const k in a) e.setAttribute(k, a[k]); return e; };
+    const svg = el("svg", { viewBox: "0 0 " + W + " " + H, class: "crv" });
+    for (let i = 0; i <= 4; i++) { const v = y0 + ((y1 - y0) * i) / 4, y = Y(v); svg.append(el("line", { x1: P.l, x2: W - P.r, y1: y, y2: y, class: "gl" })); const t = el("text", { x: P.l - 6, y: y + 3, class: "ax", "text-anchor": "end" }); t.textContent = v.toFixed(1) + "%"; svg.append(t); }
+    svg.append(el("line", { x1: P.l, x2: W - P.r, y1: Y(0), y2: Y(0), class: "zero" }));
+    for (const [name, col, arr] of series) { const pts = arr.map((v, i) => (v == null ? null : [X(h[i].ts), Y(v)])).filter(Boolean); if (pts.length < 2) continue; svg.append(el("polyline", { points: pts.map((p) => p[0].toFixed(1) + "," + p[1].toFixed(1)).join(" "), fill: "none", stroke: col, "stroke-width": name === "TOTAL" ? 2.4 : 1.6, "stroke-dasharray": name === "SPY" ? "4 3" : "" })); const l = pts[pts.length - 1]; svg.append(el("circle", { cx: l[0], cy: l[1], r: 3, fill: col })); }
+    const d0 = el("text", { x: P.l, y: H - 6, class: "ax" }); d0.textContent = new Date(t0).toLocaleDateString(); const d1 = el("text", { x: W - P.r, y: H - 6, class: "ax", "text-anchor": "end" }); d1.textContent = new Date(t1).toLocaleDateString(); svg.append(d0, d1);
+    box.append(svg); const lg = mk("div", "lg"); series.forEach(([n, c]) => { const i = mk("span", "", n); i.style.setProperty("--c", c); lg.append(i); }); box.append(lg);
+  }
+
+  // ---------- Header: equity, usage meter, run state ----------
+  function renderHead() {
+    const s = S.stats, eq = s && (s.totalEquity != null ? s.totalEquity : s.equity), cap = s && (s.capital || 0);
+    $("#fl-eq").textContent = eq == null ? "--" : usd(eq);
+    const ret = eq != null && cap ? Math.round((eq / cap - 1) * 10000) / 100 : null, spy = s && s.spy && s.spy.retPct;
+    const r = $("#fl-ret"); r.textContent = ret == null ? "--" : sgn(ret) + "%"; r.className = cls(ret);
+    const vs = ret != null && spy != null ? Math.round((ret - spy) * 100) / 100 : null, v = $("#fl-vs"); v.textContent = vs == null ? "--" : sgn(vs) + " pts"; v.className = cls(vs); v.title = spy != null ? "SPY " + sgn(spy) + "% over the same period" : "";
+    const w = Object.values(S.desks).filter((d) => d.status === "working");
+    $("#fl-sub").textContent = S.running ? (w.length ? w.map((d) => d.name).join(" + ") + " working" : "run in progress") : S.finishedAt ? "last run " + new Date(S.finishedAt).toLocaleTimeString() : "desks idle";
+    const go = $("#fl-go"); go.textContent = S.running ? "RUNNING" : "GO"; go.classList.toggle("run", S.running); go.disabled = S.running; $("#fl-score").disabled = S.running;
+  }
+  const lvl = (p) => (p >= 80 ? "r" : p >= 50 ? "a" : "g");
+  const until = (sec) => { const m = Math.max(0, Math.round((sec * 1000 - Date.now()) / 60000)), d = Math.floor(m / 1440), h = Math.floor((m % 1440) / 60); return d ? d + "d " + h + "h" : h ? h + "h " + (m % 60) + "m" : (m % 60) + "m"; };
+  function renderUsage() {
+    const u = S.usage, box = $("#fl-use"), fresh = u && u.updated && Date.now() - u.updated < 7 * 86400000;
+    box.classList.toggle("none", !fresh); box.classList.toggle("stale", !!fresh && Date.now() - u.updated > 15 * 60000);
+    for (const [id, key] of [["#fl-u5", "five_hour"], ["#fl-u7", "seven_day"]]) {
+      const e = $(id), b = fresh && u[key], bar = e.querySelector("b"), t = e.querySelector("span");
+      if (!b) { bar.style.width = "0"; bar.className = ""; t.textContent = "--"; continue; }
+      const reset = b.resets_at && b.resets_at * 1000 < Date.now(), p = reset ? 0 : Math.max(0, Math.min(100, Math.round(b.used_percentage)));
+      bar.style.width = p + "%"; bar.className = lvl(p); t.textContent = p + "%" + (reset ? " (reset)" : b.resets_at ? " · resets " + until(b.resets_at) : "");
+    }
+    $("#fl-uage").textContent = fresh ? "updated " + ago(u.updated) + (box.classList.contains("stale") ? " (stale)" : "") : "no data yet";
+  }
+  async function refreshUsage() { try { S.usage = await hq.tfUsage(); } catch (e) { S.usage = null; } renderUsage(); }
+
+  // ---------- Knowledge ----------
+  const VCOL = { legit: "up", mixed: "amb", selling: "dn" };
+  async function refreshKn() {
+    let r; try { r = await hq.knList(); } catch (e) { r = { sources: [], backlog: [] }; }
+    const box = $("#kn-list"); box.textContent = ""; $("#kn-n").textContent = r.sources.length + " sources";
+    if (!r.sources.length) box.append(mk("div", "fl-empty", "Nothing ingested yet. Paste a transcript, a URL or a note on the left."));
+    for (const s of r.sources) {
+      const c = mk("div", "src"), h = mk("div", "sh"); h.append(mk("span", "ty", s.type.toUpperCase()), mk("b", "", s.title), mk("span", "vd " + (VCOL[s.verdict] || ""), s.verdict.toUpperCase()), mk("time", "", s.date)); c.append(h, mk("p", "", s.summary));
+      if (s.verdictWhy) c.append(mk("div", "why", s.verdictWhy));
+      const ul = mk("ul"); (s.lessons || []).forEach((l) => ul.append(mk("li", "", l))); (s.ideas || []).forEach((l) => ul.append(mk("li", "idea", "Borrow: " + l))); c.append(ul);
+      const f = mk("div", "sf"); (s.noted || []).forEach((n) => f.append(mk("span", "nt", "→ " + n)));
+      const o = mk("button", "fl-btn ghost", "OPEN SOURCE"); o.onclick = () => hq.knOpen(s.file); f.append(o); if (s.url) f.append(mk("span", "url", s.url)); c.append(f); box.append(c);
+    }
+    const ol = $("#kn-back"); ol.textContent = ""; (r.backlog || []).forEach((b) => ol.append(mk("li", "", b)));
+  }
+  $("#kn-go").onclick = async () => {
+    const title = $("#kn-title").value.trim(), url = $("#kn-url").value.trim(), text = $("#kn-text").value, msg = $("#kn-msg"), btn = $("#kn-go");
+    if (!title) return (msg.textContent = "Give it a title.");
+    if (!url && !text.trim()) return (msg.textContent = "Paste text or enter a URL.");
+    btn.disabled = true; msg.textContent = "Saving and reviewing with Claude (can take a minute)…";
+    const r = await hq.knIngest({ title, type: $("#kn-type").value, url, text });
+    btn.disabled = false;
+    if (r && r.ok) { msg.textContent = "Done: " + r.entry.verdict.toUpperCase() + ", filed to " + (r.entry.noted || []).join(", "); $("#kn-title").value = $("#kn-url").value = $("#kn-text").value = ""; refreshKn(); }
+    else msg.textContent = "Failed: " + ((r && r.error) || "unknown error");
+  };
+
+  // ---------- Tabs, wiring ----------
+  function placeChat() {
+    if (!document.body.classList.contains("in-floor")) return;
+    const con = document.getElementById("console"), host = S.tab === "chat" ? $("#fl-chat-full") : $("#fl-chat");
+    if (con && host && con.parentNode !== host) host.append(con);
+  }
+  function setTab(t) {
+    S.tab = t; localStorage.setItem("fl-tab", t);
+    document.querySelectorAll("#fl-tabs button").forEach((b) => b.classList.toggle("on", b.dataset.t === t));
+    document.querySelectorAll(".fl-page").forEach((p) => p.classList.toggle("hidden", p.id !== "fl-p-" + t));
+    placeChat(); if (t === "agents") renderAgents(); if (t === "know") refreshKn(); if (t === "book") renderCurve();
+  }
+  document.querySelectorAll("#fl-tabs button").forEach((b) => (b.onclick = () => setTab(b.dataset.t)));
+  $("#fl-dockh").onclick = () => $("#fl-dockwrap").classList.toggle("shut");
+  $("#fl-dockwrap").classList.add("shut");
+
+  const all = () => { renderSafety(); renderCmp(); renderHead(); renderTape(); renderAlerts(); renderBook(); renderSig(); renderCurve(); renderAgents(); };
+  function load(r) {
+    const st = r.state; if (st) { S.desks = st.desks || {}; S.alerts = st.alerts || []; S.tape = st.tape || []; S.finishedAt = st.finishedAt || 0; S.flag = st.flag || ""; }
+    S.health = r.health || { ok: true, why: [] }; S.running = !!r.running; S.stats = r.stats; S.sig = r.journal || {}; S.equity = r.equity || []; all();
+  }
+  async function refresh() { try { load(await hq.tfState()); if (!S.running || !S.ev.length) { S.ev = await hq.tfEvents(); renderAgents(); } } catch (e) {} refreshUsage(); }
   hq.on("tf", async (m) => {
-    if (m.t === "desk") { S.desks[m.id] = m.desk; renderDesks(); if (m.id === "market" && m.desk.status === "done") refresh(); }
-    else if (m.t === "start") { S.running = true; S.alerts = []; renderAlerts(); renderDesks(); }
+    if (m.t === "desk") { S.desks[m.id] = m.desk; renderHead(); if (m.id === "market" && m.desk.status === "done") { try { load(await hq.tfState()); } catch (e) {} } }
+    else if (m.t === "msg" && m.ev) { if (m.ev.seq === 1) { S.ev = []; S.cur = -1; S.follow = true; } if (!S.ev.some((x) => x.seq === m.ev.seq && x.ts === m.ev.ts)) S.ev.push(m.ev); if (S.follow) renderAgents(); }
+    else if (m.t === "start") { S.running = true; S.alerts = []; S.ev = []; S.follow = true; renderAlerts(); renderHead(); renderAgents(); }
     else if (m.t === "done") { S.running = false; await refresh(); }
   });
-  async function start(fn) { try { S.running = true; renderDesks(); if ((await fn()) === false) await refresh(); } catch (e) { S.running = false; renderDesks(); const t = $("#toast"); if (t) { t.textContent = e.message; t.classList.remove("hidden"); setTimeout(() => t.classList.add("hidden"), 4000); } } }
+  async function start(fn) { try { S.running = true; renderHead(); if ((await fn()) === false) await refresh(); } catch (e) { S.running = false; renderHead(); toast(e.message); } }
   $("#fl-go").onclick = () => start(() => hq.tfGo());
   $("#fl-resume").onclick = () => { if (confirm("Resume trading? The peak resets to current equity.")) start(() => hq.tfResume()); };
   $("#fl-kill").onclick = () => { if (confirm("KILL: close ALL paper positions and pause the agent?")) start(() => hq.tfKill()); };
   $("#fl-score").onclick = () => start(() => hq.tfScore());
   const clk = () => { $("#fl-clock").textContent = new Date().toLocaleTimeString([], { hour12: false }); };
   clk(); setInterval(clk, 1000);
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && document.body.classList.contains("in-floor")) window.HQView("hq"); });
-  window.HQFloor = { shown: refresh };
-  all(); refresh(); setInterval(() => { if (document.body.classList.contains("in-floor") && !S.running) refresh(); }, 30000);
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && document.body.classList.contains("in-floor")) { const d = $("#fl-drawer"); if (!d.classList.contains("hidden")) d.classList.add("hidden"); else window.HQView("hq"); } });
+  window.HQFloor = { shown: () => { refresh(); setTimeout(() => setTab(S.tab), 0); } };
+  setTab(S.tab); all(); refresh();
+  setInterval(() => { if (document.body.classList.contains("in-floor")) { refreshUsage(); if (!S.running) refresh(); } }, 30000);
 })();

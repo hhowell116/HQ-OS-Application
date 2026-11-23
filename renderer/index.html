@@ -129,38 +129,75 @@
   <div class="legend">click a seat for details · Ctrl+D demo crew · Esc back to HQ</div>
 </section>
 <section class="floor-view hidden" id="floor-view">
-  <div class="fl-bar"><span class="fl-ttl">&#9672; TRADING FLOOR</span><span class="fl-sub" id="fl-sub">desks idle</span><span class="spacer"></span><span class="fl-clock" id="fl-clock"></span>
+  <div class="fl-bar"><span class="fl-ttl">&#9672; TRADING FLOOR</span><span class="fl-sub" id="fl-sub">desks idle</span><span class="spacer"></span><span class="fl-clock" id="fl-clock"></span></div>
+  <div class="fl-head">
+    <div class="fl-kpi"><small>PAPER EQUITY</small><b id="fl-eq">--</b></div>
+    <div class="fl-kpi"><small>RETURN</small><b id="fl-ret">--</b></div>
+    <div class="fl-kpi"><small>VS SPY</small><b id="fl-vs">--</b></div>
+    <div class="fl-use" id="fl-use" title="Claude usage, from Stonks/data/usage.json (written by the Stonks statusline script)">
+      <div class="u" id="fl-u5"><small>SESSION 5H</small><i><b></b></i><span>--</span></div>
+      <div class="u" id="fl-u7"><small>WEEKLY</small><i><b></b></i><span>--</span></div>
+      <em id="fl-uage">no data yet</em>
+    </div>
+    <span class="spacer"></span>
     <span class="fl-pill active" id="fl-pill" title="Agent state">ACTIVE</span><button class="fl-btn ghost hidden" id="fl-resume" title="Hayden only: resume trading after a pause">RESUME</button><button class="fl-btn kill" id="fl-kill" title="Close all paper positions and pause (live: cancel orders)">KILL</button>
-    <button class="fl-btn ghost" id="fl-score" title="Re-price open paper positions">SCORE</button><button class="fl-go" id="fl-go" title="Run every desk now">GO</button></div>
+    <button class="fl-btn ghost" id="fl-score" title="Re-price open paper positions">SCORE</button><button class="fl-go" id="fl-go" title="Run every desk now">GO</button>
+  </div>
   <div class="fl-banner hidden" id="fl-banner"></div>
   <div class="fl-tape" id="fl-tape"><div class="fl-tape-in" id="fl-tape-in"></div></div>
-  <div class="fl-body">
-    <div class="fl-deskrow">
-      <div class="fl-h"><span>DESKS</span><span class="fl-rule"></span></div>
-      <div class="fl-desks" id="fl-desks"></div>
+  <nav class="fl-tabs" id="fl-tabs"><button data-t="agents">AGENTS</button><button data-t="signals">SIGNALS</button><button data-t="book">BOOK</button><button data-t="chat">CHAT</button><button data-t="know">KNOWLEDGE</button></nav>
+  <div class="fl-pages">
+    <div class="fl-page" id="fl-p-agents">
+      <div class="fl-ag">
+        <div class="fl-stage">
+          <div class="fl-step" id="fl-stepper"></div>
+          <div class="fl-room" id="fl-room"><div class="fl-table" id="fl-table"><div class="tc" id="fl-tc"></div><div class="fl-stamp hidden" id="fl-stamp"></div></div><svg class="fl-arrows" id="fl-arrows" viewBox="0 0 100 100" preserveAspectRatio="none"></svg><div id="fl-seats"></div></div>
+          <div class="fl-scrub"><button class="fl-btn ghost" id="fl-play" title="Replay the run message by message">PLAY</button><input type="range" id="fl-range" min="0" max="0" value="0"><span id="fl-spos">0/0</span><button class="fl-btn ghost on" id="fl-live" title="Follow the live run">LIVE</button></div>
+        </div>
+        <aside class="fl-rail"><div class="fl-h"><span>TRANSCRIPT</span><span class="fl-rule"></span><span class="fl-note" id="fl-filter"></span></div><div class="fl-log" id="fl-log"></div></aside>
+      </div>
+      <div class="fl-dock" id="fl-dockwrap"><div class="fl-dockh" id="fl-dockh"><span>&#9656; STONKS CHAT</span><span class="fl-note">compact dock, full view in the CHAT tab</span></div><div class="fl-chat" id="fl-chat"></div></div>
     </div>
-    <div class="fl-main">
-      <div class="fl-h"><span>SIGNAL BOARD</span><span class="fl-rule"></span><span class="fl-note" id="fl-when"></span></div>
-      <div class="fl-alerts" id="fl-alerts"></div>
+    <div class="fl-page hidden" id="fl-p-signals">
+      <div class="fl-sg">
+        <div class="fl-main"><div class="fl-h"><span>SIGNAL BOARD</span><span class="fl-rule"></span><span class="fl-note" id="fl-when"></span></div><div class="fl-alerts" id="fl-alerts"></div></div>
+        <aside class="fl-sgside"><div class="fl-h"><span>SIGNAL RECORD</span><span class="fl-rule"></span></div><div class="fl-sig" id="fl-sig"></div></aside>
+      </div>
+      <aside class="fl-drawer hidden" id="fl-drawer"></aside>
     </div>
-    <aside class="fl-side">
-      <div class="fl-top">
-        <div class="fl-tc">
-          <div class="fl-h"><span>SAFETY RULES</span><span class="fl-rule"></span></div>
-          <div class="fl-rules" id="fl-rules"></div>
+    <div class="fl-page hidden" id="fl-p-book">
+      <div class="fl-bk">
+        <div class="fl-bkl">
           <div class="fl-h"><span>PAPER BOOK</span><span class="fl-rule"></span></div>
           <div class="fl-cmp" id="fl-cmp"></div>
+          <div class="fl-curve" id="fl-curve"></div>
           <div class="fl-stats" id="fl-stats"></div>
-          <div class="fl-h"><span>SIGNAL RECORD</span><span class="fl-rule"></span></div>
-          <div class="fl-sig" id="fl-sig"></div>
         </div>
-        <div class="fl-tc">
+        <div class="fl-bkr">
+          <div class="fl-h"><span>SAFETY RULES</span><span class="fl-rule"></span></div>
+          <div class="fl-rules" id="fl-rules"></div>
           <div class="fl-h"><span>POSITIONS</span><span class="fl-rule"></span></div>
           <div class="fl-pos" id="fl-pos"></div>
         </div>
       </div>
-      <div class="fl-chat" id="fl-chat"></div>
-    </aside>
+    </div>
+    <div class="fl-page hidden" id="fl-p-chat"><div class="fl-chatfull" id="fl-chat-full"></div></div>
+    <div class="fl-page hidden" id="fl-p-know">
+      <div class="fl-kn">
+        <div class="fl-knl">
+          <div class="fl-h"><span>INGEST A SOURCE</span><span class="fl-rule"></span></div>
+          <form class="fl-form" id="kn-form" onsubmit="return false">
+            <input id="kn-title" type="text" placeholder="Title" spellcheck="false">
+            <div class="row"><select id="kn-type"><option value="video">video</option><option value="repo">repo</option><option value="article">article</option></select><input id="kn-url" type="text" placeholder="URL (optional: page or GitHub repo)" spellcheck="false"></div>
+            <textarea id="kn-text" placeholder="Paste a transcript or note text here. Leave empty to fetch the URL instead." spellcheck="false"></textarea>
+            <div class="row"><button class="fl-btn" id="kn-go">INGEST</button><span class="fl-note" id="kn-msg"></span></div>
+          </form>
+          <div class="fl-h"><span>BACKLOG</span><span class="fl-rule"></span></div>
+          <ol class="fl-back" id="kn-back"></ol>
+        </div>
+        <div class="fl-knr"><div class="fl-h"><span>SOURCES</span><span class="fl-rule"></span><span class="fl-note" id="kn-n"></span></div><div class="fl-srcs" id="kn-list"></div></div>
+      </div>
+    </div>
   </div>
 </section>
 <div class="rev-ov hidden" id="rules-ov">
