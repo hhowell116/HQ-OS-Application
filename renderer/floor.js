@@ -193,6 +193,13 @@
     for (const [k, v] of e) { const r = mk("div", "fl-row"), n = mk("span", "", k); if (v.demoted) n.append(mk("span", "dem", "DEMOTED")); r.append(n, mk("span", "pl " + cls(v.pnl), Math.round(v.winRate * 100) + "% · " + v.n + " · " + usd(v.pnl))); box.append(r); }
   }
 
+  // ---------- Usage line: tokens from claude -p JSON; % only when the statusline file refreshed during the run ----------
+  const kTok = (n) => (n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e3 ? Math.round(n / 1e3) + "k" : String(n || 0));
+  function usageLine() {
+    const u = S.usage; if (!u || !u.total) return " · Last run: —";
+    const p = u.pct, pc = (v) => (v == null ? "—" : (v < 0.1 && v > 0 ? "<0.1" : v) + "%");
+    return " · Last run: " + kTok(u.total.tokens) + " tokens · " + (p ? "~" + pc(p.session) + " session · " + pc(p.week) + " week" : "— session · — week");
+  }
   // ---------- Agent card: click a desk in the 3D room (stocks3d.js) -> the drawer shows that agent's latest output ----------
   const AG_NAME = Object.assign({}, NAME, { steady: "Steady Desk", hub: "Lead Hub", debate: "Bull vs Bear" });
   function closeCard() { if (window.HQStocks3D && HQStocks3D.focused()) HQStocks3D.unfocus(); else agentClose(); }
@@ -204,6 +211,7 @@
     const sid = id === "hub" ? "lead" : id === "debate" ? "bear" : id, stat = id === "steady" ? (list.length && Date.now() - (last.ts || 0) < 6e4 ? "working" : "idle") : id === "hub" ? "routing" : (st[sid] || {}).status || "idle";
     const x = mk("button", "fl-btn ghost", "CLOSE"); x.onclick = closeCard;
     const top = mk("div", "dtop"); top.append(mk("b", "tk ag", AG_NAME[id] || id), mk("span", "dst " + stat, stat.toUpperCase()), mk("span", "spacer"), x); d.style.setProperty("--h", id === "debate" ? "#ffb02e" : HUE[sid] || "#4aa8ff"); d.append(top);
+    { const bd = S.usage && S.usage.byDesk && S.usage.byDesk[id === "hub" ? "lead" : id], u = S.usage; d.append(mk("div", "fl-h", "TOKENS (LAST RUN)"), mk("p", "dth", bd ? kTok(bd.tokens) + " tokens · " + bd.calls + " call" + (bd.calls === 1 ? "" : "s") + " · in " + kTok(bd.in) + " / out " + kTok(bd.out) + " / cache " + kTok(bd.cacheWrite + bd.cacheRead) + (bd.cost ? " · $" + bd.cost.toFixed(3) : "") : "—")); }
     d.append(mk("div", "fl-h", "LATEST OUTPUT"));
     if (last) { d.append(mk("div", "dpx", (last.ts ? new Date(last.ts).toLocaleTimeString([], { hour12: false }) + "  " : "") + last.kind + (last.to ? "  → " + (AG_NAME[last.to] || last.to) : "")), mk("p", "dth dtxt", last.text || "")); }
     else d.append(mk("p", "dth", id === "steady" ? "No Steady activity in this run yet." : "Nothing yet. This desk has not reported in this run."));
@@ -259,7 +267,7 @@
     const r = $("#fl-ret"); r.textContent = ret == null ? "--" : sgn(ret) + "%"; r.className = cls(ret);
     const vs = ret != null && spy != null ? Math.round((ret - spy) * 100) / 100 : null, v = $("#fl-vs"); v.textContent = vs == null ? "--" : sgn(vs) + " pts"; v.className = cls(vs); v.title = spy != null ? "SPY " + sgn(spy) + "% over the same period" : "";
     notify(); const w = Object.values(S.desks).filter((d) => d.status === "working");
-    $("#fl-sub").textContent = S.running ? (w.length ? w.map((d) => d.name).join(" + ") + " working" : "run in progress") : S.finishedAt ? "last run " + new Date(S.finishedAt).toLocaleTimeString() : "desks idle";
+    $("#fl-sub").textContent = S.running ? (w.length ? w.map((d) => d.name).join(" + ") + " working" : "run in progress") : S.finishedAt ? "last run " + new Date(S.finishedAt).toLocaleTimeString() + usageLine() : "desks idle";
     const go = $("#fl-go"); go.textContent = S.running ? "RUNNING" : "GO"; go.classList.toggle("run", S.running); go.disabled = S.running; $("#fl-score").disabled = S.running;
   }
   const lvl = (p) => (p >= 80 ? "r" : p >= 50 ? "a" : "g");
@@ -341,7 +349,7 @@
   }
   function load(r) {
     if (S.preview) return; // dev screenshot hook: HQFloor.preview() freezes the data
-    const st = r.state; if (st) { S.desks = st.desks || {}; S.alerts = st.alerts || []; S.tape = st.tape || []; S.finishedAt = st.finishedAt || 0; S.flag = st.flag || ""; }
+    const st = r.state; if (st) { S.desks = st.desks || {}; S.alerts = st.alerts || []; S.tape = st.tape || []; S.finishedAt = st.finishedAt || 0; S.usage = st.usage || null; S.flag = st.flag || ""; }
     S.health = r.health || { ok: true, why: [] }; S.running = !!r.running; S.stats = r.stats; S.sig = r.journal || {}; S.equity = r.equity || []; all();
   }
   async function refresh() {
