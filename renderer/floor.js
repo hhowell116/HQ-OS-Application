@@ -60,7 +60,7 @@
   O.init($("#fl-cv"), {
     shown: () => document.body.classList.contains("in-floor") && !document.hidden,
     onHover: (k, e) => { if (!pinned) popFor(k, e ? e.clientX : 0, e ? e.clientY : 0, false); },
-    onClick: (k, e) => { if (!k || pinned === k) { pinned = ""; S.sel = ""; $("#fl-pop").classList.add("hidden"); } else { pinned = k; S.sel = k; popFor(k, e.clientX, e.clientY, true); } renderAgents(); },
+    onClick: (k, e, who) => { if (!k || (pinned === k && !who)) { pinned = ""; S.sel = ""; $("#fl-pop").classList.add("hidden"); O.focus(""); } else { pinned = k; S.sel = k; O.focus(k, who); popFor(k, e.clientX, e.clientY, true); } renderAgents(); },
   });
   function renderAgents() {
     const ev = events(), n = ev.length; if (S.follow || S.cur >= n) S.cur = n - 1;
@@ -259,7 +259,7 @@
   $("#fl-score").onclick = () => start(() => hq.tfScore());
   const clk = () => { $("#fl-clock").textContent = new Date().toLocaleTimeString([], { hour12: false }); };
   clk(); setInterval(clk, 1000);
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && document.body.classList.contains("in-floor")) { const d = $("#fl-drawer"); if (!d.classList.contains("hidden")) d.classList.add("hidden"); else if (pinned) { pinned = ""; S.sel = ""; $("#fl-pop").classList.add("hidden"); renderAgents(); } else if (document.querySelector(".fl-rail.open,.fl-chatpanel.open")) closePanels(""); else window.HQView("hq"); } });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && document.body.classList.contains("in-floor")) { const d = $("#fl-drawer"); if (!d.classList.contains("hidden")) d.classList.add("hidden"); else if (pinned) { pinned = ""; S.sel = ""; $("#fl-pop").classList.add("hidden"); O.focus(""); renderAgents(); } else if (document.querySelector(".fl-rail.open,.fl-chatpanel.open")) closePanels(""); else window.HQView("hq"); } });
   window.HQFloor = { shown: () => { S.autoPlay = true; refresh(); } };
   all(); refresh();
   setInterval(() => { if (document.body.classList.contains("in-floor")) { refreshUsage(); if (!S.running) refresh(); } }, 30000);

@@ -1,0 +1,6 @@
+Trading Floor office art
+========================
+indoor.png  - "Roguelike Indoors" tilesheet (roguelikeIndoor_transparent.png) by Kenney Vleugels (kenney.nl), License: CC0 1.0 (public domain). https://kenney.nl/assets/roguelike-indoors
+chars.png   - "Roguelike Characters" spritesheet (roguelikeChar_transparent.png) by Kenney Vleugels (kenney.nl), License: CC0 1.0 (public domain). https://kenney.nl/assets/roguelike-characters
+Both are unmodified PNG sheets (16x16 tiles, 1px margin). Credit is not required but given with thanks.
+No assets were copied from agent-office or pixel-agents. Props not in the sheets (monitors, vault, clock, scoreboard) are drawn in code (office.js).

@@ -24,7 +24,8 @@ app.whenReady().then(async () => {
     await sleep(3000);
   }
   if (process.env.SHOT_REPLAY) { await wc.executeJavaScript('window.HQView("hq"); window.HQView("floor")'); await sleep(+process.env.SHOT_REPLAY * 1000); await shot("trading-floor-office-replay.png"); }
-  await wc.executeJavaScript('document.querySelector("#fl-live").click()'); await sleep(2500); await shot("trading-floor-office.png");
+  await wc.executeJavaScript('document.querySelector("#fl-live").click()'); await sleep(2500);
+  if (process.env.SHOT_FOCUS) { await wc.executeJavaScript('window.FloOffice.focus("' + process.env.SHOT_FOCUS + '")'); await sleep(2500); await shot("trading-floor-office-focus.png"); await wc.executeJavaScript('window.FloOffice.focus("")'); await sleep(2500); } await shot("trading-floor-office.png");
   await wc.executeJavaScript('document.querySelector("#fl-tr").click()'); await sleep(700); await shot("trading-floor-office-transcript.png"); await wc.executeJavaScript('document.querySelector("#fl-chbtn").click()'); await sleep(700); await shot("trading-floor-office-chat.png");
   await wc.executeJavaScript('document.querySelector("#fl-chbtn").click()');
   if (process.env.SHOT_EVAL) console.log(JSON.stringify(await wc.executeJavaScript(process.env.SHOT_EVAL)));
