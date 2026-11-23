@@ -130,7 +130,9 @@
 </section>
 <section class="floor-view hidden" id="floor-view">
   <div class="fl-bar"><span class="fl-ttl">&#9672; TRADING FLOOR</span><span class="fl-sub" id="fl-sub">desks idle</span><span class="spacer"></span><span class="fl-clock" id="fl-clock"></span>
+    <span class="fl-pill active" id="fl-pill" title="Agent state">ACTIVE</span><button class="fl-btn ghost hidden" id="fl-resume" title="Hayden only: resume trading after a pause">RESUME</button><button class="fl-btn kill" id="fl-kill" title="Close all paper positions and pause (live: cancel orders)">KILL</button>
     <button class="fl-btn ghost" id="fl-score" title="Re-price open paper positions">SCORE</button><button class="fl-go" id="fl-go" title="Run every desk now">GO</button></div>
+  <div class="fl-banner hidden" id="fl-banner"></div>
   <div class="fl-tape" id="fl-tape"><div class="fl-tape-in" id="fl-tape-in"></div></div>
   <div class="fl-body">
     <div class="fl-deskrow">
@@ -144,7 +146,10 @@
     <aside class="fl-side">
       <div class="fl-top">
         <div class="fl-tc">
+          <div class="fl-h"><span>SAFETY RULES</span><span class="fl-rule"></span></div>
+          <div class="fl-rules" id="fl-rules"></div>
           <div class="fl-h"><span>PAPER BOOK</span><span class="fl-rule"></span></div>
+          <div class="fl-cmp" id="fl-cmp"></div>
           <div class="fl-stats" id="fl-stats"></div>
           <div class="fl-h"><span>SIGNAL RECORD</span><span class="fl-rule"></span></div>
           <div class="fl-sig" id="fl-sig"></div>

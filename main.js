@@ -256,20 +256,23 @@ app.whenReady().then(() => {
   // ---------- Trading Floor: runs Stonks/engine/run.js as a child process and relays its JSON lines ----------
   const STONKS = process.env.STONKS_DIR || path.join(path.dirname(path.dirname(__dirname)), "Stonks");
   const tfRead = (f, d) => { try { return JSON.parse(fs.readFileSync(path.join(STONKS, "data", f), "utf8")); } catch (e) { return d; } };
-  function tfStats() { try { const L = require(path.join(STONKS, "engine", "ledger.js")); return L.stats(); } catch (e) { return null; } }
+  function tfStats() { try { return require(path.join(STONKS, "engine", "steady.js")).book(); } catch (e) { return null; } }
+  function tfHealth() { try { return require(path.join(STONKS, "engine", "safety.js")).health(); } catch (e) { return { ok: false, why: ["engine unreadable: " + String(e.message).slice(0, 80)] }; } }
   function tfStart(mode) {
     if (tfProc) return false;
     const script = path.join(STONKS, "engine", "run.js"); if (!fs.existsSync(script)) throw new Error("Stonks engine not found at " + script);
-    tfProc = require("child_process").spawn(process.execPath, [script, mode], { cwd: path.dirname(script), windowsHide: true, env: Object.assign({}, process.env, { ELECTRON_RUN_AS_NODE: "1" }) });
+    const p = tfProc = require("child_process").spawn(process.execPath, [script, mode], { cwd: path.dirname(script), windowsHide: true, env: Object.assign({}, process.env, { ELECTRON_RUN_AS_NODE: "1" }) });
     let buf = ""; tfProc.stdout.on("data", (d) => { buf += d; let i; while ((i = buf.indexOf("\n")) >= 0) { const l = buf.slice(0, i); buf = buf.slice(i + 1); try { send("tf", JSON.parse(l)); } catch (e) {} } });
     tfProc.stderr.on("data", () => {});
-    tfProc.on("close", () => { tfProc = null; send("tf", { t: "done", stats: tfStats(), state: tfRead("state.json", null) }); });
+    tfProc.on("close", () => { if (tfProc === p) tfProc = null; send("tf", { t: "done", stats: tfStats(), state: tfRead("state.json", null) }); });
     tfProc.on("error", () => { tfProc = null; });
     return true;
   }
-  ipcMain.handle("tf-state", () => ({ running: !!tfProc, state: tfRead("state.json", null), stats: tfStats(), journal: tfRead("signals.json", {}) }));
+  ipcMain.handle("tf-state", () => ({ running: !!tfProc, health: tfHealth(), state: tfRead("state.json", null), stats: tfStats(), journal: tfRead("signals.json", {}) }));
   ipcMain.handle("tf-go", () => tfStart("go"));
   ipcMain.handle("tf-score", () => tfStart("score"));
+  ipcMain.handle("tf-resume", () => tfStart("resume"));
+  ipcMain.handle("tf-kill", () => { if (tfProc) { try { tfProc.kill(); } catch (e) {} tfProc = null; } return tfStart("kill"); });
   ipcMain.handle("tf-stop", () => { if (tfProc) { try { tfProc.kill(); } catch (e) {} } return true; });
   ipcMain.on("win", (e, a) => { const w = BrowserWindow.fromWebContents(e.sender); if (!w) return; if (a === "min") w.minimize(); else if (a === "max") w.isMaximized() ? w.unmaximize() : w.maximize(); else if (a === "close") w.close(); else if (a === "top") w.setAlwaysOnTop(!w.isAlwaysOnTop()); });
 
