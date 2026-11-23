@@ -31,6 +31,7 @@ app.whenReady().then(async () => {
   await rn("alpha-proj", "CON");
   await rn("alpha-proj", "bad.");
   console.log("list:", await ev(`[...document.querySelectorAll("#projects .proj")].map(e=>e.textContent.slice(0,25)).join(" | ")`)); console.log("projs:", JSON.stringify(await ev(`hq.projects().then(a=>a.map(p=>p.id+":"+p.name))`)));
+  await ev(`setView("hq")`); await sleep(600);
   // inline UI: dblclick the name, type a clashing name, screenshot
   await ev(`(()=>{const s=[...document.querySelectorAll('#projects .proj .n span')].find(x=>x.textContent==='Alpha Proj'); s.dispatchEvent(new MouseEvent("dblclick",{bubbles:true}))})()`); console.log("A", await ev(`typeof startProjRename+" "+(startProjRename("alpha-proj"),String(S.renId)+document.querySelectorAll(".ren-in").length)`)); await sleep(300);
   await ev(`(()=>{const i=document.querySelector('.ren-in');i.value='Beta';i.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}))})()`); await sleep(500);
