@@ -1,7 +1,7 @@
 // File explorer backend (main process). Every path from the renderer is validated: it must resolve inside settings.projectsRoot,
 // must not be a hidden/excluded name, and never touches the Obsidian vault. No delete, no move; rename and new-note only, never overwriting.
 const fs = require("fs"), path = require("path");
-const HIDE_NAMES = new Set(["node_modules", ".git", "dist", "out", "build", "release", ".cache", "data", "__pycache__"]);
+const HIDE_NAMES = new Set(["node_modules", ".git", ".cache", "__pycache__"]); // only tooling noise; build/data/dist folders are project files and show
 const BAD_CHARS = /[\\/:*?"<>|\x00-\x1f]/, RESERVED = /^(con|prn|aux|nul|com\d|lpt\d)(\..*)?$/i;
 const hiddenName = (n) => HIDE_NAMES.has(n.toLowerCase()) || /^\.env/i.test(n) || /personal|💀/i.test(n);
 const sep = path.sep, lc = (s) => s.toLowerCase();
@@ -29,7 +29,6 @@ module.exports = function init({ ipcMain, shell, settings, save, send, root: roo
       if (hiddenName(e.name)) continue;
       const full = path.join(d, e.name); let st = null;
       const isDir = e.isDirectory();
-      if (atRoot && !isDir && !/\.md$/i.test(e.name)) continue;
       if (!isDir) { try { st = fs.statSync(full); } catch (x) { continue; } }
       out.push({ name: e.name, path: full, dir: isDir, size: st ? st.size : 0, mtime: st ? st.mtimeMs : 0, project: atRoot && isDir });
     }

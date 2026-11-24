@@ -31,7 +31,7 @@ app.whenReady().then(async () => {
     if (mode === "test") {
       const L = (d) => ev(`hq.files("list", ${JSON.stringify(d)})`);
       const top = await L(root); ok(top.entries.map((e) => e.name).join() === "Alpha,Beta", "top-level projects: " + top.entries.map((e) => e.name));
-      const a = await L(path.join(root, "Alpha")); const names = a.entries.map((e) => e.name); ok(names.join() === "Notes,src", "alpha listing hides excluded, Notes first: " + names);
+      const a = await L(path.join(root, "Alpha")); const names = a.entries.map((e) => e.name); ok(names.join() === "Notes,data,dist,src", "alpha listing hides tooling, shows data/dist, Notes first: " + names);
       ok((await L(path.join(root, "..")).then((r) => r.err)) === "outside projects folder", "outside root rejected");
       ok((await L(path.join(root, "Alpha", "personal stuff"))).err, "personal folder rejected");
       ok((await L(path.join(root, "Alpha", "node_modules"))).err, "node_modules rejected");
@@ -54,7 +54,7 @@ app.whenReady().then(async () => {
       ok(await ev(`document.body.classList.contains("fx-open") && document.querySelectorAll("#fx-tree .fx-row").length >= 2`), "panel open with rows");
       ok(await ev(`[...document.querySelectorAll("#fx-tree .fx-nm")].some(e=>e.textContent==="Notes") === false`), "projects collapsed at start");
       await ev(`document.querySelector('#fx-tree .fx-row[data-path$="Alpha"]').click()`); await sleep(700);
-      const rows = await ev(`[...document.querySelectorAll("#fx-tree .fx-nm")].map(e=>e.textContent).join()`); ok(/Alpha,Notes,Alpha To-Do.md,Beta Note.md,Ideas.md,Untitled 2.md,src,Beta/.test(rows), "expand: Notes opened first: " + rows);
+      const rows = await ev(`[...document.querySelectorAll("#fx-tree .fx-nm")].map(e=>e.textContent).join()`); ok(/Alpha,Notes,Alpha To-Do.md,Beta Note.md,Ideas.md,Untitled 2.md,data,dist,src,Beta/.test(rows), "expand: Notes opened first: " + rows);
       await ev(`document.getElementById("fx-rb")`); await ev(`document.querySelector('#fx-tree .fx-row[data-path$="Alpha To-Do.md"]').click()`); await sleep(600);
       ok(await ev(`!document.getElementById("fx-ov").classList.contains("hidden") && document.querySelectorAll("#fx-doc a.fx-wl").length === 2`), "reader open with 2 wiki links");
       await ev(`document.querySelector("#fx-doc a.fx-wl").click()`); await sleep(500);

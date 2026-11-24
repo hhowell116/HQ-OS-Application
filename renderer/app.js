@@ -480,7 +480,7 @@ $("#acc-pop").onclick = (e) => e.stopPropagation();
 document.addEventListener("click", () => $("#acc-pop").classList.add("hidden"));
 $("#acc-custom").oninput = (e) => setAccentColour(e.target.value);
 $("#acc-reset").onclick = () => setAccentColour("");
-function setAudio(on) { S.audio = on; $("#btn-audio").textContent = on ? "♫ viz on" : "♫ viz off"; if (on) HQAudio.start().then(() => { if (HQAudio.err) toast("Visualizer: " + HQAudio.err, true); }); else HQAudio.stop(); }
+function setAudio(on) { S.audio = on; const ab = $("#btn-audio"); ab.textContent = "♫"; ab.classList.toggle("off", !on); ab.title = "Audio visualizer: " + (on ? "on" : "off") + " (click to toggle)"; if (on) HQAudio.start().then(() => { if (HQAudio.err) toast("Visualizer: " + HQAudio.err, true); }); else HQAudio.stop(); }
 $("#btn-audio").onclick = () => { setAudio(!S.audio); hq.set({ audio: S.audio }); };
 function renderMusic(m) {
   const box = $("#music"); box.classList.toggle("hidden", !m); $("#core-wrap").classList.toggle("has-music", !!m);

@@ -31,8 +31,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .chip { font: 11px var(--mono); letter-spacing: .08em; text-transform: uppercase; padding: 3px 9px; border: 1px solid var(--line2); border-radius: 2px; color: var(--acc); background: rgba(var(--acc-rgb),.06); }
 .chip.dim { color: var(--tx3); border-color: var(--line); }
 .chip.warn { color: var(--warn); border-color: rgba(255,176,46,.5); } .chip.bad { color: var(--danger); border-color: rgba(255,93,108,.5); }
-.clock { margin-left: auto; display: flex; align-items: baseline; gap: 10px; font-family: var(--mono); }
-#clock-t { font-size: 18px; color: var(--acc); letter-spacing: .08em; } #clock-d { font-size: 11px; color: var(--tx2); letter-spacing: .12em; text-transform: uppercase; }
+.clock { margin-left: auto; display: flex; align-items: baseline; gap: 8px; font-family: var(--mono); flex-shrink: 0; white-space: nowrap; }
+#clock-t { font-size: 15px; color: var(--acc); letter-spacing: .06em; } #clock-d { font-size: 9.5px; color: var(--tx2); letter-spacing: .1em; text-transform: uppercase; }
+#btn-audio { font-size: 14px; padding-left: 8px; padding-right: 8px; } #btn-audio.off { opacity: .4; }
 .winbtns { display: flex; height: 100%; -webkit-app-region: no-drag; }
 .winbtns button { width: 46px; border: 0; background: transparent; color: var(--tx2); cursor: pointer; }
 .winbtns button:hover { background: rgba(var(--acc-rgb),.1); color: var(--acc); } .winbtns .x:hover { background: #c42b3a; color: #fff; }
@@ -209,9 +210,10 @@ button.ghost.busy { color: var(--acc); animation: pulse 1s infinite; }
 .tabs button.on { color: var(--acc); border-color: var(--line2); background: rgba(var(--acc-rgb),.08); box-shadow: inset 0 -2px 0 var(--acc); }
 
 /* ===== minimal vitals + usage text beside the core (no boxes) ===== */
-.hud { position: absolute; top: 50%; transform: translateY(-60%); z-index: 2; width: 196px; font-family: var(--mono); }
-.hud-l { right: calc(50% + var(--orb, 190px) + 16px); text-align: right; }
-.hud-r { left: calc(50% + var(--orb, 190px) + 16px); }
+/* --hudw and the min() clamps keep both readouts inside the centre column on narrow screens (they used to spill over the side panels) */
+.hud { --hudw: min(196px, calc(50% - 20px)); position: absolute; top: 50%; transform: translateY(-60%); z-index: 2; width: var(--hudw); font-family: var(--mono); }
+.hud-l { right: min(calc(50% + var(--orb, 190px) + 16px), calc(100% - var(--hudw) - 12px)); text-align: right; }
+.hud-r { left: min(calc(50% + var(--orb, 190px) + 16px), calc(100% - var(--hudw) - 12px)); }
 .hud-h { font: 600 9px var(--mono); letter-spacing: .32em; color: var(--tx3); margin-bottom: 8px; }
 .hud-r .hud-h { color: rgba(var(--sec-rgb),.7); } .hud-l .hud-h { color: rgba(var(--acc-rgb),.7); }
 .hud .vitals { gap: 9px; }
@@ -498,3 +500,10 @@ body.booting .layout, body.booting #console, body.booting .viz, body.booting .mu
 .team-offer .to-r { display: flex; gap: 6px; }
 .team-offer .to-r button { font: inherit; font-size: 11px; padding: 2px 8px; border-radius: 4px; cursor: pointer; border: 1px solid var(--acc, #4dabf7); background: var(--acc, #4dabf7); color: #04141c; }
 .team-offer .to-r button.ghost { background: transparent; color: inherit; }
+
+/* laptop screens (1280-1440 wide): narrower side columns, tighter title bar, slimmer HUD */
+@media (max-width: 1440px) {
+  .layout { grid-template-columns: 250px 1fr 320px; gap: 10px; padding: 10px; }
+  .titlebar { gap: 10px; }
+  .hud { --hudw: min(150px, calc(50% - 20px)); }
+}

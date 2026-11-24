@@ -11,7 +11,7 @@ require("../main.js");
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 app.whenReady().then(async () => {
   await sleep(1500);
-  const win = BrowserWindow.getAllWindows()[0]; win.setOpacity(0); win.showInactive(); win.setBounds({ x: 0, y: 0, width: 1600, height: 900 });
+  const win = BrowserWindow.getAllWindows()[0]; win.setOpacity(0); win.showInactive(); win.setBounds({ x: 0, y: 0, width: Number(process.env.SHOT_W||1600), height: Number(process.env.SHOT_H||900) });
   const wc = win.webContents; fs.mkdirSync(out, { recursive: true }); await sleep(2500);
   await wc.executeJavaScript(`window.HQView && window.HQView("hq")`); await sleep(1500);
   fs.writeFileSync(path.join(out, "hq-fresh.png"), (await wc.capturePage()).toPNG());
