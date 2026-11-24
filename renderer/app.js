@@ -450,7 +450,7 @@ $("#add-form").onsubmit = async (e) => { e.preventDefault(); const i = $("#add-i
 document.querySelectorAll(".winbtns button").forEach((b) => (b.onclick = () => hq.win(b.dataset.w)));
 document.addEventListener("keydown", (e) => {
   if (e.key === "F1") { e.preventDefault(); return setView("hq"); }
-  if (e.key === "F4") { e.preventDefault(); return goStonks(); }
+  if (e.key === "F4") { e.preventDefault(); if ((S.projects || []).some((p) => /^(stocks|stonks|trading)$/i.test(p.name))) goStonks(); return; }
   if (e.key === "F5") { e.preventDefault(); return setView(document.body.classList.contains("in-nebula") ? "hq" : "home"); }
   if (e.key === "F2") { e.preventDefault(); return setView(document.body.classList.contains("in-tower") ? "hq" : "tower"); }
   if (document.body.classList.contains("in-tower")) return; // the tower handles its own keys

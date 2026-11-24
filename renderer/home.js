@@ -3,20 +3,22 @@
   "use strict";
   const $ = (s) => document.querySelector(s), view = $("#nebula-view"), greetEl = $("#hm-greet"), cardsEl = $("#hm-cards");
   if (!view || !greetEl || !cardsEl) return;
-  const H = { typer: 0, settle: 0, needs: null, running: null, stk: null };
+  const H = { typer: 0, settle: 0, needs: null, running: null, stk: null, hasStk: false };
+  const isStk = (p) => /^(stocks|stonks|trading)$/i.test((p && p.name) || ""); // the TRADING FLOOR card only shows on a PC that has the Stocks project
   const CARDS = [
     { id: "hq", name: "HQ", sub: () => (H.needs == null ? "command center" : H.needs + (H.needs === 1 ? " item needs you" : " items need you")), hot: () => H.needs > 0 },
     { id: "tower", name: "TOWER", sub: () => (H.running == null ? "a floor per project" : H.running + " working"), hot: () => H.running > 0 },
-    { id: "stonks", name: "TRADING FLOOR", sub: () => (window.HQFloor && HQFloor.running() ? "engine running" : H.stk ? H.stk : "trading desks, in the tower"), hot: () => !!(window.HQFloor && HQFloor.running()), go: () => window.HQGoStonks && window.HQGoStonks() },
+    { id: "stonks", name: "TRADING FLOOR", show: () => H.hasStk, sub: () => (window.HQFloor && HQFloor.running() ? "engine running" : H.stk ? H.stk : "trading desks, in the tower"), hot: () => !!(window.HQFloor && HQFloor.running()), go: () => window.HQGoStonks && window.HQGoStonks() },
   ];
   CARDS.forEach((c) => {
-    const b = document.createElement("button"); b.className = "hm-card" + (c.off ? " off" : ""); b.dataset.id = c.id; b.disabled = !!c.off;
+    const b = document.createElement("button"); b.className = "hm-card" + (c.off ? " off" : "") + (c.show ? " hidden" : ""); b.dataset.id = c.id; b.disabled = !!c.off;
     b.innerHTML = '<span class="hm-n"></span><span class="hm-s"></span>'; b.querySelector(".hm-n").textContent = c.name;
     if (!c.off) b.onclick = () => (c.go ? c.go() : window.HQView(c.id)); cardsEl.append(b); c.el = b;
   });
   if (window.HQFloor) HQFloor.onChange(() => { if (view.classList.contains("home-on")) paint(); });
-  function paint() { for (const c of CARDS) { c.el.querySelector(".hm-s").textContent = c.sub(); c.el.classList.toggle("hot", !!(c.hot && c.hot())); } }
+  function paint() { for (const c of CARDS) { c.el.classList.toggle("hidden", !!c.show && !c.show()); c.el.querySelector(".hm-s").textContent = c.sub(); c.el.classList.toggle("hot", !!(c.hot && c.hot())); } }
   async function refresh() {
+    try { H.hasStk = (await hq.projects()).some(isStk); } catch (e) {}
     try { const n = await hq.needs(); H.needs = n.reduce((a, p) => a + p.items.length, 0); } catch (e) {}
     try { const a = await hq.agents(); H.running = window.HQActivity ? HQActivity.total() : a.filter((x) => x.status === "running").length; } catch (e) {}
     try { if (hq.tfState) { const t = await hq.tfState(), st = t && t.stats; if (st && st.equity != null) { const r = +st.retPct || 0, op = (st.positions || []).filter((p) => p.status === "open").length; H.stk = "$" + Math.round(st.equity).toLocaleString("en-US") + " \u00b7 " + (r >= 0 ? "+" : "") + r.toFixed(2) + "%" + (op ? " \u00b7 " + op + " open" : ""); } } } catch (e) {}
