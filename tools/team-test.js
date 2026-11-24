@@ -1,0 +1,37 @@
+// Tests discovery of plain folders + Build team (no Claude call: HQ_TEAM_NORUN) against a TEMP projects root. Run: node_modules/electron/dist/electron.exe tools/team-test.js <outDir>
+process.env.HQ_TEAM_NORUN = "1";
+const { app, BrowserWindow } = require("electron");
+const fs = require("fs"), os = require("os"), path = require("path");
+const out = process.argv[2] || path.join(__dirname, "shots");
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "hqos-team-")), root = path.join(tmp, "Projects");
+fs.mkdirSync(path.join(root, "Web Shop"), { recursive: true }); fs.writeFileSync(path.join(root, "Web Shop", "package.json"), "{}");
+fs.mkdirSync(path.join(root, "Scratch Pad"), { recursive: true }); fs.writeFileSync(path.join(root, "Scratch Pad", "a.txt"), "x");
+fs.mkdirSync(path.join(root, "Kept", "Notes", "Claude"), { recursive: true }); fs.writeFileSync(path.join(root, "Kept", "Notes", "Claude", "Index.md"), "KEEP ME");
+fs.mkdirSync(path.join(root, "node_modules")); fs.mkdirSync(path.join(root, ".hidden"));
+fs.writeFileSync(path.join(tmp, "settings.json"), JSON.stringify({ projectsRoot: root, discoverAll: true }));
+app.setPath("userData", tmp);
+process.on("uncaughtException", (e) => console.log("UNCAUGHT", e && e.stack));
+require("../main.js");
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+app.whenReady().then(async () => {
+  await sleep(2500);
+  const win = BrowserWindow.getAllWindows()[0]; win.setBounds({ x: -4000, y: 0, width: 1600, height: 900 }); win.showInactive(); const wc = win.webContents;
+  const errs = []; wc.on("console-message", (e, lvl, msg) => { if (lvl >= 3) errs.push(msg); });
+  const ev = (s) => wc.executeJavaScript(s);
+  await sleep(1500); fs.mkdirSync(out, { recursive: true });
+  console.log("projects:", JSON.stringify((await ev("hq.projects()")).map((p) => [p.name, p.hasTeam])));
+  console.log("offer:", await ev("(document.querySelector('#team-offer')||{}).textContent"));
+  console.log("buttons:", await ev("document.querySelectorAll('.buildteam').length"));
+  await ev("setView('hq')"); await sleep(1200);
+  fs.writeFileSync(path.join(out, "build-team.png"), (await wc.capturePage()).toPNG());
+  const r1 = await ev("hq.teamBuild(" + JSON.stringify((await ev("hq.projects()")).find((p) => p.name === "Web Shop").id) + ")");
+  console.log("build Web Shop:", JSON.stringify(r1));
+  const r2 = await ev("hq.teamBuildAll()"); console.log("build all:", JSON.stringify(r2));
+  await sleep(800);
+  for (const n of ["Web Shop", "Scratch Pad", "Kept"]) console.log(n, "agents:", JSON.stringify(fs.existsSync(path.join(root, n, ".claude", "agents")) ? fs.readdirSync(path.join(root, n, ".claude", "agents")) : []), "notes:", JSON.stringify(fs.existsSync(path.join(root, n, "Notes")) ? fs.readdirSync(path.join(root, n, "Notes")) : []));
+  console.log("Kept index:", fs.readFileSync(path.join(root, "Kept", "Notes", "Claude", "Index.md"), "utf8"));
+  const r3 = await ev("hq.teamBuild(" + JSON.stringify((await ev("hq.projects()")).find((p) => p.name === "Web Shop").id) + ")"); console.log("rebuild (no overwrite):", JSON.stringify(r3.made));
+  console.log("projects after:", JSON.stringify((await ev("hq.projects()")).map((p) => [p.name, p.hasTeam])));
+  console.log("console errors:", JSON.stringify(errs));
+  app.exit(0);
+}, true);

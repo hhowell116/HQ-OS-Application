@@ -92,6 +92,7 @@ function renderProjects() {
     if (p.review) m.append(el("span", "", p.review + " review"));
     const wn = (live.byProj.get(p.id) || []).length;
     if (wn) { m.append(el("span", "busy", "● " + wn + " working")); d.classList.add("plive"); }
+    if (p.hasTeam === false) { const tb = el("button", "buildteam", "⚒ Build team"); tb.title = "Create this project's agent team (Notes/, cartographer, team-builder) and map it"; tb.onclick = (e) => { e.stopPropagation(); buildTeam(p, tb); }; m.append(tb); }
     d.append(m);
     const sv = document.createElementNS("http://www.w3.org/2000/svg", "svg"); sv.setAttribute("viewBox", "0 0 140 14"); sv.setAttribute("preserveAspectRatio", "none"); d.append(sv); spark(sv, p.git);
     d.onclick = () => selectProject(p.id);
@@ -107,12 +108,30 @@ function renderProjects() {
     });
   }
   const waiting = active.reduce((a, p) => a + p.wait, 0);
-  const sys = $("#chip-sys"); sys.textContent = waiting ? waiting + " items need you" : "systems nominal"; sys.className = "chip " + (waiting ? "warn" : "dim");
+  const sys = $("#chip-sys"); sys.textContent = waiting ? waiting + " items need you" : "systems nominal"; sys.className = "chip " + (waiting ? "warn" : "dim"); try { teamOffer(); } catch (e) {}
 }
 // archived projects drop out of the list, the needs count and Ctrl+1-9, but stay one click away under ARCHIVED
 function activeProjects() { return S.projects.filter((p) => !S.archived.has(p.id)); }
 function setArchived(id, on) { on ? S.archived.add(id) : S.archived.delete(id); hq.set({ archived: [...S.archived] }); const p = S.projects.find((x) => x.id === id); toast((on ? "Archived " : "Restored ") + (p ? p.name : "")); renderProjects(); }
 async function loadProjects() { S.projects = await hq.projects(); renderProjects(); }
+async function buildTeam(p, btn) {
+  if (btn) { btn.disabled = true; btn.textContent = "Building…"; }
+  try { const r = await hq.teamBuild(p.id); if (!r.ok) { toast(r.err, true); if (btn) { btn.disabled = false; btn.textContent = "⚒ Build team"; } return; }
+    await loadProjects(); await selectProject(p.id); toast("Team scaffolded for " + r.name + (r.conv ? "; mapping started in chat" : "")); if (r.conv) { try { await openConv(r.conv); } catch (e) {} } }
+  catch (e) { toast(/No handler/.test(e.message) ? "Restart HQ OS to use this" : e.message, true); if (btn) { btn.disabled = false; btn.textContent = "⚒ Build team"; } }
+}
+// First-run offer: projects with no .claude/agents. Asked once (teamOfferDone), also dismissible.
+function teamOffer() {
+  const miss = S.projects.filter((p) => p.hasTeam === false && !S.archived.has(p.id));
+  const old = $("#team-offer"); if (!miss.length || S.teamOfferDone) { if (old) old.remove(); return; } if (old) return;
+  const b = el("div", "team-offer"); b.id = "team-offer";
+  b.append(el("div", "to-t", "Build teams for " + miss.length + " project" + (miss.length > 1 ? "s" : "") + "?"), el("div", "to-s", miss.slice(0, 6).map((p) => p.name).join(", ") + (miss.length > 6 ? ", …" : "") + ". Creates Notes, a cartographer and a team-builder agent in each (existing files are never overwritten), then maps them one at a time."));
+  const row = el("div", "to-r"), go = el("button", "", "Build teams"), no = el("button", "ghost", "Not now");
+  const done = () => { S.teamOfferDone = true; hq.set({ teamOfferDone: true }); b.remove(); };
+  go.onclick = async () => { go.disabled = true; go.textContent = "Starting…"; try { const r = await hq.teamBuildAll(); done(); await loadProjects(); toast("Building " + r.n + " team" + (r.n === 1 ? "" : "s") + ", one at a time"); } catch (e) { go.disabled = false; go.textContent = "Build teams"; toast(e.message, true); } };
+  no.onclick = done; row.append(go, no); b.append(row);
+  const panel = $("#projects"); panel.parentNode.insertBefore(b, panel);
+}
 
 async function selectProject(id) {
   if (!id) return; S.cur = id; renderProjects();
@@ -582,7 +601,7 @@ document.querySelectorAll("#tabs button").forEach((b) => (b.onclick = () => setV
   tickClock(); setInterval(tickClock, 1000);
   setMood("think", "booting");
   const init = await hq.init();
-  S.autoSend = !!init.settings.autoSend; S.person = init.settings.person || "Hayden"; S.voice = init.settings.voice; S.voiceName = init.settings.voiceName || "am_michael"; S.speed = +init.settings.speed || 1.1; vsetLabel(); S.projects = init.projects; S.archived = new Set(init.settings.archived || []);
+  S.autoSend = !!init.settings.autoSend; S.person = init.settings.person || "Hayden"; S.voice = init.settings.voice; S.voiceName = init.settings.voiceName || "am_michael"; S.speed = +init.settings.speed || 1.1; vsetLabel(); S.projects = init.projects; S.archived = new Set(init.settings.archived || []); S.teamOfferDone = !!init.settings.teamOfferDone;
   $("#btn-voice").textContent = S.voice ? "🔊 voice on" : "🔈 voice off";
   const th = fillThemes(init.settings.theme); if (th !== init.settings.theme) hq.set({ theme: th }); // removed themes fall back to Cyan
   HQTheme.setAccent(init.settings.accent); HQTheme.apply(th); paintAccentBtn(); setAudio(init.settings.audio);

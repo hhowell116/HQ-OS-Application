@@ -8,6 +8,7 @@ const CLAUDE_DIR = path.join(HOME, ".claude");
 const OLD_WS = /^Claude'sWorkspace[\\/]/i;
 const NOT_PROJECTS = new Set(["agent team", "token tools", "node_modules", "lumenads", "lumen-wt"]);
 
+const SYSTEM_DIRS = new Set(["system volume information", "$recycle.bin", "recycler", "lost+found", "dist", "build", "out", "tmp", "temp", "logs", "cache"]);
 const isDir = (p) => { try { return fs.statSync(p).isDirectory(); } catch (e) { return false; } };
 const isFile = (p) => { try { return fs.statSync(p).isFile(); } catch (e) { return false; } };
 const slug = (x) => String(x).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "project";
@@ -81,7 +82,10 @@ function listProjects(s) {
   let dirs = []; try { dirs = fs.readdirSync(root, { withFileTypes: true }); } catch (e) {}
   for (const d of dirs) {
     if (!d.isDirectory() || d.name.startsWith(".") || NOT_PROJECTS.has(d.name.toLowerCase()) || seen.has(d.name.toLowerCase())) continue;
-    if (!isDir(path.join(root, d.name, "Notes"))) continue;
+    if (!isDir(path.join(root, d.name, "Notes"))) {
+      // Installed app (s.discoverAll): any plain top-level folder is a project, so a laptop's existing folders show up without a Notes folder.
+      if (!s.discoverAll || /^[$_]|-wt$/.test(d.name) || SYSTEM_DIRS.has(d.name.toLowerCase())) continue;
+    }
     out.push(resolveProject({ name: d.name, folder: d.name }, root));
   }
   return out.sort((a, b) => (b.pinned - a.pinned) || a.name.localeCompare(b.name));

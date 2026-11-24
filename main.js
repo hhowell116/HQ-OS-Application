@@ -35,13 +35,31 @@ const wins = () => [win].filter((w) => w && !w.isDestroyed());
 const send = (ch, data) => wins().forEach((w) => w.webContents.send(ch, data));
 const projById = (id) => cache.projects.find((p) => p.id === id);
 
-function refreshProjects() { cache.projects = D.listProjects(settings); return cache.projects; }
+function refreshProjects() { cache.projects = D.listProjects(Object.assign({}, settings, { discoverAll: settings.discoverAll !== undefined ? !!settings.discoverAll : INS.packaged() })); return cache.projects; }
+const slugOf = (name) => name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "project";
+const hasTeam = (p) => { try { return fs.readdirSync(path.join(p.folder, ".claude", "agents")).some((n) => /\.md$/i.test(n)); } catch (e) { return false; } };
+// Scaffold Notes/, To-Do, Claude/Index.md and the starter team (team-builder + cartographer). NEVER overwrites: every file is written only if missing.
+function scaffoldProject(folder, name) {
+  const made = [], slug = slugOf(name);
+  const put = (f, text) => { try { fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, text, { flag: "wx" }); made.push(path.relative(folder, f)); } catch (e) { if (e.code !== "EEXIST") throw e; } };
+  const notes = path.join(folder, "Notes");
+  let hasTodo = false; try { hasTodo = fs.readdirSync(notes).some((n) => /\.md$/i.test(n) && /to-?do|board/i.test(n)); } catch (e) {}
+  if (!hasTodo) put(path.join(notes, name + " To-Do.md"), "# " + name + " To-Do\n\n## Now\n\n## Next\n\n## Waiting on Hayden\n\n## Done\n");
+  put(path.join(notes, "Claude", "Index.md"), "# " + name + ": Claude's Notes\n\nKnowledge base for the " + name + " team. Read this first; add a line per note.\n\nTeam: " + slug + "-team-builder, " + slug + "-cartographer (cartographer maps the project into these notes on its first run; ask it to \"build the " + name + " team\" to create the specialists)\n");
+  for (const t of ["team-builder", "cartographer"]) {
+    let tpl; try { tpl = fs.readFileSync(path.join(__dirname, "templates", t + ".md"), "utf8"); } catch (e) { continue; }
+    put(path.join(folder, ".claude", "agents", slug + "-" + t + ".md"), tpl.split("{{PROJECT}}").join(name).split("{{SLUG}}").join(slug).split("{{FOLDER}}").join(folder));
+  }
+  return made;
+}
+const teamPrompt = (name) => { const slug = slugOf(name); return "Build the " + name + " team. First run the " + slug + "-cartographer agent once to map this whole project into Notes/Claude/ (Architecture Overview, one note per part, How To Run). Then run the " + slug + "-team-builder agent to create 2 to 4 specialists in .claude/agents/ and update the Team: line in Notes/Claude/Index.md. Never overwrite existing files."; };
+const waitIdle = (id, max) => new Promise((res) => { const t0 = Date.now(), iv = setInterval(() => { const c = chats.convs.get(id); if (!c || (!c.busy && !(c.queue && c.queue.length)) || Date.now() - t0 > max) { clearInterval(iv); res(); } }, 3000); });
 
 async function projectSummary(p) {
   const [todo, git, review] = await Promise.all([D.readTodo(p, settings.person), D.fetchCommits(p.repo), D.reviewCount(p)]);
   return { id: p.id, name: p.name, accent: p.accent, pinned: p.pinned, folder: p.folder,
     next: todo.next.filter((x) => !x.done).length, wait: todo.wait.filter((x) => !x.done).length,
-    live: todo.live, git: git.days, lastCommit: git.last, review, hasTodo: !todo.missing };
+    live: todo.live, git: git.days, lastCommit: git.last, review, hasTodo: !todo.missing, hasTeam: hasTeam(p) };
 }
 async function projectDetail(id) {
   const p = projById(id); if (!p) return null;
@@ -165,18 +183,22 @@ app.whenReady().then(() => {
     if (path.dirname(path.resolve(folder)).toLowerCase() !== path.resolve(root).toLowerCase()) return { ok: false, err: "Invalid name" };
     if (fs.existsSync(folder) || fs.readdirSync(root).some((n) => n.toLowerCase() === name.toLowerCase())) return { ok: false, err: "A project with that name already exists" };
     try {
-      fs.mkdirSync(path.join(folder, "Notes", "Claude"), { recursive: true });
-      fs.writeFileSync(path.join(folder, "Notes", name + " To-Do.md"), "# " + name + " To-Do\n\n## Now\n\n## Next\n\n## Waiting on Hayden\n\n## Done\n");
-      const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "project";
-      fs.writeFileSync(path.join(folder, "Notes", "Claude", "Index.md"), "# " + name + ": Claude's Notes\n\nKnowledge base for the " + name + " team. Read this first; add a line per note.\n\nTeam: " + slug + "-team-builder, " + slug + "-cartographer (cartographer maps the project into these notes on its first run; ask it to \"build the " + name + " team\" to create the specialists)\n");
-      // Starter team: a team-builder agent that writes this floor's specialists on first use (rules: Projects/CLAUDE.md "Project teams").
-      try { const tpl = fs.readFileSync(path.join(__dirname, "templates", "team-builder.md"), "utf8"); fs.mkdirSync(path.join(folder, ".claude", "agents"), { recursive: true }); fs.writeFileSync(path.join(folder, ".claude", "agents", slug + "-team-builder.md"), tpl.split("{{PROJECT}}").join(name).split("{{SLUG}}").join(slug).split("{{FOLDER}}").join(folder)); } catch (e) {}
-      try { const tp = fs.readFileSync(path.join(__dirname, "templates", "cartographer.md"), "utf8"); fs.writeFileSync(path.join(folder, ".claude", "agents", slug + "-cartographer.md"), tp.split("{{PROJECT}}").join(name).split("{{SLUG}}").join(slug).split("{{FOLDER}}").join(folder)); } catch (e) {}
+      scaffoldProject(folder, name);
     } catch (e) { return { ok: false, err: "Could not create: " + e.message }; }
     refreshProjects(); watchTodos();
     const p = cache.projects.find((x) => path.basename(x.folder).toLowerCase() === name.toLowerCase());
     return { ok: true, id: p ? p.id : "", name };
   });
+  // Build team for an existing project: scaffold missing files (never overwrites), then start the cartographer + team-builder chat in the project.
+  const teamRun = async (p) => { const made = scaffoldProject(p.folder, p.name); refreshProjects(); watchTodos(); let conv = null;
+    if (!process.env.HQ_TEAM_NORUN) { conv = chats.create(projById(p.id) || p); chats.rename(conv.id, "Build team: " + p.name); Promise.resolve(chats.send(conv.id, teamPrompt(p.name))).catch(() => {}); }
+    return { made, conv: conv && conv.id }; };
+  ipcMain.handle("team-build", async (_, id) => { const p = projById(id); if (!p || !p.exists) return { ok: false, err: "Unknown project" };
+    try { const r = await teamRun(p); return { ok: true, id: p.id, name: p.name, made: r.made, conv: r.conv }; } catch (e) { return { ok: false, err: "Could not build: " + e.message }; } });
+  // First-run offer: every project without a team. Mapping chats run one after another so many folders do not launch many Claudes at once.
+  ipcMain.handle("team-build-all", async () => { const todo = refreshProjects().filter((p) => p.exists && !hasTeam(p));
+    (async () => { for (const p of todo) { try { const r = await teamRun(p); if (r.conv) await waitIdle(r.conv, 20 * 60000); } catch (e) {} } })();
+    return { ok: true, n: todo.length, names: todo.map((p) => p.name) }; });
   // Rename project: folder, To-Do note, settings entries, saved chats and archived list follow. Agent files keep their old slug prefix.
   ipcMain.handle("project-rename", async (_, arg) => {
     const id = arg && arg.id, raw = arg && arg.name;
@@ -313,7 +335,7 @@ app.whenReady().then(() => {
   ipcMain.handle("usage", async (_, force) => { await pollUsage(!!force); return { usage: cache.usage, err: cache.usageErr }; });
   ipcMain.handle("music", () => { now.start(); return cache.music; });
   ipcMain.handle("music-ctl", (_, cmd) => now.control(cmd));
-  ipcMain.handle("set", (_, kv) => { for (const k of ["voice", "voiceName", "speed", "person", "theme", "accent", "audio", "music", "autoSend", "startView", "nebulaMode"]) if (k in kv) settings[k] = kv[k]; if (Array.isArray(kv.archived)) settings.archived = kv.archived.filter((x) => typeof x === "string"); D.saveSettings(SETTINGS_FILE, settings); send("settings", pub()); if ("music" in kv) kv.music ? now.start() : (now.stop(), send("music", null)); return true; });
+  ipcMain.handle("set", (_, kv) => { for (const k of ["voice", "voiceName", "speed", "person", "theme", "accent", "audio", "music", "autoSend", "startView", "nebulaMode", "teamOfferDone"]) if (k in kv) settings[k] = kv[k]; if (Array.isArray(kv.archived)) settings.archived = kv.archived.filter((x) => typeof x === "string"); D.saveSettings(SETTINGS_FILE, settings); send("settings", pub()); if ("music" in kv) kv.music ? now.start() : (now.stop(), send("music", null)); return true; });
   ipcMain.handle("open-path", (_, p) => { const target = p === "settings" ? SETTINGS_FILE : p; if (target && fs.existsSync(target)) shell.openPath(target); });
   // Rules viewer: read-only, exactly one file (CLAUDE.md in the Projects root). The renderer never supplies a path.
   const rulesFile = () => path.join(settings.projectsRoot || path.join(require("os").homedir(), "Projects"), "CLAUDE.md");

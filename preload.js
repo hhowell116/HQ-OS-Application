@@ -9,7 +9,7 @@ contextBridge.exposeInMainWorld("hq", {
   reviewList: inv("review-list"), reviewSet: inv("review-set"),
   restart: inv("restart"), claudeStatus: inv("claude-status"), claudeLogin: inv("claude-login"), claudeApiKey: inv("claude-apikey"), codePending: inv("code-pending"), busy: inv("busy"),
   agents: inv("agents"), crew: inv("crew"), teams: inv("team-list"), usage: inv("usage"), music: inv("music"), musicCtl: inv("music-ctl"),
-  ttsSpeak: inv("tts-speak"), ttsStop: inv("tts-stop"), ttsLog: inv("tts-log"), sttTranscribe: inv("stt-transcribe"), projectCreate: inv("project-create"), projectRename: inv("project-rename"),
+  ttsSpeak: inv("tts-speak"), ttsStop: inv("tts-stop"), ttsLog: inv("tts-log"), sttTranscribe: inv("stt-transcribe"), projectCreate: inv("project-create"), projectRename: inv("project-rename"), teamBuild: inv("team-build"), teamBuildAll: inv("team-build-all"),
   rulesRead: inv("rules-read"), rulesOpen: inv("rules-open"), set: inv("set"), openPath: inv("open-path"), graphScan: inv("graph-scan"),
   chatList: inv("chat-list"), chatGet: inv("chat-get"), chatNew: inv("chat-new"), chatSend: inv("chat-send"), chatRename: inv("chat-rename"),
   chatStop: inv("chat-stop"), chatModel: inv("chat-model"), chatDelete: inv("chat-delete"), chatHandoff: inv("chat-handoff"), chatCompact: inv("chat-compact"),
