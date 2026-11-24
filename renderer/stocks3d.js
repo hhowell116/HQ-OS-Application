@@ -1,5 +1,5 @@
 // STOCKS FLOOR 3D interior (the old Trading Floor, now a floor of the tower). Built by tower.js (buildInterior / syncInterior) through HQTowerKit.
-// Central trading roundtable with the 12 desk agents at their real seat angles (HQFloor.ANG), big wall screens (equity, scoreboard, signals, ticker),
+// Central trading roundtable with the 13 desk agents at their real seat angles (HQFloor.ANG), big wall screens (equity, scoreboard, signals, ticker),
 // side desks for the project's specialists. Live state comes from HQFloor.desks() (tf events); panels are HTML in #tw-stonks (floor.js).
 (function () {
   "use strict";

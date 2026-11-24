@@ -321,3 +321,13 @@
 .fl-rcb .rcs { font-size: 10.5px; color: var(--mut); } .fl-rcb .rcr { font-size: 11.5px; line-height: 1.4; color: #c3ced9; } .fl-rcb .rcr.blk { color: var(--dn); } .fl-rcb .rcc { font-size: 10.5px; color: var(--mut); }
 .fl-help { position: absolute; left: 50%; bottom: 64px; transform: translateX(-50%); width: min(560px, calc(100% - 40px)); max-height: 66%; overflow: auto; z-index: 9; background: var(--glass); backdrop-filter: blur(10px); border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px; font-size: 12px; line-height: 1.5; color: #c3ced9; }
 .fl-help.hidden { display: none; } .fl-help .fh { display: flex; justify-content: space-between; align-items: center; color: var(--amb); letter-spacing: .2em; font-size: 11px; } .fl-help .fr { margin: 3px 0; } .fl-help .fr b { color: var(--amb); font: 700 11px var(--mono); } .fl-help .dim { color: var(--mut); font-size: 11px; }
+
+/* Event Predictor: scenario trees + open predictions (DATA view) */
+.fl-pred { display: none; } #tw-stonks.dv .fl-pred { display: block; }
+.pr { border: 1px solid var(--line, rgba(255,255,255,.1)); border-left: 2px solid #7ee0c3; border-radius: 8px; padding: 7px 9px; margin-bottom: 8px; background: rgba(255,255,255,.02); cursor: pointer; }
+.pr .prh { display: flex; align-items: center; gap: 8px; font-size: 11px; } .pr .prt { font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--mut); } .pr .prc { font-size: 10px; color: var(--mut); }
+.pr .prn { font-size: 11.5px; margin: 3px 0; } .pr .prs { font-size: 11px; color: var(--mut); margin-bottom: 3px; } .pr .prb { font-size: 10.5px; color: #7ee0c3; margin: 3px 0; } .pr .prb.lo { color: var(--amb); } .pr .prm { font-size: 10.5px; color: var(--amb); margin: 2px 0 4px; }
+.pr .prsc { margin: 5px 0; } .pr .prsh { display: flex; justify-content: space-between; font-size: 11px; } .pr .prsc.fired .prsh span::after { content: " (trigger hit)"; color: var(--amb); }
+.pr .pbar { height: 6px; border-radius: 3px; background: rgba(255,255,255,.08); margin: 3px 0; overflow: hidden; } .pr .pbar i { display: block; height: 100%; border-radius: 3px; }
+.pr .prd, .pr .prk { font-size: 10px; color: var(--mut); } .fl-predbox .prrec { font-size: 10px; color: var(--mut); text-align: right; }
+.fl-drawer .pr { cursor: default; }

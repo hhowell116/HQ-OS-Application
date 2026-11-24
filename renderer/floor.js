@@ -4,13 +4,13 @@
   const $ = (s) => document.querySelector(s);
   const mk = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
 
-  const NAME = { market: "Market Data", news: "News & Policy", sentiment: "Sentiment", analyst: "Analyst", debate: "Bull vs Bear", bull: "Bull", bear: "Bear", backtest: "Backtester", risk: "Risk Manager", lead: "Lead", score: "Scorekeeper", reflect: "Reflector", mirror: "Mirror" };
-  const HUE = { market: "#4aa8ff", news: "#b58cff", sentiment: "#ff8fd0", analyst: "#ffb02e", bull: "#00f5a0", bear: "#ff3d6b", backtest: "#5ee6ff", risk: "#ff7a45", lead: "#ffe066", score: "#9ad17a", reflect: "#c0a0ff", mirror: "#ffb86b" };
+  const NAME = { market: "Market Data", news: "News & Policy", sentiment: "Sentiment", analyst: "Analyst", debate: "Bull vs Bear", bull: "Bull", bear: "Bear", backtest: "Backtester", risk: "Risk Manager", lead: "Lead", score: "Scorekeeper", reflect: "Reflector", mirror: "Mirror", predictor: "Predictor" };
+  const HUE = { market: "#4aa8ff", news: "#b58cff", sentiment: "#ff8fd0", analyst: "#ffb02e", bull: "#00f5a0", bear: "#ff3d6b", backtest: "#5ee6ff", risk: "#ff7a45", lead: "#ffe066", score: "#9ad17a", reflect: "#c0a0ff", mirror: "#ffb86b", predictor: "#7ee0c3" };
   // seat angle in degrees clockwise from the top; bull (270) and bear (90) sit opposite each other
-  const ANG = { news: 0, sentiment: 30, mirror: 60, bear: 90, backtest: 120, risk: 150, lead: 180, reflect: 210, score: 240, bull: 270, analyst: 300, market: 330 };
+  const ANG = { news: 0, predictor: 28, sentiment: 55, mirror: 83, bear: 110, backtest: 138, risk: 166, lead: 194, reflect: 221, score: 249, bull: 277, analyst: 304, market: 332 }; // 13 seats, ~27.7 degrees apart
   const SEATS = Object.keys(ANG).concat("steady");
-  const NEXT = { score: "market", market: "analyst", news: "analyst", sentiment: "analyst", mirror: "analyst", analyst: "bull", bull: "bear", bear: "backtest", debate: "backtest", backtest: "risk", risk: "lead", lead: "reflect", reflect: "" };
-  const STAGES = [["SCORE", ["score"]], ["DATA", ["market", "news", "sentiment", "mirror"]], ["ANALYST", ["analyst"]], ["DEBATE", ["bull", "bear"]], ["BACKTEST", ["backtest"]], ["RISK", ["risk"]], ["LEAD", ["lead"]], ["REFLECT", ["reflect"]]];
+  const NEXT = { score: "market", market: "analyst", news: "predictor", predictor: "analyst", sentiment: "analyst", mirror: "analyst", analyst: "bull", bull: "bear", bear: "backtest", debate: "backtest", backtest: "risk", risk: "lead", lead: "reflect", reflect: "" };
+  const STAGES = [["SCORE", ["score"]], ["DATA", ["market", "news", "sentiment", "mirror"]], ["PREDICT", ["predictor"]], ["ANALYST", ["analyst"]], ["DEBATE", ["bull", "bear"]], ["BACKTEST", ["backtest"]], ["RISK", ["risk"]], ["LEAD", ["lead"]], ["REFLECT", ["reflect"]]];
   const S = { health: { ok: true, why: [] }, running: false, desks: {}, alerts: [], tape: [], stats: null, sig: {}, equity: [], finishedAt: 0, ev: [], cur: -1, follow: true, sel: "", play: null, usage: null };
   // render gate: a panel only rebuilds its DOM when its inputs actually changed (rebuilding on every poll/tick made the HUD flash)
   const memo = {}; const changed = (k, v) => { const x = JSON.stringify(v); if (memo[k] === x) return false; memo[k] = x; return true; };
@@ -81,7 +81,7 @@
     for (const x of [...t, ...t]) { const s = mk("span", "fl-tk " + cls(x.chg)); s.append(mk("b", "", x.s), document.createTextNode((x.chg > 0 ? "▲ " : x.chg < 0 ? "▼ " : "") + (x.px ? x.px + " " : "") + sgn(x.chg) + "%")); inn.append(s); }
   }
   // ---------- plain-English help: desk jobs (also hover tooltips) and the replay bar explainer ----------
-  const DESK_JOB = { score: "Scorekeeper: re-prices every open paper position and closes any that hit their stop or target.", market: "Market Data: pulls live prices, the day's biggest movers, unusual volume and today's earnings reports.", news: "News & Policy: reads headlines, SEC filings, the Fed and White House for things that can move a stock.", sentiment: "Sentiment: checks what people are saying on Reddit and StockTwits so hype does not surprise the team.", analyst: "Analyst: studies the top movers (trend, RSI, price range, catalyst) and says bullish, bearish or neutral.", debate: "Bull vs Bear: one side argues to buy, the other argues to pass, then they give a verdict.", bull: "Bull: argues why the stock could go up.", bear: "Bear: argues why the stock could fall or why to stay out.", backtest: "Backtester: replays each idea on 2 years of past prices to see how often it would have worked.", risk: "Risk Manager: sizes the trade, sets the stop-loss and can VETO anything that breaks the safety rules.", steady: "Steady: the slow strategy. Holds a fixed list of big companies, buys the one furthest below its 52-week high and sells on a new high.", mirror: "Mirror: copies what insiders and big funds just bought (SEC filings), using small paper trades.", lead: "Lead: makes the final call and writes the BUY / WATCH cards you see on the right.", reflect: "Reflector: after each run, scores past signals and writes lessons so the team improves.", hub: "Lead Hub: where every desk hands its work to the Lead." };
+  const DESK_JOB = { score: "Scorekeeper: re-prices every open paper position and closes any that hit their stop or target.", market: "Market Data: pulls live prices, the day's biggest movers, unusual volume and today's earnings reports.", news: "News & Policy: reads headlines, SEC filings, the Fed and White House for things that can move a stock.", sentiment: "Sentiment: checks what people are saying on Reddit and StockTwits so hype does not surprise the team.", analyst: "Analyst: studies the top movers (trend, RSI, price range, catalyst) and says bullish, bearish or neutral.", debate: "Bull vs Bear: one side argues to buy, the other argues to pass, then they give a verdict.", bull: "Bull: argues why the stock could go up.", bear: "Bear: argues why the stock could fall or why to stay out.", backtest: "Backtester: replays each idea on 2 years of past prices to see how often it would have worked.", risk: "Risk Manager: sizes the trade, sets the stop-loss and can VETO anything that breaks the safety rules.", steady: "Steady: the slow strategy. Holds a fixed list of big companies, buys the one furthest below its 52-week high and sells on a new high.", mirror: "Mirror: copies what insiders and big funds just bought (SEC filings), using small paper trades.", lead: "Lead: makes the final call and writes the BUY / WATCH cards you see on the right.", reflect: "Reflector: after each run, scores past signals and writes lessons so the team improves.", predictor: "Predictor: spots big news events (a CEO ousted, a lawsuit, an FDA decision, a deal), then lays out the possible outcomes with odds, using past look-alikes and betting-market prices. It also sets watch triggers.", hub: "Lead Hub: where every desk hands its work to the Lead." };
   const KIND_JOB = [["start", "A desk began working."], ["done", "A desk finished and handed its result on."], ["say", "An agent's message or handoff to another agent."], ["veto", "The Risk Manager blocked an idea (it will not be traded)."], ["error", "A desk hit a problem (for example a data source was down)."]];
   function toggleHelp() {
     let p = $("#fl-help"); if (p) { p.classList.toggle("hidden"); return; } const root = $("#tw-stonks"); if (!root) return;
@@ -89,7 +89,7 @@
     const sec = (t) => p.append(mk("div", "fl-h", t)), row = (k, v) => { const d = mk("div", "fr"); d.append(mk("b", "", k), document.createTextNode(" " + v)); p.append(d); };
     sec("THE COUNTER"); row("3/38", "means you are looking at step 3 of the 38 events recorded in the last run. Drag the slider or press PLAY to step through them. Replaying costs nothing: no tokens, no new data, it only re-shows what already happened.");
     sec("THE FILTERS"); row("ALL", "every event."); KIND_JOB.forEach(([k, v]) => row(k.toUpperCase(), v)); p.append(mk("div", "fr dim", "The number next to each word is how many of that kind happened in the last run."));
-    sec("THE DESKS (hover a desk for this too)"); ["score", "market", "news", "sentiment", "analyst", "debate", "backtest", "risk", "steady", "mirror", "lead", "reflect"].forEach((k) => { const t = DESK_JOB[k], i = t.indexOf(": "); row(t.slice(0, i), t.slice(i + 2)); });
+    sec("THE DESKS (hover a desk for this too)"); ["score", "market", "news", "sentiment", "predictor", "analyst", "debate", "backtest", "risk", "steady", "mirror", "lead", "reflect"].forEach((k) => { const t = DESK_JOB[k], i = t.indexOf(": "); row(t.slice(0, i), t.slice(i + 2)); });
     root.append(p);
   }
   { const sc = $(".fl-scrub"), q = mk("button", "fl-q", "?"); q.id = "fl-helpbtn"; q.title = "What do the counter, filters and desks mean?"; q.setAttribute("aria-label", "Explain the replay bar and desks"); q.onclick = toggleHelp; if (sc) sc.insertBefore(q, $("#fl-live")); }
@@ -260,6 +260,32 @@
   function closeCard() { if (window.HQStocks3D && HQStocks3D.focused()) HQStocks3D.unfocus(); else agentClose(); }
   function agentClose() { if (!S.card) return; const id = S.card; S.card = null; $("#fl-drawer").classList.add("hidden"); if (S.sel === id) { S.sel = ""; renderAgents(); } }
   function agentCard(id) { delete memo.ag; S.card = id; S.sel = ANG[id] != null ? id : ""; renderAgents(); }
+  // ---------- Event Predictor: scenario trees (drawer) and open predictions (DATA view) ----------
+  const pct0 = (p) => Math.round(p * 100) + "%", mv = (s) => (s.low > 0 ? "+" : "") + s.low + "% to " + (s.high > 0 ? "+" : "") + s.high + "%";
+  function predOne(p, full) {
+    const b = mk("div", "pr"); const hd = mk("div", "prh"); hd.append(mk("b", "tk", p.ticker), mk("span", "prt", p.type), mk("span", "spacer"), mk("span", "prc", "confidence " + p.confidence + "/100")); b.append(hd, mk("div", "prn", short(p.headline, full ? 200 : 90)));
+    if (full && p.summary) b.append(mk("div", "prs", p.summary));
+    b.append(mk("div", "prb" + (p.base && p.base.low ? " lo" : ""), p.base ? p.base.text : ""));
+    if (p.market) b.append(mk("div", "prm", "Betting market (" + p.market.source + "): " + Math.round(p.market.yes * 100) + "% yes on '" + short(p.market.q, 70) + "'"));
+    (p.scenarios || []).forEach((s, i) => { const hit = (p.fired || []).includes(i), r = mk("div", "prsc" + (hit ? " fired" : "")), t = mk("div", "prsh"); t.append(mk("span", "", s.name), mk("b", "", pct0(s.prob))); const bar = mk("div", "pbar"), fill = mk("i", ""); fill.style.width = Math.max(2, Math.round(s.prob * 100)) + "%"; fill.style.background = s.direction === "up" ? "var(--up)" : s.direction === "down" ? "var(--dn)" : "var(--mut)"; bar.append(fill); r.append(t, bar);
+      r.append(mk("div", "prd", "Stock could move " + mv(s) + " within about " + s.horizon + " days." + (hit ? " TRIGGER HIT." : ""))); if (full && (s.keywords || []).length) r.append(mk("div", "prk", "Watching for headlines with: " + s.keywords.join(", "))); b.append(r); });
+    return b;
+  }
+  function predTrees(d) {
+    const P = S.pred; d.append(mk("div", "fl-h", "EVENT PREDICTIONS (OPEN)"));
+    if (!P || !P.open || !P.open.length) { d.append(mk("p", "dth", "No open predictions. The Predictor only speaks up when the news has a real event (a CEO change, a lawsuit, a deal, an FDA decision) about a stock we follow.")); }
+    else P.open.slice(0, 4).forEach((p) => d.append(predOne(p, true)));
+    if (P && P.record) d.append(mk("div", "fl-h", "TRACK RECORD"), mk("p", "dth", P.record.n ? P.record.n + " graded, top pick right " + P.record.hitRate + "% of the time (score " + P.record.meanBrier + ", lower is better, a coin-flip guess scores " + P.record.meanUniform + ")." + (P.record.demoted ? " Demoted: it is not calibrated well, so its triggers are watch-only." : "") : "Not graded yet. Predictions are scored once their time window ends."));
+  }
+  function predSection() { // adds the DATA-view Predictions section under SAFETY without touching index.html
+    if ($("#fl-pred")) return; const col = $(".fl-rcol"); if (!col) return; const sc = mk("div", "fl-sc fl-pred"); sc.id = "fl-pred"; const hd = mk("div", "fl-h"); hd.append(mk("span", "", "PREDICTIONS"), mk("span", "fl-rule")); const bx = mk("div", "fl-predbox"); bx.id = "fl-predbox"; sc.append(hd, bx); col.append(sc);
+  }
+  function renderPred() {
+    const box = $("#fl-predbox"); if (!box || !changed("pred", S.pred)) return; box.textContent = ""; const P = S.pred;
+    if (!P || !P.open || !P.open.length) { box.append(mk("div", "fl-empty", "No open predictions yet. They appear when the news has a big event for a stock we follow.")); return; }
+    P.open.slice(0, 5).forEach((p) => { const b = predOne(p, false); b.onclick = () => agentCard("predictor"); box.append(b); });
+    if (P.record && P.record.n) box.append(mk("div", "prrec", P.record.n + " graded, right " + P.record.hitRate + "%, score " + P.record.meanBrier));
+  }
   function renderCard() {
     const id = S.card, d = $("#fl-drawer"), ev = events(), cur = Math.min(S.cur, ev.length - 1); d.textContent = ""; d.classList.remove("hidden");
     const mine = (e) => (id === "hub" ? !!e.to : id === "steady" ? /steady/i.test(e.text || "") : id === "debate" ? ["debate", "bull", "bear"].includes(e.agent) : e.agent === id), upto = ev.slice(0, cur + 1), list = upto.filter(mine), last = list[list.length - 1], st = derive(ev, cur).st;
@@ -271,6 +297,7 @@
     if (last) { d.append(mk("div", "dpx", (last.ts ? new Date(last.ts).toLocaleTimeString([], { hour12: false }) + "  " : "") + last.kind + (last.to ? "  → " + (AG_NAME[last.to] || last.to) : "")), mk("p", "dth dtxt", last.text || "")); }
     else d.append(mk("p", "dth", id === "steady" ? "No Steady activity in this run yet." : "Nothing yet. This desk has not reported in this run."));
     if (id === "steady" && S.stats && S.stats.steady) { const t = S.stats.steady; d.append(mk("div", "fl-h", "STEADY SLEEVE"), mk("p", "dth", sgn(t.retPct) + "% return · " + t.open + " open · " + t.trades + " closed")); }
+    if (id === "predictor") predTrees(d);
     const rec = list.slice(-8, -1).reverse(); if (rec.length) { d.append(mk("div", "fl-h", id === "hub" ? "RECENT HANDOFFS" : "EARLIER THIS RUN")); const ul = mk("ul", "dl"); rec.forEach((e) => ul.append(mk("li", "", (id === "hub" ? (AG_NAME[e.agent] || e.agent) + " → " + (AG_NAME[e.to] || e.to) + ": " : e.kind + ": ") + short(e.text, 160)))); d.append(ul); }
   }
 
@@ -362,7 +389,7 @@
     return (dv = { st, cur, veto: d.veto, running: S.running });
   }
   // ---------- DATA VIEW: dense dashboard over the same panels (CSS re-layout in floor.css, class .dv on #tw-stonks). Entered from the wall button in the 3D room. ----------
-  const ROLE = { market: "prices & data", news: "news & policy", sentiment: "social mood", analyst: "picks ideas", bull: "argues buy", bear: "argues pass", backtest: "tests history", risk: "sizes & vetoes", lead: "final call", score: "prices book", reflect: "lessons", mirror: "copy trades", steady: "long holds" };
+  const ROLE = { market: "prices & data", news: "news & policy", sentiment: "social mood", analyst: "picks ideas", bull: "argues buy", bear: "argues pass", backtest: "tests history", risk: "sizes & vetoes", lead: "final call", score: "prices book", reflect: "lessons", mirror: "copy trades", predictor: "event odds", steady: "long holds" };
   const sAgo = (ts) => { if (!ts) return "--"; const s = Math.max(0, Math.round((Date.now() - ts) / 1000)); return s < 60 ? s + "s" : s < 3600 ? Math.floor(s / 60) + "m" : s < 86400 ? Math.floor(s / 3600) + "h" : Math.floor(s / 86400) + "d"; };
   function renderDv() {
     if (!S.dv) return; const box = $("#fl-agstrip"), ev = events(), { st } = derive(ev, S.cur), last = {}; if (!box) return;
@@ -394,7 +421,7 @@
     const ag = mk("div", "fl-agstrip"); ag.id = "fl-agstrip"; $("#tw-stonks").insertBefore(ag, $(".fl-board"));
     const kd = mk("span", "fl-kinds"); kd.id = "fl-kinds"; $(".fl-scrub").append(kd); }
   setInterval(() => { if (S.dv && S.active) renderDv(); }, 5000);
-  const all = () => { collapsibles(); renderSafety(); renderCmp(); renderHead(); renderTape(); renderAlerts(); renderBook(); renderSig(); renderCurve(); renderAgents(); renderLive(); };
+  const all = () => { predSection(); collapsibles(); renderPred(); renderSafety(); renderCmp(); renderHead(); renderTape(); renderAlerts(); renderBook(); renderSig(); renderCurve(); renderAgents(); renderLive(); };
   // ---------- PAPER / LIVE mode. LIVE = read-only view of the agent's real account + locked order approvals (no order is sent while live orders are off). ----------
   const isLive = () => S.mode === "live";
   const orderTxt = (a) => { const p = a.plan || {}; return (a.action === "SELL" ? "SELL " : "BUY ") + p.shares + " " + a.ticker + " limit $" + p.entry + " · stop $" + p.stop + " · est. $" + Math.round((p.shares || 0) * (p.entry || 0)); };
@@ -448,7 +475,7 @@
   }
   function load(r) {
     if (S.preview) return; // dev screenshot hook: HQFloor.preview() freezes the data
-    const st = r.state; if (st) { S.desks = st.desks || {}; S.alerts = st.alerts || []; S.tape = st.tape || []; S.finishedAt = st.finishedAt || 0; S.usage = st.usage || null; S.flag = st.flag || ""; S.mode = st.mode === "live" ? "live" : "paper"; }
+    const st = r.state; if (st) { S.desks = st.desks || {}; S.alerts = st.alerts || []; S.tape = st.tape || []; S.finishedAt = st.finishedAt || 0; S.usage = st.usage || null; S.flag = st.flag || ""; S.pred = st.predictions || null; S.mode = st.mode === "live" ? "live" : "paper"; }
     S.health = r.health || { ok: true, why: [] }; S.running = !!r.running; S.stats = r.stats; S.sig = r.journal || {}; S.equity = r.equity || []; all();
   }
   async function refresh() {
@@ -482,7 +509,7 @@
     shown: (on) => { S.active = on !== false; if (S.active) { S.autoPlay = true; refresh(); let st = ""; try { st = sessionStorage.getItem(DVK); } catch (e) {} if (st === "1" && !S.dv) dvEnter(true); } else { stopPlay(); closeCard(); if (S.dv || S.focusSet) { dvApply(false); if (S.focusSet && window.HQTower) HQTower.clearFocus(); S.focusSet = false; S.dvBusy = false; } } },
     tip: (id) => DESK_JOB[id] || "", help: toggleHelp, dv: () => !!S.dv, dataView: (on) => (on === false ? dvExit() : dvEnter()),
     events: () => events(), cur: () => S.cur, active: () => !!S.active, agentCard, agentClose,
-    preview: (al, pos) => { S.preview = true; S.alerts = al; if (pos && S.stats) S.stats = Object.assign({}, S.stats, { positions: pos }); all(); }, running: () => S.running, busy, desks: deskView, onChange: (f) => listeners.push(f), NAME, HUE, ANG, SEATS,
+    preview: (al, pos, pred) => { S.preview = true; S.alerts = al; if (pred) S.pred = pred; if (pos && S.stats) S.stats = Object.assign({}, S.stats, { positions: pos }); all(); }, running: () => S.running, busy, desks: deskView, onChange: (f) => listeners.push(f), NAME, HUE, ANG, SEATS,
     data: () => ({ tape: S.tape, equity: S.equity, alerts: S.alerts, stats: S.stats }),
     select: (seat) => { S.sel = S.sel === seat ? "" : seat; renderAgents(); }, selected: () => S.sel,
     escape: () => { if (S.dv) { dvExit(); return true; } if (S.card) { closeCard(); return true; } const d = $("#fl-drawer"); if (!d.classList.contains("hidden")) { d.classList.add("hidden"); return true; } if (S.sel) { S.sel = ""; renderAgents(); return true; } return false; },
