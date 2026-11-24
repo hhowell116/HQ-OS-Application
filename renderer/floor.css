@@ -6,7 +6,7 @@
 #tw-stonks .fl-bar { position: absolute; left: 0; right: 0; top: 0; z-index: 3; }
 #tw-stonks .fl-banner { position: absolute; left: 0; right: 0; top: 50px; z-index: 3; }
 #tw-stonks .fl-tape { position: absolute; left: 0; right: 0; top: 46px; z-index: 2; }
-#tw-stonks .fl-banner:not(.hidden) ~ .fl-tape { top: 76px; }
+#tw-stonks .fl-banner:not(.hidden) ~ .fl-tape { top: calc(var(--flh, 46px) + 30px); }
 .fl-pn { position: absolute; z-index: 2; }
 .fl-board { left: 12px; top: 84px; bottom: 12px; width: 330px; display: flex; flex-direction: column; overflow: hidden; }
 .fl-rcol { right: 12px; top: 84px; bottom: 12px; width: 350px; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; }
@@ -197,12 +197,12 @@
 .tower-view[data-fl="stonks"] .tw-tag:not(.dk):not(.on) { opacity: .4 !important; }
 
 /* ===== v3 (2026-11-23): one stable top strip, everything visible at a glance, no overlaps ===== */
-#tw-stonks .fl-banner { top: 46px; height: 30px; box-sizing: border-box; display: flex; align-items: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 16px; }
-#tw-stonks .fl-tape { top: 46px; height: 26px; z-index: 2; background: rgba(6,10,16,.92); backdrop-filter: none; isolation: isolate; }
-#tw-stonks .fl-banner:not(.hidden) ~ .fl-tape { top: 76px; }
+#tw-stonks .fl-banner { top: var(--flh, 46px); height: 30px; box-sizing: border-box; display: flex; align-items: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 16px; }
+#tw-stonks .fl-tape { top: var(--flh, 46px); height: 26px; z-index: 2; background: rgba(6,10,16,.92); backdrop-filter: none; isolation: isolate; }
+#tw-stonks .fl-banner:not(.hidden) ~ .fl-tape { top: calc(var(--flh, 46px) + 30px); }
 .fl-tape-in { will-change: transform; transform: translateZ(0); backface-visibility: hidden; }
 .fl-bar { backdrop-filter: none; background: rgba(8,12,18,.94); }
-.fl-board, .fl-rcol { top: 84px; } .tw-stonks:has(.fl-banner:not(.hidden)) .fl-board, .tw-stonks:has(.fl-banner:not(.hidden)) .fl-rcol, .tw-stonks:has(.fl-banner:not(.hidden)) .fl-drawer { top: 114px; }
+.fl-board, .fl-rcol { top: calc(var(--flh, 46px) + 38px); } .tw-stonks:has(.fl-banner:not(.hidden)) .fl-board, .tw-stonks:has(.fl-banner:not(.hidden)) .fl-rcol, .tw-stonks:has(.fl-banner:not(.hidden)) .fl-drawer { top: calc(var(--flh, 46px) + 68px); }
 /* right column: four compact panels, always open */
 .fl-rcol { gap: 6px; overflow-y: auto; }
 .fl-sc > .fl-h.fold { cursor: default; } .fl-sc > .fl-h.fold::after { content: none; }
@@ -218,8 +218,8 @@
 
 /* ===== DATA VIEW (Stocks floor): minimal, dense dashboard. Same panels, re-laid-out; the 3D room is hidden behind an opaque background and paused (stocks3d.js). Toggled by floor.js (#tw-stonks.dv). ===== */
 .fl-agstrip, .fl-kinds, .fl-viewbtn { display: none; }
-#tw-stonks.dv { --dvt: 84px; background: radial-gradient(1200px 700px at 50% 0, #0d141c, #05080d 70%); }
-#tw-stonks.dv:has(.fl-banner:not(.hidden)) { --dvt: 118px; }
+#tw-stonks.dv { --dvt: calc(var(--flh, 46px) + 38px); background: radial-gradient(1200px 700px at 50% 0, #0d141c, #05080d 70%); }
+#tw-stonks.dv:has(.fl-banner:not(.hidden)) { --dvt: calc(var(--flh, 46px) + 72px); }
 #tw-stonks.dv .fl-viewbtn { display: inline-block; }
 .stk-dv #tw-tags, .stk-dv #tw-labels, .stk-dv #tw-lines, .stk-dv #tw-feed, .stk-dv .tw-roster { visibility: hidden; pointer-events: none; }
 #tw-stonks.dv .fl-agstrip { display: grid; position: absolute; left: 12px; right: 12px; top: var(--dvt); z-index: 2; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 5px; }

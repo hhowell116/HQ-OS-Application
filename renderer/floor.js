@@ -425,6 +425,9 @@
     b.onclick = () => { const C = window.HQTowerChat; if (C && C.open) { C.isOpen() ? C.close() : C.open(true); } else { const t = document.getElementById("tw-chatbtn"); if (t) t.click(); else toast("Chat is not available here"); } };
     const dvb = mk("button", "fl-btn ghost", "DATA VIEW"); dvb.id = "fl-dvbtn"; dvb.title = "Dense dashboard view (also the DATA VIEW button on the wall)"; dvb.onclick = () => dvEnter(); b.after(dvb);
     setInterval(() => { const on = !!(window.HQTowerChat && HQTowerChat.isOpen && HQTowerChat.isOpen()); if (b.classList.contains("on") !== on) b.classList.toggle("on", on); dvb.classList.toggle("hidden", !!S.dv); }, 500); }
+  { const root = $("#tw-stonks"), bar = root && root.querySelector(".fl-bar"); // measured header height drives the tape/banner/DV offsets (CSS var --flh); only writes on change
+    if (bar) { let last = 0; const m = () => { const h = Math.ceil(bar.getBoundingClientRect().height); if (h > 0 && h !== last) { last = h; root.style.setProperty("--flh", h + "px"); } };
+      if (window.ResizeObserver) new ResizeObserver(m).observe(bar); window.addEventListener("resize", m); m(); setInterval(m, 1000); } }
   const clk = () => { $("#fl-clock").textContent = new Date().toLocaleTimeString([], { hour12: false }); };
   clk(); setInterval(clk, 1000);
   window.HQFloor = {
