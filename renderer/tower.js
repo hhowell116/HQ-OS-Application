@@ -290,7 +290,7 @@
       T.fk = (T.fk || 0) + ((fo ? 1 : 0) - (T.fk || 0)) * Math.min(1, dt * 3.5); if (!fo && T.fk < 0.001) { T.fk = 0; T.lastFocus = null; }
       const F = fo || T.lastFocus; if (fo) T.lastFocus = fo;
       camera.fov = F && F.fov ? ic.fov + (F.fov - ic.fov) * T.fk : ic.fov;
-      camera.position.copy(ic.pos); camera.position.x += Math.sin(t * 0.18) * 0.28 * (1 - T.fk);
+      camera.position.copy(ic.pos); camera.position.x += Math.sin(t * 0.18) * (T.cur && T.cur.stonks ? 0.03 : 0.28) * (1 - T.fk); // Trading floor: sway crawls the thin wall-screen text (flicker), so it nearly holds still
       const look = ic.look.clone();
       if (F && T.fk > 0) { camera.position.lerp(new THREE.Vector3(F.pos.x, F.pos.y, F.pos.z), T.fk); look.lerp(new THREE.Vector3(F.target.x, F.target.y, F.target.z), T.fk); }
       camera.lookAt(look); camera.updateProjectionMatrix(); return;
@@ -689,7 +689,7 @@
       else if (I.f.stonks && I.stonks) { const p = m.desk ? I.stonks.seat[m.desk] : I.stonks.side[(i - dkN) % 6]; o.tx = p.x; o.tz = p.z; o.sit = true; o.yawT = p.yaw; }
       else if (o.working && i < nd) { const d = I.desks[i]; o.tx = d.x; o.tz = d.seatZ; o.sit = true; o.sy = 0.05; o.yawT = 0; }
       else { const k = idleK++; if (k < 3) { o.tx = -4.0 + k * 0.7; o.tz = 0.63; o.sit = true; o.sy = -0.02; } else { const kk = k - 3; o.tx = -1.6 + (kk % 4) * 0.85; o.tz = 1.5 + Math.floor(kk / 4) * 1.0; o.sit = false; } o.yawT = (o.hue % 7 - 3) * 0.12; }
-      o.tag.textContent = ""; const nm = el("b", "", I.f.stonks && !m.desk && m.label.length > 15 ? m.label.slice(0, 14) + "…" : m.label), st = el("span", "", o.working ? "working" : m.worker ? "worker" : "idle"); o.tag.append(nm, st); o.tag.classList.toggle("on", o.working); o.tag.classList.toggle("wk", !!m.worker); o.tag.onclick = m.desk ? () => HQFloor.select(m.desk) : null;
+      o.tag.textContent = ""; const nm = el("b", "", I.f.stonks && !m.desk && m.label.length > 15 ? m.label.slice(0, 14) + "…" : m.label), st = el("span", "", o.working ? "working" : m.worker ? "worker" : "idle"); o.tag.append(nm, st); o.tag.classList.toggle("on", o.working); o.tag.classList.toggle("wk", !!m.worker); o.tag.onclick = m.desk ? () => HQFloor.select(m.desk) : (e) => { e.stopPropagation(); openCard(m); }; o.tag.classList.toggle("cl", !m.desk);
       o.bub.textContent = o.text; o.bub.classList.toggle("hidden", !o.working || !o.text);
       if (o.fresh) { o.x = o.tx; o.z = o.tz; o.fresh = false; }
     });
@@ -711,8 +711,31 @@
   function paintRoster(list, deck) {
     rosterEl.textContent = ""; rosterEl.append(el("div", "tw-rh", deck ? "CORE AGENTS · Agent Team/Agents" : "TEAM · <project>/.claude/agents"));
     if (!list.length) rosterEl.append(el("div", "tw-rn", "No specialist team yet. Running work shows up here as a worker."));
-    list.forEach((m) => { const on = !!m.item, r = el("div", "tw-r" + (on ? " on" : "")); r.append(el("div", "tw-rt", m.label), el("em", "", on ? "WORKING" : m.worker ? "WORKER" : "IDLE"), el("div", "tw-rs", on ? stepOf(m.item) : m.desc ? m.desc.slice(0, 70) : "waiting for a task")); rosterEl.append(r); });
+    list.forEach((m) => { const on = !!m.item, r = el("div", "tw-r" + (on ? " on" : "")); r.append(el("div", "tw-rt", m.label), el("em", "", on ? "WORKING" : m.worker ? "WORKER" : "IDLE"), el("div", "tw-rs", on ? stepOf(m.item) : m.desc ? m.desc.slice(0, 70) : "waiting for a task")); r.classList.add("clk"); r.onclick = (e) => { e.stopPropagation(); openCard(m); }; rosterEl.append(r); });
+    if (T.cardKey) { const m = list.find((x) => x.key === T.cardKey); if (m) fillCard(m); else closeCard(); }
   }
+
+  // ---------- agent detail card: click a roster row or a desk name tag. Esc / click-away / x closes it. Data = the live item (subagent, console chat or Agent Activity row) behind the desk. ----------
+  const cardEl = el("aside", "tw-card"); cardEl.id = "tw-card"; rosterEl.parentElement.append(cardEl);
+  const agoStr = (t) => { if (!t) return "no activity yet"; const d = Math.max(0, Math.round((Date.now() - t) / 1000)); return d < 5 ? "just now" : d < 60 ? d + "s ago" : d < 3600 ? Math.round(d / 60) + " min ago" : Math.round(d / 3600) + " h ago"; };
+  function fillCard(m) {
+    const it = m.item, on = !!it, steps = (it && it.steps) || [], tools = steps.filter((x) => x.kind === "tool").length, last = steps.length ? steps[steps.length - 1] : null;
+    const upd = last && last.t ? last.t : it && it.mtime ? it.mtime : 0, files = (it && it.files && it.files.length) || 0;
+    cardEl.textContent = ""; cardEl.classList.toggle("on", on);
+    const x = el("button", "tw-cx ghost", "✕"); x.onclick = closeCard;
+    const head = el("div", "tw-ch"); head.append(el("b", "", m.full || m.label), el("em", "", on ? "WORKING" : "IDLE"));
+    const bar = el("div", "tw-cbar"); bar.append(el("i", "")); bar.classList.toggle("run", on);
+    if (on) bar.firstChild.style.width = Math.min(95, 12 + tools * 9) + "%";
+    cardEl.append(x, head, el("div", "tw-cr", (it && it.role) || m.desc || (m.worker ? "worker" : m.host ? "host" : "specialist") + (m.model ? " · " + m.model : "")),
+      el("div", "tw-ck", "CURRENT TASK"), el("div", "tw-ct", on ? stepOf(it) : "Waiting for a task."), bar,
+      el("div", "tw-cm", on ? tools + " steps · " + files + " files · updated " + agoStr(upd) : "last update: " + agoStr(upd)));
+    steps.slice(-3, -1).reverse().forEach((st) => cardEl.append(el("div", "tw-cs", "· " + phrase(st))));
+    cardEl.classList.add("open");
+  }
+  function openCard(m) { T.cardKey = m.key; fillCard(m); }
+  function closeCard() { T.cardKey = null; cardEl.classList.remove("open"); }
+  addEventListener("keydown", (e) => { if (e.key === "Escape" && T.cardKey) { e.preventDefault(); e.stopImmediatePropagation(); closeCard(); } }, true);
+  addEventListener("pointerdown", (e) => { if (T.cardKey && !e.target.closest(".tw-card, .tw-r, .tw-tag")) closeCard(); }, true);
 
   function animateInterior(t, dt) {
     const I = interior; if (!I) return;

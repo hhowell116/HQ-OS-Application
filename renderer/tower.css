@@ -101,3 +101,12 @@ body.in-tower .layout { display: none; }
 /* exterior floor labels and floor name text: softer glow, heavier weight */
 .tw-nm { font-weight: 800; text-shadow: 0 0 4px color-mix(in srgb, var(--fc) 55%, transparent), 0 1px 2px rgba(0,0,0,.9); }
 .tower-view[data-fl="stonks"] #tw-chatbtn { display: none !important; }
+
+/* agent detail card (click a roster row or desk tag) */
+.tw-r.clk, .tw-tag.cl { cursor: pointer; } .tw-tag.cl { pointer-events: auto; }
+.tw-card { position: absolute; top: 46px; right: 278px; width: 270px; z-index: 5; padding: 12px 14px; background: rgba(4,8,16,.86); border: 1px solid var(--line2); border-radius: 4px; backdrop-filter: blur(8px); display: none; font: 12px var(--mono); color: var(--tx2); }
+.tower-view.on.inside .tw-card.open { display: block; } .tw-card.on { border-color: var(--acc); box-shadow: inset 3px 0 0 var(--acc), 0 0 18px rgba(0,0,0,.5); }
+.tw-card .tw-cx { position: absolute; top: 6px; right: 6px; padding: 0 6px; } .tw-ch { display: flex; align-items: baseline; gap: 10px; padding-right: 22px; } .tw-ch b { color: var(--tx); font-size: 14px; } .tw-ch em { font: 700 10px var(--mono); font-style: normal; letter-spacing: .1em; color: var(--tx3); } .tw-card.on .tw-ch em { color: var(--acc); }
+.tw-cr { margin: 3px 0 8px; color: var(--tx3); font-size: 11px; } .tw-ck { font: 700 9px var(--mono); letter-spacing: .12em; color: var(--tx3); } .tw-ct { margin: 3px 0 8px; color: var(--tx); line-height: 1.35; }
+.tw-cbar { height: 5px; border-radius: 3px; background: rgba(255,255,255,.08); overflow: hidden; } .tw-cbar i { display: block; height: 100%; width: 0; background: var(--acc); transition: width .6s; } .tw-cbar.run i { box-shadow: 0 0 8px var(--acc); animation: tw-cpulse 1.4s ease-in-out infinite; }
+@keyframes tw-cpulse { 50% { opacity: .55; } } .tw-cm { margin-top: 6px; font-size: 10.5px; color: var(--tx3); } .tw-cs { margin-top: 3px; font-size: 10.5px; color: var(--tx3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

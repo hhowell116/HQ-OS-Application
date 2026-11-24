@@ -1,7 +1,6 @@
 // HQ OS walkthrough recorder. Runs the app on SAMPLE data (temp folder, temp userData, never the real notes),
-// fullscreen and visible, records the screen (VIDEO ONLY, so no stray system audio) via getDisplayMedia/MediaRecorder, writes a webm
-// plus <out>.json with the time the sample track started; tools/demo-mix.js adds the sample track in post.
-// Run: node_modules/electron/dist/electron.exe tools/demo-record.js <out.webm>      (PROBE=1 -> screenshots only, no recording)
+// hidden (opacity 0, unfocused, ignores OS mouse), driven only by sendInputEvent, frames from paint events piped to ffmpeg (video only, no audio).
+// Run: FFMPEG=<ffmpeg.exe> electron.exe tools/demo-record.js out.mp4  (PROBE=1 -> no recording, screenshots only)
 const { app, BrowserWindow, dialog } = require("electron");
 const fs = require("fs"), os = require("os"), path = require("path");
 dialog.showErrorBox = () => {};
@@ -9,18 +8,19 @@ process.on("uncaughtException", (e) => console.log("UNCAUGHT", e && e.message));
 const PROBE = !!process.env.PROBE, out = process.argv[2] || path.join(os.tmpdir(), "hqos-demo.webm");
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "hqos-demo-")), root = path.join(tmp, "Projects");
 require("./demo-sample.js")(root);
-fs.writeFileSync(path.join(tmp, "settings.json"), JSON.stringify({ projectsRoot: root, person: "Sam", voice: false, projects: [], last: "Atlas", music: true, audio: true, startView: "home", theme: "cyan" }));
+fs.writeFileSync(path.join(tmp, "settings.json"), JSON.stringify({ projectsRoot: root, person: "", voice: false, projects: [], last: "Atlas", music: true, audio: true, startView: "home", theme: "cyan" }));
 process.env.STONKS_DIR = path.join(root, "Stocks");
 app.setPath("userData", tmp);
 require("../main.js");
 const D = require("../data.js"), SYS = require("../system.js"); D.scanAgents = async () => []; SYS.NowPlaying.prototype.start = function () {};
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const meta = {};
+const meta = {}; let rec = null, tick = null;
 const shotDir = path.join(tmp, "shots");
 app.whenReady().then(async () => {
   await sleep(2000);
   const win = BrowserWindow.getAllWindows()[0], wc = win.webContents; wc.setBackgroundThrottling(false);
-  win.setFullScreen(true); win.show(); win.focus(); await sleep(2000);
+  // Immune to the real mouse/keyboard: transparent (opacity 0), never focused, ignores OS mouse input. Only sendInputEvent drives it; frames come from paint events.
+  win.setOpacity(0); win.setFocusable(false); win.setIgnoreMouseEvents(true); win.unmaximize(); win.setFullScreen(false); win.setContentSize(1600, 900); win.setPosition(0, 0); win.showInactive(); await sleep(2000);
   wc.on("console-message", (e) => { if (e.level === "error" || e.level === 3) console.log("CONSOLE", String(e.message).slice(0, 200)); });
   const run = (js) => wc.executeJavaScript(js + "; 0").catch((e) => console.log("RUNERR", String(e.message).slice(0, 120)));
   const val = (js) => wc.executeJavaScript(js);
@@ -35,8 +35,17 @@ app.whenReady().then(async () => {
   const step = (s) => { console.log("STEP", s); try { require("child_process").spawnSync("pwsh", ["-NoProfile", "-File", "C:\Users\Hhowe\Projects\Agent Team\log.ps1", "hq-os-demo", "recording: " + s]); } catch (e) {} };
   const script = require(process.env.SCRIPT || "./demo-script.js");
   await script({ meta, win, wc, run, val, W, H, move, click, drag, wheel, pause, shot, sleep, step, PROBE, getPos: () => [mx, my], tmp, root,
-    startRec: async () => { await run(`(async()=>{const st=await navigator.mediaDevices.getDisplayMedia({audio:true,video:{frameRate:30}});const rec=new MediaRecorder(new MediaStream(st.getVideoTracks()),{mimeType:"video/webm;codecs=vp9,opus",videoBitsPerSecond:6e6});window.__chunks=[];rec.ondataavailable=e=>e.data.size&&window.__chunks.push(e.data);rec.start(1000);window.__rec=rec;window.__st=st;window.__hasAudio=st.getAudioTracks().length;})()`); await sleep(1500); meta.recStart = Date.now(); console.log("video-only capture (system audio dropped); mixed in post"); },
-    stopRec: async () => { await val(`new Promise(r=>{window.__rec.onstop=r;window.__rec.stop();window.__st.getTracks().forEach(t=>t.stop())})`); const n = await val("window.__chunks.length"); const fd = fs.openSync(out, "w"); for (let i = 0; i < n; i++) { const b64 = await val(`(async()=>{const b=await window.__chunks[${i}].arrayBuffer();let s="";const u=new Uint8Array(b);for(let k=0;k<u.length;k+=32768)s+=String.fromCharCode.apply(null,u.subarray(k,k+32768));return btoa(s)})()`); fs.writeSync(fd, Buffer.from(b64, "base64")); } fs.closeSync(fd); fs.writeFileSync(out + ".json", JSON.stringify(meta)); console.log("wrote", out, fs.statSync(out).size); },
+    // frame capture: paint events -> raw BGRA -> ffmpeg (constant 30 fps, latest frame repeated). out must end in .mp4. No audio.
+    startRec: async () => {
+      const [w, h] = win.getContentSize(), ff = process.env.FFMPEG; let last = null;
+      rec = require("child_process").spawn(ff, ["-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "bgra", "-s", w + "x" + h, "-framerate", "30", "-i", "-", "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-pix_fmt", "yuv420p", "-movflags", "+faststart", out], { stdio: ["pipe", "inherit", "inherit"] });
+      rec.stdin.on("error", () => {});
+      wc.beginFrameSubscription(false, (img) => { const sz = img.getSize(); last = sz.width === w && sz.height === h ? img.toBitmap() : img.resize({ width: w, height: h }).toBitmap(); });
+      let busy = false, n = 0; const t0 = Date.now();
+      tick = setInterval(() => { if (!last || busy) return; const due = Math.min(4, Math.floor((Date.now() - t0) * 30 / 1000) - n); for (let k = 0; k < due; k++) { n++; if (!rec.stdin.write(last)) { busy = true; rec.stdin.once("drain", () => (busy = false)); break; } } }, 15);
+      await sleep(800); console.log("frame capture", w + "x" + h);
+    },
+    stopRec: async () => { clearInterval(tick); wc.endFrameSubscription(); await new Promise((r) => { rec.on("close", r); rec.stdin.end(); }); console.log("wrote", out, fs.statSync(out).size); },
   });
-  win.setFullScreen(false); await sleep(500); app.exit(0);
+  await sleep(300); app.exit(0);
 });

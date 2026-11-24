@@ -12,7 +12,7 @@ module.exports = function build(root) {
   const now = new Date().toISOString();
   for (const p of P) {
     const nd = path.join(root, p.n, "Notes");
-    const L = ["# " + p.n + " To-Do", "", "## Next", ...p.now.concat(p.next).map((t, i) => (i + 1) + ". [ ] " + t), "", "## Waiting on Sam", ...p.wait.map((t) => "- [ ] " + t), ""];
+    const L = ["# " + p.n + " To-Do", "", "## Next", ...p.now.concat(p.next).map((t, i) => (i + 1) + ". [ ] " + t), "", "## Waiting on you", ...p.wait.map((t) => "- [ ] " + t), ""];
     w(path.join(nd, p.n + " To-Do.md"), L.join("\n"));
     w(path.join(nd, "Claude", "Index.md"), "# Index\n\n" + p.c + ".\n\n- [[" + p.n + " Architecture]]\n- [[" + p.n + " Decisions]]\n");
     w(path.join(nd, "Claude", p.n + " Architecture.md"), "# " + p.n + " Architecture\n\nSee [[" + p.n + " Decisions]] and [[Index]].\n");
@@ -24,8 +24,8 @@ module.exports = function build(root) {
   // Stocks stub: a harmless engine + sample equity curve so the Trading floor shows tidy sample numbers (no real data).
   const sd = path.join(root, "Stocks");
   w(path.join(sd, "engine", "safety.js"), "exports.health=()=>({ok:true,why:[]});");
-  w(path.join(sd, "engine", "steady.js"), "exports.book=()=>({capital:100000,sleeves:{scanner:50000,steady:50000},safety:{status:\"ACTIVE\"},positions:[],steady:{retPct:2.4,open:3,trades:5}});");
-  w(path.join(sd, "data", "equity.json"), JSON.stringify(Array.from({ length: 30 }, (_, i) => ({ t: i, total: 100000 + i * 90 + Math.sin(i) * 300, scanner: 50000 + i * 40 + Math.sin(i) * 200, steady: 50000 + i * 50 + Math.cos(i) * 150 }))));
+  w(path.join(sd, "engine", "steady.js"), "exports.book=()=>({capital:100000,equity:102400,totalEquity:102400,retPct:2.4,pnl:1850,unreal:550,winRate:62,vsSpy:0.9,trades:8,open:3,spy:{retPct:1.5},sleeves:{scanner:50000,steady:50000},safety:{status:\"ACTIVE\"},steady:{retPct:2.4,open:2,trades:5},positions:[]});");
+  w(path.join(sd, "data", "equity.json"), JSON.stringify(Array.from({ length: 30 }, (_, i) => ({ t: new Date(Date.now() - (30 - i) * 864e5).toISOString(), total: 100000 + i * 90 + Math.sin(i) * 300, scanner: 50000 + i * 40 + Math.sin(i) * 200, steady: 50000 + i * 50 + Math.cos(i) * 150 }))));
   w(path.join(root, "CLAUDE.md"), "# Sample rules\n\n- Be brief.\n- Stay in the project folder.\n");
   return root;
 };
