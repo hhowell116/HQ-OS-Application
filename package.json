@@ -10,10 +10,15 @@
     "start": "electron .",
     "postinstall": "node tools/brand-exe.js",
     "brand": "node tools/brand-exe.js",
-    "build:nebula": "esbuild tools/nebula-entry.js --bundle --minify --format=iife --outfile=renderer/vendor/nebula-lib.js"
+    "build:nebula": "esbuild tools/nebula-entry.js --bundle --minify --format=iife --outfile=renderer/vendor/nebula-lib.js",
+    "models": "node tools/fetch-models.js",
+    "pack:dir": "electron-builder --win --dir",
+    "dist": "electron-builder --win nsis"
   },
   "devDependencies": {
+    "@anthropic-ai/claude-code": "^2.1.331",
     "electron": "^45.4.1",
+    "electron-builder": "^26.18.0",
     "esbuild": "^0.28.2",
     "rcedit": "^4.0.1"
   },
@@ -21,5 +26,81 @@
     "3d-force-graph": "^1.80.2",
     "kokoro-js": "^1.2.1",
     "three": "^0.187.0"
+  },
+  "build": {
+    "appId": "HaydenHowell.HQOS",
+    "productName": "HQ OS",
+    "copyright": "HQ OS",
+    "directories": {
+      "output": "dist"
+    },
+    "asar": true,
+    "compression": "normal",
+    "files": [
+      "main.js",
+      "preload.js",
+      "chat.js",
+      "data.js",
+      "graph.js",
+      "system.js",
+      "files-ipc.js",
+      "installer.js",
+      "selftest.js",
+      "stt-worker.js",
+      "tts-worker.js",
+      "renderer/**/*",
+      "templates/**/*",
+      "package.json",
+      "!**/node_modules/onnxruntime-node/bin/napi-v3/{darwin,linux}/**",
+      "!**/node_modules/onnxruntime-node/bin/napi-v3/win32/arm64/**",
+      "!**/node_modules/onnxruntime-web/**",
+      "!**/node_modules/@img/sharp-{darwin,linux}*/**",
+      "!**/node_modules/@img/sharp-libvips-{darwin,linux}*/**",
+      "!**/node_modules/@img/sharp-win32-{arm64,ia32}/**",
+      "!**/node_modules/**/*.{md,map,ts}",
+      "!**/node_modules/kokoro-js/dist/kokoro.web.js"
+    ],
+    "asarUnpack": [
+      "node_modules/onnxruntime-node/**",
+      "node_modules/sharp/**",
+      "node_modules/@img/**"
+    ],
+    "extraResources": [
+      {
+        "from": "build/models",
+        "to": "models"
+      },
+      {
+        "from": "node_modules/@anthropic-ai/claude-code-win32-x64/claude.exe",
+        "to": "claude/claude.exe"
+      }
+    ],
+    "afterPack": "tools/after-pack.js",
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "renderer/icon.ico",
+      "signAndEditExecutable": false,
+      "artifactName": "HQ-OS-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": true,
+      "allowToChangeInstallationDirectory": false,
+      "allowElevation": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "HQ OS",
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false,
+      "installerIcon": "renderer/icon.ico",
+      "uninstallerIcon": "renderer/icon.ico"
+    }
   }
 }

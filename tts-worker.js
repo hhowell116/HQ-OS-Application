@@ -6,6 +6,7 @@ async function load(cache) {
   if (!loading) loading = (async () => {
     const tf = await import("@huggingface/transformers");
     if (cache) tf.env.cacheDir = cache;
+    if (process.env.HQ_OFFLINE && cache) { tf.env.localModelPath = cache; tf.env.allowLocalModels = true; tf.env.allowRemoteModels = false; } // bundled models: never touch the network
     const { KokoroTTS } = await import("kokoro-js");
     tts = await KokoroTTS.from_pretrained("onnx-community/Kokoro-82M-v1.0-ONNX", {
       dtype: "q8", device: "cpu",

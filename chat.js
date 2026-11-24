@@ -26,7 +26,7 @@ class Chats {
     }
     this.idle = setInterval(() => { for (const c of this.convs.values()) if (c.proc && !c.busy && Date.now() - (c.lastUse || 0) > 30 * 60000) this.kill(c, "idle"); }, 60000);
   }
-  exe() { const s = this.getSettings(); return (s.claudePath || "").trim() || path.join(os.homedir(), ".local", "bin", "claude.exe"); }
+  exe() { return require("./installer").claudeExe(this.getSettings()); }
   log(m) { try { fs.appendFileSync(this.logFile, new Date().toISOString() + " " + redact(String(m)).slice(0, 1500) + "\n"); } catch (e) {} }
   view(c) { const o = {}; for (const k of ["id", "title", "model", "proj", "projName", "created", "updated", "busy", "msgs", "ctx", "lastAt", "sessionId"]) o[k] = c[k]; o.queue = (c.queue || []).map((q) => ({ text: q.text, imgs: (q.files || []).map((f) => f.path) })); o.handingOff = !!c.handingOff; return o; }
   _under(c, folder) { const a = String(c.cwd || "").toLowerCase(), b = String(folder).toLowerCase(); return !!a && (a === b || a.startsWith(b + path.sep)); }
@@ -82,14 +82,14 @@ class Chats {
   remove(id) { const c = this.convs.get(id); if (!c) return; this.kill(c, "delete"); this.convs.delete(id); clearTimeout(c._st); try { fs.unlinkSync(path.join(this.dir, id + ".json")); } catch (e) {} this.emitFn({ what: "list" }); }
 
   spawnProc(c) {
-    const exe = this.exe(); if (!fs.existsSync(exe)) throw new Error("Claude Code was not found at " + exe + ". Install it or set claudePath in settings.");
+    const exe = this.exe(); if (!fs.existsSync(exe)) throw new Error("Claude Code was not found at " + exe + ". Reinstall HQ OS or set claudePath in settings.");
     const s = this.getSettings();
     const args = ["-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "--include-partial-messages", "--permission-mode", s.permissionMode || "bypassPermissions"];
     if (c.model) args.push("--model", c.model);
     if (c.sessionId) args.push("--resume", c.sessionId);
     const cwd = c.cwd && fs.existsSync(c.cwd) ? c.cwd : os.homedir();
     this.log("spawn " + args.join(" ") + " cwd=" + cwd + " (conv " + c.id + ")");
-    const p = spawn(exe, args, { cwd, windowsHide: true, stdio: ["pipe", "pipe", "pipe"], env: Object.assign({}, process.env) });
+    const p = spawn(exe, args, { cwd, windowsHide: true, stdio: ["pipe", "pipe", "pipe"], env: require("./installer").claudeEnv(s) });
     c.proc = p; c.procModel = c.model; c.buf = ""; c.err = ""; c.idx = {};
     p.stdout.on("data", (d) => { c.buf += d.toString("utf8"); let i; while ((i = c.buf.indexOf("\n")) >= 0) { const line = c.buf.slice(0, i).trim(); c.buf = c.buf.slice(i + 1); if (line) this.onLine(c, line); } });
     p.stderr.on("data", (d) => { c.err = (c.err + d.toString("utf8")).slice(-4000); });

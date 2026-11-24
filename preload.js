@@ -7,7 +7,7 @@ contextBridge.exposeInMainWorld("hq", {
   init: inv("init"), settings: inv("settings"), projects: inv("projects"), project: inv("project"),
   needs: inv("needs"), todoToggle: inv("todo-toggle"), todoAdd: inv("todo-add"),
   reviewList: inv("review-list"), reviewSet: inv("review-set"),
-  restart: inv("restart"), codePending: inv("code-pending"), busy: inv("busy"),
+  restart: inv("restart"), claudeStatus: inv("claude-status"), claudeLogin: inv("claude-login"), claudeApiKey: inv("claude-apikey"), codePending: inv("code-pending"), busy: inv("busy"),
   agents: inv("agents"), crew: inv("crew"), teams: inv("team-list"), usage: inv("usage"), music: inv("music"), musicCtl: inv("music-ctl"),
   ttsSpeak: inv("tts-speak"), ttsStop: inv("tts-stop"), ttsLog: inv("tts-log"), sttTranscribe: inv("stt-transcribe"), projectCreate: inv("project-create"), projectRename: inv("project-rename"),
   rulesRead: inv("rules-read"), rulesOpen: inv("rules-open"), set: inv("set"), openPath: inv("open-path"), graphScan: inv("graph-scan"),

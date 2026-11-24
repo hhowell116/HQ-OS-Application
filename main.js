@@ -1,11 +1,12 @@
 // HQ OS: Electron main process. Owns the file system, Claude processes and polling; windows only render.
 let codePending = null; // a main-process file changed since launch (survives renderer reloads)
-const { app, BrowserWindow, ipcMain, utilityProcess, shell, globalShortcut, session, desktopCapturer, protocol, net } = require("electron");
+const { app, dialog, BrowserWindow, ipcMain, utilityProcess, shell, globalShortcut, session, desktopCapturer, protocol, net } = require("electron");
 const { pathToFileURL } = require("url");
 const path = require("path"), fs = require("fs");
 const D = require("./data");
 const { Chats } = require("./chat");
 const SYS = require("./system");
+const INS = require("./installer");
 
 const APP_ID = "HaydenHowell.HQOS";
 app.setName("HQ OS");
@@ -19,6 +20,10 @@ const LEGACY = path.join(__dirname, "..", "data.json"); // the Obsidian plugin's
 const ICON = path.join(__dirname, "renderer", "icon.ico");
 const ELECTRON = process.execPath;
 let settings = D.loadSettings(SETTINGS_FILE, LEGACY);
+const FRESH = !fs.existsSync(SETTINGS_FILE);
+if (INS.firstRun(settings) || !fs.existsSync(SETTINGS_FILE)) D.saveSettings(SETTINGS_FILE, settings); // first run: projects folder + defaults (no scripts)
+const KOKORO = INS.modelDir("kokoro-cache", USER), WHISPER = INS.modelDir("whisper-cache", USER); // bundled models load offline
+const workerEnv = (md) => Object.assign({}, process.env, md.offline ? { HQ_OFFLINE: "1" } : {});
 let win = null, chats = null, now = null, tfProc = null, FX = null;
 const cache = { projects: [], agents: [], boards: [], usage: null, usageErr: "", usageAt: 0, music: null, vit: [] };
 
@@ -89,18 +94,19 @@ function harden(w) {
   w.webContents.setWindowOpenHandler(({ url }) => { if (/^https?:/.test(url)) shell.openExternal(url); return { action: "deny" }; });
   w.webContents.on("will-navigate", (e) => e.preventDefault());
   // Pinning a window to the taskbar uses these: our icon and a relaunch command, not Electron's.
-  try { w.setAppDetails({ appId: APP_ID, appIconPath: ICON, appIconIndex: 0, relaunchCommand: `"${ELECTRON}" "${__dirname}"`, relaunchDisplayName: "HQ OS" }); } catch (e) {}
+  try { w.setAppDetails({ appId: APP_ID, appIconPath: ICON, appIconIndex: 0, relaunchCommand: app.isPackaged ? `"${ELECTRON}"` : `"${ELECTRON}" "${__dirname}"`, relaunchDisplayName: "HQ OS" }); } catch (e) {}
 }
 function createWindow() {
   win = new BrowserWindow({ width: 1600, height: 960, minWidth: 1100, minHeight: 700, frame: false, backgroundColor: "#03080c", show: false, title: "HQ OS", icon: ICON, webPreferences: webPrefs() });
   harden(win);
   win.loadFile(path.join(__dirname, "renderer", "index.html"));
-  win.once("ready-to-show", () => { win.maximize(); win.show(); });
+  win.once("ready-to-show", () => { if (process.env.HQ_TEST_HIDDEN) { win.setOpacity(0); win.setSkipTaskbar(true); win.setIgnoreMouseEvents(true); } win.maximize(); win.show(); });
   win.on("maximize", () => win.webContents.send("win-state", "max")); win.on("unmaximize", () => win.webContents.send("win-state", "normal"));
   win.on("closed", () => { win = null; });
 }
 // Desktop / Start-menu shortcuts carry our AppUserModelID so a pin from them keeps the HQ OS icon.
 function ensureShortcuts() {
+  if (app.isPackaged) return; // the installer makes the shortcuts
   const targets = [path.join(app.getPath("desktop"), "HQ OS.lnk"), path.join(app.getPath("appData"), "Microsoft", "Windows", "Start Menu", "Programs", "HQ OS.lnk")];
   for (const lnk of targets) {
     try { shell.writeShortcutLink(lnk, fs.existsSync(lnk) ? "replace" : "create", { target: ELECTRON, args: `"${__dirname}"`, cwd: __dirname, icon: ICON, iconIndex: 0, appUserModelId: APP_ID, description: "HQ OS command center" }); } catch (e) {}
@@ -108,6 +114,9 @@ function ensureShortcuts() {
 }
 
 app.whenReady().then(() => {
+  if (FRESH && app.isPackaged && !process.env.HQ_PROJECTS_ROOT) { // installed app, first launch: let the user pick the projects folder (default %USERPROFILE%Projects)
+    try { const r = dialog.showOpenDialogSync({ title: "Choose your projects folder", buttonLabel: "Use this folder", defaultPath: settings.projectsRoot, properties: ["openDirectory", "createDirectory"] }); if (r && r[0]) { settings.projectsRoot = r[0]; D.saveSettings(SETTINGS_FILE, settings); } } catch (e) {}
+  }
   refreshProjects();
   protocol.handle("hqreview", (req) => {
     let f = ""; try { f = path.resolve(decodeURIComponent(new URL(req.url).pathname.slice(1))); } catch (e) {}
@@ -228,8 +237,8 @@ app.whenReady().then(() => {
   const ttsLog = (line) => { try { fs.appendFileSync(path.join(USER, "tts.log"), new Date().toISOString() + " " + String(line).slice(0, 600) + "\n"); } catch (e) {} };
   const ttsStart = () => {
     if (ttsProc) return ttsProc;
-    ttsLog("spawn worker " + path.join(__dirname, "tts-worker.js") + " cache=" + path.join(USER, "kokoro-cache"));
-    ttsProc = utilityProcess.fork(path.join(__dirname, "tts-worker.js"), [], { serviceName: "hq-tts", stdio: "pipe" });
+    ttsLog("spawn worker " + path.join(__dirname, "tts-worker.js") + " cache=" + KOKORO.dir);
+    ttsProc = utilityProcess.fork(path.join(__dirname, "tts-worker.js"), [], { serviceName: "hq-tts", stdio: "pipe", env: workerEnv(KOKORO) });
     const pipe = (st, tag) => st && st.on("data", (d) => ttsLog(tag + " " + String(d).trim()));
     pipe(ttsProc.stdout, "out"); pipe(ttsProc.stderr, "err");
     ttsProc.on("spawn", () => ttsLog("worker spawned pid=" + ttsProc.pid));
@@ -238,19 +247,19 @@ app.whenReady().then(() => {
       if (m.wav) m.wav = new Uint8Array(m.wav); send("tts", m);
     });
     ttsProc.on("exit", (code) => { ttsLog("worker exit code=" + code); ttsProc = null; send("tts", { type: "error", id: ttsId, error: "voice engine exited (code " + code + ")" }); });
-    ttsProc.postMessage({ type: "init", cache: path.join(USER, "kokoro-cache") });
+    ttsProc.postMessage({ type: "init", cache: KOKORO.dir });
     return ttsProc;
   };
-  ipcMain.handle("tts-speak", (_, { text, voice, speed }) => { const id = ++ttsId; ttsLog("speak id=" + id + " voice=" + voice + " speed=" + speed + " chars=" + String(text || "").length); try { ttsStart().postMessage({ type: "speak", id, text: String(text || "").slice(0, 2000), voice, speed, cache: path.join(USER, "kokoro-cache") }); } catch (e) { ttsLog("speak failed: " + e.message); send("tts", { type: "error", id, error: e.message }); } return id; });
+  ipcMain.handle("tts-speak", (_, { text, voice, speed }) => { const id = ++ttsId; ttsLog("speak id=" + id + " voice=" + voice + " speed=" + speed + " chars=" + String(text || "").length); try { ttsStart().postMessage({ type: "speak", id, text: String(text || "").slice(0, 2000), voice, speed, cache: KOKORO.dir }); } catch (e) { ttsLog("speak failed: " + e.message); send("tts", { type: "error", id, error: e.message }); } return id; });
   ipcMain.handle("tts-stop", () => { ++ttsId; if (ttsProc) ttsProc.postMessage({ type: "stop" }); return true; });
   // Whisper speech-to-text (local) in its own utility process; lazy-started on first use.
   let sttProc = null, sttId = 0; const sttWait = new Map();
   const sttLog = (line) => { try { fs.appendFileSync(path.join(USER, "stt.log"), new Date().toISOString() + " " + String(line).slice(0, 600) + "\n"); } catch (e) {} };
   const sttStart = () => {
     if (sttProc) return sttProc;
-    const cacheDir = path.join(USER, "whisper-cache");
+    const cacheDir = WHISPER.dir;
     sttLog("spawn worker cache=" + cacheDir);
-    sttProc = utilityProcess.fork(path.join(__dirname, "stt-worker.js"), [], { serviceName: "hq-stt", stdio: "pipe" });
+    sttProc = utilityProcess.fork(path.join(__dirname, "stt-worker.js"), [], { serviceName: "hq-stt", stdio: "pipe", env: workerEnv(WHISPER) });
     const pipe = (st, tag) => st && st.on("data", (d) => sttLog(tag + " " + String(d).trim()));
     pipe(sttProc.stdout, "out"); pipe(sttProc.stderr, "err");
     sttProc.on("message", (m) => {
@@ -268,12 +277,16 @@ app.whenReady().then(() => {
     if (audio.length < 1600) return res("");
     if (audio.length > 16000 * 120) audio = audio.slice(0, 16000 * 120);
     sttWait.set(id, { res, rej }); sttLog("transcribe id=" + id + " samples=" + audio.length);
-    try { sttStart().postMessage({ type: "transcribe", id, audio, cache: path.join(USER, "whisper-cache") }); } catch (e) { sttWait.delete(id); rej(e); }
+    try { sttStart().postMessage({ type: "transcribe", id, audio, cache: WHISPER.dir }); } catch (e) { sttWait.delete(id); rej(e); }
   }));
   app.on("before-quit", () => { if (sttProc) sttProc.kill(); });
   ipcMain.handle("tts-log", (_, line) => { ttsLog("ui " + line); return true; });
   app.on("before-quit", () => { if (ttsProc) ttsProc.kill(); });
   ipcMain.handle("code-pending", () => codePending);
+  // Claude sign-in: the bundled CLI's own browser login, or an API key kept encrypted (OS-bound) in settings.
+  ipcMain.handle("claude-status", () => INS.authStatus(settings));
+  ipcMain.handle("claude-login", async () => { const r = await INS.authLogin(settings); send("settings", pub()); return r; });
+  ipcMain.handle("claude-apikey", (_, k) => { try { INS.setApiKey(settings, k); D.saveSettings(SETTINGS_FILE, settings); return { ok: true }; } catch (e) { return { ok: false, err: e.message }; } });
   ipcMain.handle("restart", () => { app.relaunch(); app.exit(0); });
   if (!app.isPackaged) {
     // Dev watchers. Changes apply only once they are FINISHED, i.e. committed (Hayden 2026-11-22: no reloads mid-change).
@@ -359,6 +372,7 @@ app.whenReady().then(() => {
   ipcMain.on("win", (e, a) => { const w = BrowserWindow.fromWebContents(e.sender); if (!w) return; if (a === "min") w.minimize(); else if (a === "max") w.isMaximized() ? w.unmaximize() : w.maximize(); else if (a === "close") w.close(); else if (a === "top") w.setAlwaysOnTop(!w.isAlwaysOnTop()); });
 
   createWindow();
+  if (process.env.HQ_SELFTEST) require("./selftest")({ win: () => win, settings, USER, KOKORO, WHISPER, app });
   ensureShortcuts();
   watchTodos();
   if (settings.music !== false) now.start();

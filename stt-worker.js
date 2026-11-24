@@ -7,6 +7,7 @@ async function load(cache) {
   if (!loading) loading = (async () => {
     const tf = await import("@huggingface/transformers");
     if (cache) tf.env.cacheDir = cache;
+    if (process.env.HQ_OFFLINE && cache) { tf.env.localModelPath = cache; tf.env.allowLocalModels = true; tf.env.allowRemoteModels = false; } // bundled models: never touch the network
     asr = await tf.pipeline("automatic-speech-recognition", MODEL, {
       dtype: { encoder_model: "fp32", decoder_model_merged: "q8" }, device: "cpu",
       progress_callback: (p) => { if (p && p.status === "progress") { const pct = Math.round(p.progress || 0), k = p.file + ":" + pct; if (k !== lastP) { lastP = k; send({ type: "progress", pct, file: p.file }); } } },

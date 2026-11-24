@@ -27,7 +27,7 @@ function loadSettings(file, legacyFile) {
   let s = null;
   try { s = JSON.parse(fs.readFileSync(file, "utf8")); } catch (e) {}
   if (!s) {
-    s = { projectsRoot: path.join(HOME, "Projects"), person: "Hayden", voice: false, projects: [], last: "" };
+    s = { projectsRoot: path.join(HOME, "Projects"), person: (process.env.HQ_PERSON || (() => { try { return os.userInfo().username; } catch (e) { return "Hayden"; } })()), voice: false, projects: [], last: "" };
     try { // one-time import from the Obsidian plugin's data.json
       const old = JSON.parse(fs.readFileSync(legacyFile, "utf8"));
       s.person = old.person || s.person;
