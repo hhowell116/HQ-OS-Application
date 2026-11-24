@@ -12,7 +12,7 @@
  * "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
  * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
  *
- * Everything else here (lobes per project, dust, layout) is HQ OS's own code.
+ * The other shapes live in shapes.js. Everything else here (lobes per project, dust, layout) is HQ OS's own code.
  * Unit coordinates: x right, y up, z forward (frontal lobe at +z).
  */
 (function () {
@@ -69,9 +69,10 @@
   }
 
   // projectIds ordered biggest first. Each project gets a lobe = Voronoi cell around a spread-out seed on the cortex.
-  function layout(projectIds) {
+  function layout(projectIds, shape) {
+    const SH = window.HQShapes && window.HQShapes[shape], pt = SH ? SH.fn : brainPoint;
     const rnd = mulberry(20261123), tmp = [0, 0, 0], pool = [];
-    for (let i = 0; i < 9000; i++) { const part = brainPoint(rnd, tmp); if (part !== 3) pool.push([tmp[0] * SCALE, tmp[1] * SCALE, tmp[2] * SCALE]); }
+    for (let i = 0; i < 9000; i++) { const part = pt(rnd, tmp); if (part !== 3) pool.push([tmp[0] * SCALE, tmp[1] * SCALE, tmp[2] * SCALE]); }
     const K = Math.max(1, projectIds.length), seeds = [];
     let first = pool[0]; for (const p of pool) if (p[2] > first[2]) first = p; seeds.push(first);
     const dmin = pool.map((p) => 1e9);
@@ -89,14 +90,14 @@
     const lobeOf = (pid) => lobes[idx.has(pid) ? idx.get(pid) : 0];
     return {
       centroid: (pid) => lobeOf(pid).c.slice(),
-      core: () => [0, 0.2 * SCALE, 0],
+      core: () => (SH ? SH.core.map((v) => v * SCALE) : [0, 0.2 * SCALE, 0]),
       // next free cortex point inside the project's lobe (wraps with jitter when the lobe is full)
       place(pid) { const l = lobeOf(pid), p = l.pts[l.i % l.pts.length], j = l.i >= l.pts.length ? 4 : 0; l.i++; return [p[0] + (rnd() - 0.5) * j, p[1] + (rnd() - 0.5) * j, p[2] + (rnd() - 0.5) * j]; },
       reset() { lobes.forEach((l) => (l.i = 0)); },
       // dust filling the brain volume: positions + the lobe index of each (so it can take the project's colour)
       dust(n) {
         const r2 = mulberry(77), pos = new Float32Array(n * 3), lobe = new Uint8Array(n), o = [0, 0, 0];
-        for (let i = 0; i < n; i++) { brainPoint(r2, o); const p = [o[0] * SCALE + (r2() - 0.5) * 7, o[1] * SCALE + (r2() - 0.5) * 7, o[2] * SCALE + (r2() - 0.5) * 7]; pos.set(p, i * 3); lobe[i] = nearest(p); }
+        for (let i = 0; i < n; i++) { pt(r2, o); const p = [o[0] * SCALE + (r2() - 0.5) * 7, o[1] * SCALE + (r2() - 0.5) * 7, o[2] * SCALE + (r2() - 0.5) * 7]; pos.set(p, i * 3); lobe[i] = nearest(p); }
         return { pos, lobe, ids: projectIds };
       },
     };
