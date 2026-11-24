@@ -178,11 +178,11 @@
   }
 
   function makeLabel(f) {
-    const b = el("div", "tw-lab " + f.kind), n = el("div", "tw-ln"), s = el("div", "tw-ls"), bd = el("div", "tw-badge hidden");
-    const fl = f.kind === "project" ? "F" + f.i : f.kind === "deck" ? "TOP" : "G"; n.append(el("span", "tw-fl", fl), el("span", "tw-nm", f.name.toUpperCase())); n.append(bd); b.append(n, s);
+    const b = el("div", "tw-lab " + f.kind), n = el("div", "tw-ln"), s = el("div", "tw-ls"), bd = el("div", "tw-badge hidden"), rb = el("div", "tw-rbadge hidden");
+    const fl = f.kind === "project" ? "F" + f.i : f.kind === "deck" ? "TOP" : "G"; n.append(el("span", "tw-fl", fl), el("span", "tw-nm", f.name.toUpperCase())); n.append(rb, bd); b.append(n, s); rb.title = "Needs review";
     b.style.setProperty("--fc", "#" + f.color.getHexString());
     b.onmouseenter = () => (T.hover = f); b.onmouseleave = () => { if (T.hover === f) T.hover = null; }; b.onclick = () => activate(f);
-    labelsEl.append(b); const ln = document.createElementNS("http://www.w3.org/2000/svg", "line"); svg.append(ln); return { box: b, stat: s, badge: bd, line: ln, h: 46 };
+    labelsEl.append(b); const ln = document.createElementNS("http://www.w3.org/2000/svg", "line"); svg.append(ln); return { box: b, stat: s, badge: bd, rbadge: rb, line: ln, h: 46 };
   }
   function paintLabels() {
     const lst = projectList(), by = new Map(lst.map((p) => [p.id, p]));
@@ -192,6 +192,7 @@
       else if (f.kind === "deck") st = "HQ host · " + T.teams.core.length + " core agents · command deck";
       else st = "entrance · open HQ";
       l.stat.textContent = st;
+      { const rv = f.kind === "project" && by.get(f.id) ? by.get(f.id).review : 0; l.rbadge.classList.toggle("hidden", !rv); if (rv) l.rbadge.textContent = rv + " review"; }
       l.badge.classList.toggle("hidden", !f.n); l.badge.textContent = "● " + f.n + " working";
       l.box.classList.toggle("act", f.n > 0);
     }

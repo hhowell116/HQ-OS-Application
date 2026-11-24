@@ -8,7 +8,7 @@
   let open = false, marker = null, seq = 0; const unread = new Set();
 
   const panel = document.createElement("aside"); panel.id = "tw-chat"; panel.className = "hidden";
-  panel.innerHTML = '<div class="twc-h"><span class="twc-t" id="twc-t"></span><span class="twc-s" id="twc-s"></span><button class="ghost" id="twc-x" title="Close chat (Esc when idle)">&#10005;</button></div><div class="twc-b" id="twc-b"></div>';
+  panel.innerHTML = '<div class="twc-h"><span class="twc-t" id="twc-t"></span><span class="twc-s" id="twc-s"></span><button class="ghost" id="twc-x" title="Close chat (Esc when idle)">&#10005;</button></div><div class="twc-tabs" id="twc-tabs"></div><div class="twc-b" id="twc-b"></div><div class="twc-pane p-review" id="twp-review"></div><div class="twc-pane p-next" id="twp-next"></div><div class="twc-pane p-wait" id="twp-wait"></div>';
   const btn = document.createElement("button"); btn.id = "tw-chatbtn"; btn.className = "ghost hidden"; btn.title = "Chat with Claude about this floor's project (C)";
   btn.innerHTML = '&#128172; chat (C)<i class="twc-dot hidden"></i>';
   view.append(panel, btn);
@@ -26,7 +26,60 @@
   const available = () => { const f = floorNow(); return !!(f && f.kind !== "lobby" && projFor(f)); };
   const busyNow = () => typeof S !== "undefined" && S.conv && S.conv.busy;
 
-  async function openChat(focus) {
+  // ---------- HQ panels as tabs (same data/IPC as the HQ dashboard: hq.reviewList/reviewSet, hq.project, hq.todoToggle) ----------
+  const api = () => window.__twApi || window.hq; // test hook only
+  const TABS = [["chat", "CHAT"], ["review", "REVIEW"], ["next", "NEXT"], ["wait", "WAITING"]];
+  let tab = "chat", data = null, dataFor = "", rvOpen = null; const rvDraft = {};
+  const tabsEl = panel.querySelector("#twc-tabs");
+  const mk = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
+  const ago = (iso) => { const m = Math.max(0, Math.round((Date.now() - new Date(iso)) / 60000)); return isNaN(m) ? "" : m < 60 ? m + "m" : m < 1440 ? Math.floor(m / 60) + "h" : Math.floor(m / 1440) + "d"; };
+  const curProj = () => projFor(floorNow());
+  function counts() { const p = curProj(); if (!p) return { r: 0, n: 0, w: 0 }; if (data && dataFor === p.id) return { r: data.rev.filter((i) => i.status === "needs-review").length, n: data.next.length, w: data.wait.length }; return { r: p.review || 0, n: p.next || 0, w: p.wait || 0 }; }
+  function paintTabs() {
+    const c = counts(), n = { review: c.r, next: c.n, wait: c.w }; tabsEl.textContent = "";
+    for (const [id, label] of TABS) { const b = mk("button", "twc-tab" + (tab === id ? " on" : ""), label); if (n[id]) { const cb = mk("b", "", "(" + n[id] + ")"); if (id !== "review") cb.style.color = "inherit"; b.append(cb); } b.onclick = () => setTab(id); tabsEl.append(b); }
+    panel.dataset.tab = tab;
+  }
+  async function refresh() {
+    const p = curProj(); if (!p) return; const id = p.id;
+    try { const [d, rev] = await Promise.all([api().project(id), api().reviewList(id)]); if (!curProj() || curProj().id !== id) return; data = { live: d.todo.live || "", next: d.todo.next.filter((x) => !x.done), wait: d.todo.wait.filter((x) => !x.done), rev, todo: d.todo }; dataFor = id; } catch (e) { return; }
+    paintPanes(); paintTabs();
+  }
+  const syncCounts = () => { if (typeof loadProjects === "function") loadProjects().then(() => { if (typeof loadReview === "function") loadReview(); }).catch(() => {}); };
+  function toast2(m, bad) { if (typeof toast === "function") toast(m, bad); }
+  function itemRow(it, id, kind) {
+    const r = mk("div", "twc-it"), b = mk("div", "box", ""); b.title = "Mark done";
+    b.onclick = async () => { b.textContent = "\u2713"; try { const d = await api().todoToggle({ id, line: it.line, raw: it.raw, on: true }); if (data && dataFor === id) { data.todo = d.todo; data.next = d.todo.next.filter((x) => !x.done); data.wait = d.todo.wait.filter((x) => !x.done); data.live = d.todo.live || ""; } paintPanes(); paintTabs(); syncCounts(); } catch (e) { toast2(e.message, true); refresh(); } };
+    r.append(b); if (it.num) r.append(mk("span", "num", it.num)); const t = mk("div", "t", it.text); t.title = it.text; r.append(t); return r;
+  }
+  function paintPanes() {
+    const p = curProj(); if (!p || !data || dataFor !== p.id) return; const id = p.id;
+    const pn = panel.querySelector("#twp-next"), pw = panel.querySelector("#twp-wait"), pr = panel.querySelector("#twp-review");
+    for (const e of [pn, pw, pr]) e.textContent = "";
+    if (data.live) { const lv = mk("div", "twc-live", data.live); lv.title = "Click to expand"; lv.onclick = () => lv.classList.toggle("x"); pn.append(lv); }
+    data.next.forEach((x) => pn.append(itemRow(x, id))); if (!data.next.length) pn.append(mk("div", "twc-none", data.todo.missing ? "No To-Do note for this project." : "Next list is clear."));
+    data.wait.forEach((x) => pw.append(itemRow(x, id))); if (!data.wait.length) pw.append(mk("div", "twc-none", "Nothing waiting on you."));
+    const todo = data.rev.filter((i) => i.status === "needs-review"); if (!todo.length) pr.append(mk("div", "twc-none", "Nothing to review."));
+    for (const i of todo) {
+      const c = mk("div", "twc-rv"), top = mk("div", "top"), th = mk("div", "th"), tt = mk("div", "tt");
+      if (i.media[0] && !i.video) { const im = mk("img"); im.src = i.media[0]; im.alt = ""; th.append(im); } else th.textContent = i.video ? "\u25b6" : "\u270e";
+      th.title = "Open full size"; th.onclick = () => { if (typeof openReview === "function") openReview(i); };
+      tt.append(mk("b", "", i.title), mk("span", "", ago(i.created) + " ago"));
+      top.append(th, tt);
+      const acts = mk("div", "acts"), ok = mk("button", "ghost ok", "APPROVE"), chg = mk("button", "ghost chg", "CHANGES"), ta = mk("textarea", rvOpen === i.key ? "" : "hidden");
+      ta.placeholder = "What should change? (then press CHANGES again)"; ta.value = rvDraft[i.key] || ""; ta.oninput = () => (rvDraft[i.key] = ta.value);
+      const act = async (status) => { const comment = ta.value.trim(); try { await api().reviewSet({ id, key: i.key, status, comment }); delete rvDraft[i.key]; rvOpen = null; toast2(status === "approved" ? "Approved" : "Changes requested"); await refresh(); syncCounts(); } catch (e) { toast2(e.message, true); } };
+      ok.onclick = () => act("approved");
+      chg.onclick = () => { if (rvOpen !== i.key) { rvOpen = i.key; ta.classList.remove("hidden"); ta.focus(); return; } act("changes"); };
+      acts.append(ok, chg); c.append(top, ta, acts); pr.append(c);
+    }
+  }
+  function setTab(t, noFocus) {
+    tab = t; paintTabs(); if (t !== "chat") { paintPanes(); refresh(); } else if (window.HQPinLog) requestAnimationFrame(HQPinLog);
+    if (t === "chat" && !noFocus && open) { const i = $("#input"); if (i) i.focus(); }
+  }
+
+  async function openChat(focus, wantTab) {
     const f = floorNow(); if (!f || !available()) return; const p = projFor(f), my = ++seq;
     if (!open) { marker = document.createComment("console-home"); consoleEl.before(marker); body.append(consoleEl); open = true; }
     consoleEl.classList.add("in-tower-chat"); if (window.HQTower && HQTower.termFocus) HQTower.termFocus(true); // camera pushes toward this floor's terminal
@@ -35,14 +88,15 @@
     $("#twc-t").textContent = (f.kind === "deck" ? "COMMAND DECK" : p.name.toUpperCase()) + " TERMINAL";
     $("#twc-s").textContent = f.kind === "deck" ? "general chat (" + p.name + ")" : "chat · Esc closes";
     unread.delete(p.id); paintBtn();
+    if (dataFor !== p.id) { data = null; rvOpen = null; } if (wantTab) tab = wantTab; paintTabs(); if (tab !== "chat") { paintPanes(); refresh(); } else refresh();
     if (S.cur !== p.id) { await selectProject(p.id); if (my !== seq) return; } else if (window.HQPinLog) HQPinLog();
     if (window.HQPinLog) requestAnimationFrame(HQPinLog);
-    if (focus) $("#input").focus();
+    if (focus && tab === "chat") $("#input").focus();
   }
   function closeChat() {
     ++seq; if (window.HQTower && HQTower.termFocus) HQTower.termFocus(false); // camera eases back
     if (!open) { paintBtn(); return; }
-    open = false; panel.classList.remove("show"); view.classList.remove("chat-open"); consoleEl.classList.remove("in-tower-chat");
+    open = false; tab = "chat"; panel.classList.remove("show"); view.classList.remove("chat-open"); consoleEl.classList.remove("in-tower-chat");
     if (marker && marker.parentNode) { marker.replaceWith(consoleEl); } marker = null;
     setTimeout(() => { if (!open) panel.classList.add("hidden"); }, 260);
     if (window.HQPinLog) requestAnimationFrame(HQPinLog); paintBtn();
@@ -55,7 +109,7 @@
   }
   // called by tower.js whenever the interior is (re)built: stay open across floor hops (switching project), close for the lobby
   function sync() {
-    if (!available()) { closeChat(); return; }
+    lobby(); if (!available()) { closeChat(); return; }
     if (open) openChat(false); else paintBtn();
   }
 
@@ -83,14 +137,36 @@
       if (document.querySelector("#vpop")) return;
       e.preventDefault(); e.stopImmediatePropagation(); closeChat(); return;
     }
-    if (e.ctrlKey && !e.altKey && e.key.toLowerCase() === "k") { if (!available()) return; e.preventDefault(); e.stopImmediatePropagation(); open ? $("#input").focus() : openChat(true); return; }
+    if (e.ctrlKey && !e.altKey && e.key.toLowerCase() === "k") { if (!available()) return; e.preventDefault(); e.stopImmediatePropagation(); open ? (tab !== "chat" ? setTab("chat") : $("#input").focus()) : openChat(true, "chat"); return; }
     if (e.ctrlKey && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "n" && open) { e.preventDefault(); e.stopImmediatePropagation(); newConv(); return; }
     if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "h" && open) { e.preventDefault(); $("#btn-handoff").click(); return; }
-    if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key === "/" && !typing(e) && !t.flight && available()) { e.preventDefault(); e.stopImmediatePropagation(); open ? $("#input").focus() : openChat(true); return; }
+    if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key === "/" && !typing(e) && !t.flight && available()) { e.preventDefault(); e.stopImmediatePropagation(); open ? (tab !== "chat" ? setTab("chat") : $("#input").focus()) : openChat(true, "chat"); return; }
     if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === "c" && !typing(e) && !inPanel && !t.flight && available()) {
       e.preventDefault(); open ? closeChat() : openChat(true);
     }
   }, true);
 
-  window.HQTowerChat = { projFor, sync, close: closeChat, open: openChat, isOpen: () => open, unread, paintBtn };
+  // ---------- lobby reception summary: cross-project review / waiting, each line flies to that floor's terminal on the right tab ----------
+  const lob = document.createElement("div"); lob.id = "tw-lobsum"; view.append(lob); let lobSig = "", want = null;
+  function lobby() {
+    const f = floorNow(), on = !!(f && f.kind === "lobby" && !T().flight);
+    const ps = ((typeof S !== "undefined" && typeof activeProjects === "function") ? activeProjects() : []).filter((p) => (p.review || 0) + (p.wait || 0) > 0);
+    const sig = on + "|" + ps.map((p) => p.id + p.review + "," + p.wait).join(";") + "|" + (typeof S !== "undefined" ? S.projects.length : 0);
+    if (sig === lobSig) return; lobSig = sig; lob.classList.toggle("on", on); if (!on) return; lob.textContent = "";
+    const R = ps.reduce((a, p) => a + (p.review || 0), 0), W = ps.reduce((a, p) => a + (p.wait || 0), 0);
+    const h = mk("div", "h"); h.append(mk("b", "", R + " need review"), document.createTextNode(" \u00b7 " + W + " waiting on you")); lob.append(h);
+    if (!ps.length) lob.append(mk("div", "twc-none", "All clear."));
+    for (const p of ps) {
+      const l = mk("div", "l"), d = mk("i"); d.style.background = p.accent || "var(--acc)"; l.append(d, mk("span", "n", p.name));
+      if (p.review) l.append(mk("span", "r", p.review + " review")); if (p.wait) l.append(mk("span", "w", p.wait + " waiting"));
+      l.title = "Fly to " + p.name; l.onclick = () => flyTo(p, p.review ? "review" : "wait"); lob.append(l);
+    }
+  }
+  function flyTo(p, t) { want = { id: p.id, tab: t, at: Date.now() }; if (window.HQTower) HQTower.hop(p.id); }
+  setInterval(() => {
+    if (!T().on) return; lobby();
+    if (want) { if (Date.now() - want.at > 8000) want = null; else { const f = floorNow(), t = T(); if (f && f.id === want.id && t.mode === "int" && !t.flight) { const w = want; want = null; openChat(false, w.tab); } } }
+  }, 250);
+
+  window.HQTowerChat = { setTab, refresh, flyTo, tab: () => tab, projFor, sync, close: closeChat, open: openChat, isOpen: () => open, unread, paintBtn };
 })();
