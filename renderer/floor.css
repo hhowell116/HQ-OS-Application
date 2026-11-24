@@ -373,3 +373,9 @@
 .fl-card:not(.compact) .fl-lad .sz2 { grid-column: 1 / -1; }
 .fl-card:not(.compact) .fl-fr { font-size: 10px; letter-spacing: .02em; }
 #tw-stonks.dv .fl-card:not(.compact) { align-items: stretch; gap: 7px; }
+
+/* Trader Tracker leaderboard (DATA view) */
+.fl-trkbox .trk { display: grid; grid-template-columns: minmax(0, 1.6fr) 1fr .6fr .6fr .8fr .9fr; gap: 6px; align-items: baseline; font-size: 10.5px; padding: 3px 4px; border-bottom: 1px solid var(--line); cursor: pointer; }
+.fl-trkbox .trk:hover { background: rgba(255,255,255,.05); } .fl-trkbox .trkh { font-size: 9px; color: var(--mut); cursor: default; letter-spacing: .06em; } .fl-trkbox .trkh:hover { background: none; }
+.fl-trkbox .trkn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--fg); } .fl-trkbox .trks { font-weight: 600; font-size: 9.5px; letter-spacing: .05em; }
+.fl-trkbox .prrec { font-size: 10px; color: var(--mut); margin-top: 4px; }
