@@ -139,10 +139,24 @@
     if (vetoed(a)) { const w = a.vetoWhy.join(" ").toLowerCase(); return "Not buying: " + (/no edge|conviction|confidence/.test(w) ? "no clear edge" : /size|share|fits/.test(w) ? "too small to size safely" : /data/.test(w) ? "data looked unreliable" : "risk too high"); }
     return "Watching: interesting, not ready yet";
   }
+  // LONG (Scanner / Steady / Mirror swing ideas) vs DAY (intraday catalyst trades, flat by the close)
+  const hz = (a) => { const d = a.horizon === "DAY" || a.strategy === "Day"; return mk("span", "fl-hz " + (d ? "DAY" : "LONG"), d ? "DAY" : "LONG"); };
+  const agoS = (t) => { const m = Math.round((Date.now() - t) / 60000); return m < 90 ? m + "m" : m < 2880 ? Math.round(m / 60) + "h" : Math.round(m / 1440) + "d"; };
+  function briefLines(b) {
+    if (!b) return [];
+    const o = [];
+    for (const h of (b.heads || []).slice(0, 5)) o.push("[" + agoS(h.t) + " " + (h.src || "") + (h.sent && h.sent !== "NEUTRAL" ? " " + String(h.sent).toLowerCase() : "") + "] " + h.title);
+    if (b.community && b.community.n) o.push("Webull community: " + b.community.n + " posts, " + (b.community.bullPct == null ? "no clear lean" : b.community.bullPct + "% bullish-leaning (keyword score)"));
+    if (b.stocktwits && b.stocktwits.n) o.push("StockTwits: " + (b.stocktwits.bullPct == null ? "no tagged messages" : b.stocktwits.bullPct + "% bullish of " + (b.stocktwits.bull + b.stocktwits.bear) + " tagged") + (b.stocktwits.spike ? " · message-rate spike" : ""));
+    if (b.ratings && b.ratings.n) o.push("Analysts (" + b.ratings.n + "): " + (b.ratings.sbuy + b.ratings.buy) + " buy · " + b.ratings.hold + " hold · " + (b.ratings.sell + b.ratings.under) + " sell" + (b.target && b.target.mean ? " · target mean $" + Math.round(b.target.mean * 100) / 100 + " (low $" + b.target.low + ", high $" + b.target.high + ")" : ""));
+    if (b.earnings && b.earnings.next) o.push("Next earnings: " + b.earnings.next);
+    if (b.short) o.push("Short interest: " + (b.short.shares / 1e6).toFixed(1) + "M shares, " + b.short.daysToCover + " days to cover (" + b.short.date + ")");
+    return o;
+  }
   function card(a, rank, compact) {
     const c = mk("div", "fl-card " + a.action + (compact ? " compact" : "") + (rank === 1 ? " top1" : "")), top = mk("div", "top"), px = mk("div", "px");
     px.append(mk("span", "pv", a.px ? "$" + a.px : ""), mk("span", cls(a.chg), a.chg != null ? sgn(a.chg) + "% today" : ""));
-    top.append(...(rank ? [mk("span", "rk", "#" + rank)] : []), mk("span", "tk", a.ticker), mk("span", "act", a.action), mk("span", "fl-strat " + (a.strategy || "Scanner"), (a.strategy || "Scanner").toUpperCase()));
+    top.append(...(rank ? [mk("span", "rk", "#" + rank)] : []), mk("span", "tk", a.ticker), mk("span", "act", a.action), mk("span", "fl-strat " + (a.strategy || "Scanner"), (a.strategy === "Day" ? "CATALYST" : (a.strategy || "Scanner").toUpperCase())), hz(a));
     if (compact) top.append(px); c.append(top); if (!compact) c.append(px); c.append(mk("div", "stline", statusLine(a)));
     if (!compact && a.plan && a.plan.shares > 0) {
       const p = a.plan, l = mk("div", "fl-lad"); [["BUY NEAR", p.entry, ""], ["STOP-LOSS", p.stop, "s"], [a.strategy === "Steady" ? "52W HIGH" : "TARGET", p.t1, "t"], ["TARGET 2", p.t2, "t"]].filter((x) => x[1] != null).forEach(([k, v, z]) => { const d = mk("div", z); d.append(mk("small", "", k), document.createTextNode("$" + v)); l.append(d); });
@@ -228,7 +242,7 @@
     const pb = $("#fl-pos"); pb.textContent = ""; if (!s.positions.length) pb.append(mk("div", "fl-empty", "No paper positions yet."));
     for (const p of s.positions.slice(0, 12)) {
       const closed = p.status === "closed", pl = closed ? p.pnl : p.unreal || 0, r = mk("div", "fl-row " + (closed ? (pl > 0 ? "win" : "loss") : "open"));
-      r.append(mk("b", "", p.ticker), Object.assign(mk("span", "sd", (p.strat === "Steady" ? "S " : "") + p.side.toUpperCase()), { title: p.strat || "Scanner" }), mk("span", "lv", "$" + p.entry + (closed ? " → $" + p.exit + " (" + p.reason + ")" : p.last ? " → $" + p.last : "")), mk("span", "pl " + cls(pl), usd(pl))); pb.append(r);
+      r.append(mk("b", "", p.ticker), Object.assign(mk("span", "sd", (p.strat === "Steady" ? "S " : p.strat === "Day" ? "DAY " : "") + p.side.toUpperCase()), { title: p.strat || "Scanner" }), mk("span", "lv", "$" + p.entry + (closed ? " → $" + p.exit + " (" + p.reason + ")" : p.last ? " → $" + p.last : "")), mk("span", "pl " + cls(pl), usd(pl))); pb.append(r);
     }
   }
   function renderSafety() {
@@ -246,11 +260,12 @@
     if (sf.peak) box.append(Object.assign(mk("span", "pk", ""), { textContent: "PEAK $" + Math.round(sf.peak) }));
   }
   function renderCmp() {
-    if (!changed("cmp", S.stats)) return;
+    if (!changed("cmp", [S.stats, S.day])) return;
     const s = S.stats, box = $("#fl-cmp"); box.textContent = ""; if (!s || !s.steady) return;
-    const rows = [["SCANNER", s.retPct, s.trades + " closed · " + s.open + " open"], ["STEADY", s.steady.retPct, s.steady.trades + " closed · " + s.steady.open + " open"], ...(s.mirror ? [["MIRROR", s.mirror.retPct, s.mirror.trades + " closed · " + s.mirror.open + " open"]] : []), ["SPY", s.spy && s.spy.retPct, s.spy && s.spy.since ? "since " + new Date(s.spy.since).toLocaleDateString() : "benchmark"]];
+    const rows = [["SCANNER", s.retPct, s.trades + " closed · " + s.open + " open"], ["STEADY", s.steady.retPct, s.steady.trades + " closed · " + s.steady.open + " open"], ...(s.mirror ? [["MIRROR", s.mirror.retPct, s.mirror.trades + " closed · " + s.mirror.open + " open"]] : []), ...(s.day ? [["DAY", s.day.retPct, s.day.trades + " closed · " + s.day.open + " open" + (s.day.aiToday ? " · " + s.day.aiToday + " AI" : "")]] : []), ["SPY", s.spy && s.spy.retPct, s.spy && s.spy.since ? "since " + new Date(s.spy.since).toLocaleDateString() : "benchmark"]];
     for (const [k, v, n] of rows) { const d = mk("div", "t " + k); d.append(mk("small", "", k), mk("b", cls(v), v == null ? "--" : sgn(v) + "%"), mk("em", "", n)); box.append(d); }
     if (s.review && s.review.due) box.append(mk("div", "rev", "Steady watchlist review due (every " + s.review.every + " days)"));
+    if (S.day && S.day.status) box.append(Object.assign(mk("div", "dayst", "DAY scan: " + S.day.status + (S.day.at ? " (" + ago(S.day.at) + ")" : "")), { title: (S.day.cands || []).map((c) => c.sym + " +" + c.gap + "% " + c.rvol + "x score " + c.score + (c.vetoes && c.vetoes.length ? " - " + c.vetoes[0] : " - READY")).join("\n") }));
   }
   function renderSig() {
     if (!changed("sig", S.sig)) return;
@@ -317,10 +332,11 @@
     if (S.card) { S.card = null; if (window.HQStocks3D && HQStocks3D.focused()) HQStocks3D.unfocus(); }
     const d = $("#fl-drawer"); d.textContent = ""; d.classList.remove("hidden");
     const x = mk("button", "fl-btn ghost", "CLOSE"); x.onclick = () => d.classList.add("hidden");
-    const top = mk("div", "dtop"); top.append(mk("span", "dact " + a.action, a.action), mk("b", "tk", a.ticker), mk("span", "fl-strat " + (a.strategy || "Scanner"), (a.strategy || "Scanner").toUpperCase()), mk("span", "spacer"), x); d.append(top);
+    const top = mk("div", "dtop"); top.append(mk("span", "dact " + a.action, a.action), mk("b", "tk", a.ticker), mk("span", "fl-strat " + (a.strategy || "Scanner"), (a.strategy === "Day" ? "CATALYST" : (a.strategy || "Scanner").toUpperCase())), hz(a), mk("span", "spacer"), x); d.append(top);
     d.append(mk("div", "dpx", (a.px ? "$" + a.px + "  " : "") + (a.chg != null ? sgn(a.chg) + "% today" : "") + (a.confidence != null ? "   confidence " + a.confidence : "")), mk("p", "dth", a.thesis || ""));
     const sec = (t, rows) => { if (!rows.length) return; d.append(mk("div", "fl-h", t)); const ul = mk("ul", "dl"); rows.forEach((r) => ul.append(mk("li", "", r))); d.append(ul); };
     sec("REASONS", a.reasons || []);
+    sec("STOCK BRIEF", briefLines(a.brief));
     const lines = S.ev.filter((m) => (m.kind === "say" || m.kind === "veto") && new RegExp("^" + a.ticker + "\\b").test(m.text || ""));
     sec("DESK VERDICTS", lines.map((m) => NAME[m.agent] + ": " + m.text));
     sec("BACKTEST", a.backtest && a.backtest.text ? [a.backtest.text] : []);
@@ -338,7 +354,7 @@
     if (h.length < 2) { box.append(mk("div", "fl-empty", "The curve fills in as runs finish. Each GO or SCORE adds a point.")); return; }
     const cap = (s && s.capital) || h[0].total || 1000, W = 380, H = 92, P = { l: 34, r: 8, t: 6, b: 16 };
     const pct = (v) => (v == null ? null : (v / cap - 1) * 100);
-    const series = [["TOTAL", "#ffb02e", h.map((p) => pct(p.total))], ["SCANNER", "#00f5a0", h.map((p) => (p.scanner == null ? null : (p.scanner / ((s.sleeves && s.sleeves.scanner) || cap / 2) - 1) * 100))], ["STEADY", "#4aa8ff", h.map((p) => (p.steady == null ? null : (p.steady / ((s.sleeves && s.sleeves.steady) || cap / 2) - 1) * 100))], ["MIRROR", "#ffb86b", h.map((p) => (p.mirror == null || !(s.sleeves && s.sleeves.mirror) ? null : (p.mirror / s.sleeves.mirror - 1) * 100))], ["SPY", "#8a9a94", h.map((p) => p.spy)]];
+    const series = [["TOTAL", "#ffb02e", h.map((p) => pct(p.total))], ["SCANNER", "#00f5a0", h.map((p) => (p.scanner == null ? null : (p.scanner / ((s.sleeves && s.sleeves.scanner) || cap / 2) - 1) * 100))], ["STEADY", "#4aa8ff", h.map((p) => (p.steady == null ? null : (p.steady / ((s.sleeves && s.sleeves.steady) || cap / 2) - 1) * 100))], ["MIRROR", "#ffb86b", h.map((p) => (p.mirror == null || !(s.sleeves && s.sleeves.mirror) ? null : (p.mirror / s.sleeves.mirror - 1) * 100))], ["DAY", "#c58bff", h.map((p) => (p.day == null || !(s.sleeves && s.sleeves.day) ? null : (p.day / s.sleeves.day - 1) * 100))], ["SPY", "#8a9a94", h.map((p) => p.spy)]];
     const vals = series.flatMap((x) => x[2]).filter((v) => v != null), lo = Math.min(0, ...vals), hi = Math.max(0.5, ...vals), pad = (hi - lo) * 0.1 || 1, y0 = lo - pad, y1 = hi + pad;
     const t0 = h[0].ts, t1 = h[h.length - 1].ts || t0 + 1, X = (t) => P.l + ((t - t0) / Math.max(1, t1 - t0)) * (W - P.l - P.r), Y = (v) => P.t + (1 - (v - y0) / (y1 - y0)) * (H - P.t - P.b);
     const ns = "http://www.w3.org/2000/svg", el = (n, a) => { const e = document.createElementNS(ns, n); for (const k in a) e.setAttribute(k, a[k]); return e; };
@@ -499,7 +515,7 @@
   }
   function load(r) {
     if (S.preview) return; // dev screenshot hook: HQFloor.preview() freezes the data
-    const st = r.state; if (st) { S.desks = st.desks || {}; S.alerts = st.alerts || []; S.tape = st.tape || []; S.finishedAt = st.finishedAt || 0; S.usage = st.usage || null; S.flag = st.flag || ""; S.pred = st.predictions || null; S.trk = st.tracker || null; S.mode = st.mode === "live" ? "live" : "paper"; S.trades = st.trades || S.trades || []; }
+    const st = r.state; if (st) { S.desks = st.desks || {}; S.alerts = st.alerts || []; S.tape = st.tape || []; S.finishedAt = st.finishedAt || 0; S.usage = st.usage || null; S.flag = st.flag || ""; S.day = st.day || null; S.pred = st.predictions || null; S.trk = st.tracker || null; S.mode = st.mode === "live" ? "live" : "paper"; S.trades = st.trades || S.trades || []; }
     S.health = r.health || { ok: true, why: [] }; S.running = !!r.running; S.stats = r.stats; S.sig = r.journal || {}; S.equity = r.equity || []; all(); renderTrades();
   }
   // ---------- TRADES: every trade (open first, then closed) with a click-to-expand card: how and why it was taken (engine: data/trades.jsonl via state.trades) ----------
