@@ -32,6 +32,11 @@ Each unsigned update: run the new installer (approve its hash once), same folder
 3. A "Sign in to Claude" card appears: **Sign in with Claude** opens the browser (Claude subscription), or paste an API key (kept encrypted for this Windows user in `%APPDATA%\HQ OS\settings.json`). Close it with Later and it stays out of the way.
 4. Use **+** next to PROJECTS to make a project; it gets `Notes\` and a starter `<name>-team-builder` agent. In that project's chat say "build the <name> team".
 
+## First run on a laptop with existing projects
+1. Point the projects folder at the folder that already holds your project folders. Every top-level folder shows up as a project automatically (hidden, system, node_modules and -wt folders are skipped); a Notes folder is not required.
+2. HQ OS offers "Build teams for N projects?" once. **Build teams** (or the **Build team** button on any project card, any time) creates Notes, a To-Do and Notes\Claude\Index.md if missing, plus a <name>-team-builder and <name>-cartographer agent in .claude\agents, then starts a chat that maps the project and builds its specialists. Teams from the offer map one project at a time.
+3. Nothing existing is overwritten: files are only created when missing. Sign in to Claude first, or the mapping chat cannot run.
+
 ## What is not on the work PC
 The music box needs `nowplaying.ps1` (PowerShell), so it stays empty there. The Trading floor needs a Stocks project, so it is also empty. Everything else works.
 

@@ -1,6 +1,6 @@
 # HQ OS installer security audit
 
-Audited 2026-11-23 on main b9b5694. Installer: `dist\HQ-OS-Setup-2.0.0.exe` (440,185,950 bytes, unsigned, SHA-256 changes every build, see the build output).
+Audited 2026-11-23 on main d37049f (re-run after the Build team change: npm audit unchanged, same 3 sharp highs; lockfile 410 entries, all on registry.npmjs.org). Installer: `dist\HQ-OS-Setup-2.0.0.exe` (440,194,359 bytes, unsigned, SHA-256 `30b58bd21bb8eb40624ed9ee6c7b8dd041a6d87e8d712d6cc1031803bf9670d5`; changes every build). Previous build (b9b5694): 440,185,950 bytes.
 
 ## Dependencies shipped
 - Production top-level (package.json `dependencies`): `3d-force-graph@1.80.2` (vasturiano, 3D graph), `kokoro-js@1.2.1` (Hugging Face / Xenova, TTS), `three@0.187.0` (three.js org). Spelling checked, all well-known names. 90 production packages total (`npm ls --omit=dev --all --parseable`, minus root).
