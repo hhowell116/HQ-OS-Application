@@ -461,7 +461,21 @@
       row.append(mk("span", "trkn", r.name), mk("span", "", SRC[r.source] || r.source), mk("span", "", String(r.graded) + (r.open ? "+" + r.open : "")), mk("span", "", r.winRate == null ? "--" : Math.round(r.winRate) + "%"), v, st); box.append(row); });
     box.append(mk("div", "prrec", T.counts.proven + " PROVEN of " + T.counts.traders + " followed. PROVEN = 15+ graded calls, beating SPY. Paper-logged, not advice."));
   }
-  const all = () => { predSection(); trkSection(); renderTrk(); collapsibles(); renderPred(); renderSafety(); renderCmp(); renderHead(); renderTape(); renderAlerts(); renderBook(); renderSig(); renderCurve(); renderAgents(); renderLive(); };
+  function fmSection() { if ($("#fl-fm")) return; const col = $(".fl-rcol"); if (!col) return; const sc = mk("div", "fl-sc fl-fm"); sc.id = "fl-fm"; const hd = mk("div", "fl-h"); hd.append(mk("span", "", "FAST MIRROR"), mk("span", "fl-rule")); const bx = mk("div", "fl-fmbox"); bx.id = "fl-fmbox"; sc.append(hd, bx); col.append(sc); }
+  function renderFm() {
+    const box = $("#fl-fmbox"); if (!box || !changed("fm", S.fm)) return; box.textContent = ""; const F = S.fm;
+    if (!F) { box.append(mk("div", "fl-empty", "Fast Mirror is not running. Task: Stocks Fast Mirror (paper only, no AI).")); return; }
+    const pl = F.equity - F.bankroll, c = F.conn || {}, live = c.connected && Date.now() - (c.lastMsg || 0) < 120000, sum = mk("div", "fm-sum");
+    const st = mk("span", "fm-dot", live ? "LIVE" : "OFFLINE"); st.style.color = live ? "#00f5a0" : "#ff3d6b"; const pe = mk("span", "", (pl >= 0 ? "+$" : "-$") + Math.abs(pl).toFixed(2)); pe.style.color = pl >= 0 ? "#00f5a0" : "#ff3d6b";
+    sum.append(st, mk("span", "", "paper $" + F.equity.toFixed(2) + " of $" + F.bankroll), pe, mk("span", "", F.open + " open, " + F.closed + " closed"), mk("span", "", "avg lag " + (F.avgLagMs == null ? "--" : (F.avgLagMs / 1000).toFixed(1) + "s")), mk("span", "", "slip " + (F.avgSlipPct == null ? "--" : F.avgSlipPct + "%")));
+    if (F.paused) { const p = mk("span", "", "PAUSED: " + F.paused); p.style.color = "#ff3d6b"; sum.append(p); } box.append(sum);
+    const head = mk("div", "fm fmh"); ["WALLET", "COPIES", "WIN %", "LAG", "SLIP", "OUR P&L", "STATUS"].forEach((t) => head.append(mk("span", "", t))); box.append(head);
+    (F.wallets || []).forEach((w) => { const r = mk("div", "fm"); r.title = (w.why || "") + " fills seen " + w.fills + (w.ourRet == null ? "" : ", our avg " + w.ourRet + "% vs leader " + w.leaderRet + "% per copy"); const pv = mk("span", "", w.copies ? (w.ourPnl >= 0 ? "+$" : "-$") + Math.abs(w.ourPnl).toFixed(2) : "--"); if (w.copies) pv.style.color = w.ourPnl >= 0 ? "#00f5a0" : "#ff3d6b";
+      r.append(mk("span", "fmn", w.addr), mk("span", "", w.copies + (w.open ? "+" + w.open : "")), mk("span", "", w.winRate == null ? "--" : w.winRate + "%"), mk("span", "", w.avgLagMs == null ? "--" : (w.avgLagMs / 1000).toFixed(1) + "s"), mk("span", "", w.avgSlipPct == null ? "--" : w.avgSlipPct + "%"), pv, mk("span", "", w.status)); box.append(r); });
+    (F.openList || []).forEach((o) => box.append(mk("div", "fm fmo", "open: " + o.dir.toUpperCase() + " " + o.coin + " $" + o.usd + " (copying " + o.wallet + ", lag " + (o.lagMs / 1000).toFixed(1) + "s)")));
+    box.append(mk("div", "prrec", "Separate $" + F.bankroll + " paper bankroll, not part of the stock book. Copies Hyperliquid wallets' fills in seconds; wallets are dropped if copying loses after lag, slippage and fees. Not advice."));
+  }
+  const all = () => { predSection(); trkSection(); renderTrk(); fmSection(); renderFm(); collapsibles(); renderPred(); renderSafety(); renderCmp(); renderHead(); renderTape(); renderAlerts(); renderBook(); renderSig(); renderCurve(); renderAgents(); renderLive(); };
   // ---------- PAPER / LIVE mode. LIVE = read-only view of the agent's real account + locked order approvals (no order is sent while live orders are off). ----------
   const isLive = () => S.mode === "live";
   const orderTxt = (a) => { const p = a.plan || {}; return (a.action === "SELL" ? "SELL " : "BUY ") + p.shares + " " + a.ticker + " limit $" + p.entry + " · stop $" + p.stop + " · est. $" + Math.round((p.shares || 0) * (p.entry || 0)); };
@@ -515,7 +529,7 @@
   }
   function load(r) {
     if (S.preview) return; // dev screenshot hook: HQFloor.preview() freezes the data
-    const st = r.state; if (st) { S.desks = st.desks || {}; S.alerts = st.alerts || []; S.tape = st.tape || []; S.finishedAt = st.finishedAt || 0; S.usage = st.usage || null; S.flag = st.flag || ""; S.day = st.day || null; S.pred = st.predictions || null; S.trk = st.tracker || null; S.mode = st.mode === "live" ? "live" : "paper"; S.trades = st.trades || S.trades || []; }
+    const st = r.state; if (st) { S.desks = st.desks || {}; S.alerts = st.alerts || []; S.tape = st.tape || []; S.finishedAt = st.finishedAt || 0; S.usage = st.usage || null; S.flag = st.flag || ""; S.day = st.day || null; S.pred = st.predictions || null; S.trk = st.tracker || null; S.fm = st.fastmirror || null; S.mode = st.mode === "live" ? "live" : "paper"; S.trades = st.trades || S.trades || []; }
     S.health = r.health || { ok: true, why: [] }; S.running = !!r.running; S.stats = r.stats; S.sig = r.journal || {}; S.equity = r.equity || []; all(); renderTrades();
   }
   // ---------- TRADES: every trade (open first, then closed) with a click-to-expand card: how and why it was taken (engine: data/trades.jsonl via state.trades) ----------

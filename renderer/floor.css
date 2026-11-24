@@ -394,3 +394,9 @@
 .tr-tk { font-size: 13px; color: var(--fg); } .tr-meta { flex: 1; color: var(--mut); font-size: 10px; } .tr-pl { font: 700 12px var(--mono); } .tr-pl.up { color: var(--up); } .tr-pl.dn { color: var(--dn); }
 .tr-body { display: none; padding: 2px 12px 9px 12px; color: #aab9c2; line-height: 1.45; } .tr-card.x .tr-body { display: block; }
 .tr-head { color: var(--fg); margin-bottom: 4px; } .tr-l { margin: 2px 0; } .tr-l b { color: var(--amb); font-weight: 600; }
+
+/* Fast Mirror panel */
+.fl-fmbox .fm-sum { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 10.5px; margin-bottom: 4px; } .fl-fmbox .fm-dot { font-weight: 700; letter-spacing: .06em; }
+.fl-fmbox .fm { display: grid; grid-template-columns: minmax(0, 1.3fr) .7fr .6fr .6fr .7fr .9fr .8fr; gap: 6px; align-items: baseline; font-size: 10.5px; padding: 3px 4px; border-bottom: 1px solid rgba(255,255,255,.06); }
+.fl-fmbox .fmh { font-size: 9px; color: var(--mut); letter-spacing: .06em; } .fl-fmbox .fmn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--fg); }
+.fl-fmbox .fmo { display: block; color: var(--mut); font-size: 10px; } .fl-fmbox .prrec { font-size: 10px; color: var(--mut); margin-top: 4px; }
