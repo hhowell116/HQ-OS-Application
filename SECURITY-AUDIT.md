@@ -1,6 +1,6 @@
 # HQ OS installer security audit
 
-Current installer (2026-11-23, GitHub Actions run 45321445159 on main 72a2918, windows-latest, `npm ci` from the same lockfile): `HQ-OS-Setup-2.0.0.exe`, 437,705,328 bytes, unsigned, SHA-256 `dba888b81cd46a06db1abeecbb5f4713c78068641ec01ad0ebe983854ddfffeb` (runner hash matches the downloaded file). Installed on IT-LT-HHOWELL under ThreatLocker Full Path rule `C:Program FilesHQ OS*`.
+Current installer (2026-11-24, GitHub Actions run 45434664506 on main e5617df, windows-latest, `npm ci` from the lockfile): `HQ-OS-Setup-2.1.2.exe`, 437,740,490 bytes, unsigned, SHA-256 `2b109e074da3fc1806e38594e9dd46c7dc2ef75f5c2730f3616506fe6e3999a9`. Published as GitHub Release v2.1.2. Previous: 2.0.0 (run 45321445159, SHA-256 `dba888b8...fffeb`).
 
 Audited 2026-11-23 on main d37049f (re-run after the Build team change: npm audit unchanged, same 3 sharp highs; lockfile 410 entries, all on registry.npmjs.org). Installer: `dist\HQ-OS-Setup-2.0.0.exe` (440,194,359 bytes, unsigned, SHA-256 `30b58bd21bb8eb40624ed9ee6c7b8dd041a6d87e8d712d6cc1031803bf9670d5`; changes every build). Previous build (b9b5694): 440,185,950 bytes.
 
@@ -10,7 +10,7 @@ Audited 2026-11-23 on main d37049f (re-run after the Build team change: npm audi
 - `package-lock.json`: 410 entries, all `resolved` URLs on registry.npmjs.org, all have `integrity` hashes, none missing.
 
 ## npm audit --omit=dev
-3 high, all one chain: `sharp` (libvips/libheif/librsvg CVEs, no fix) <- `@huggingface/transformers` <- `kokoro-js`. Not reachable: these are image decoders (HEIF, SVG) and HQ never passes images to transformers (voice only: audio in, audio out). Removing sharp breaks both Whisper and Kokoro (tested: STT and TTS self-test checks fail, transformers imports sharp at load), so it stays. No critical.
+0 vulnerabilities (2026-11-24, 2.1.2). The 3 sharp highs (libvips CVE-2026-33327/33328/35590/35591) are fixed by `overrides.sharp ^0.35.5` in package.json (transformers 3.8.1 still asks for 0.34.x upstream). CI runs `npm audit --omit=dev --audit-level=high` and a real TTS smoke test on every build, so a regression fails the build. Dev-only: 6 moderate (minimatch ReDoS via electron-builder), not shipped.
 
 ## Models (build/models, from official Hugging Face repos)
 - `Xenova/whisper-base.en`: encoder_model.onnx 3af4d8b7...5f6e, decoder_model_merged_quantized.onnx a25afc58...0325 (match HF LFS sha256).
