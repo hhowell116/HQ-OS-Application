@@ -1,0 +1,51 @@
+# Builds the Windows installer (dist\HQ-OS-Setup-<version>.exe) on a GitHub-hosted Windows runner,
+# so the work PC never has to run the unsigned build tools. Run it from the Actions tab or `gh workflow run build-installer.yml`,
+# or push a v* tag. Download the installer from the run's artifacts; its SHA-256 is printed in the log and saved next to it.
+name: Build installer
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies (lockfile only)
+        run: npm ci --no-fund --no-audit
+
+      - name: Speech models (Whisper + Kokoro, from Hugging Face)
+        run: npm run models
+
+      - name: Build installer
+        run: npm run dist
+
+      - name: SHA-256 for the ThreatLocker approval
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem dist\HQ-OS-Setup-*.exe | Select-Object -First 1
+          $h = (Get-FileHash $exe.FullName -Algorithm SHA256).Hash
+          "$h  $($exe.Name)" | Tee-Object -FilePath "$($exe.FullName).sha256.txt"
+          "Size: $($exe.Length) bytes"
+          "### $($exe.Name)`n`nSHA-256: ``$h``" >> $env:GITHUB_STEP_SUMMARY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HQ-OS-Setup
+          path: |
+            dist/HQ-OS-Setup-*.exe
+            dist/HQ-OS-Setup-*.exe.sha256.txt
+          retention-days: 30
+          compression-level: 0
