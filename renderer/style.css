@@ -477,3 +477,12 @@ body.booting .layout, body.booting #console, body.booting .viz, body.booting .mu
 .console-h select { min-width: 0; max-width: 200px; }
 .console-h .spacer { flex: 1 1 0; min-width: 0; }
 .console-h button { white-space: nowrap; flex: 0 0 auto; }
+
+/* review audio player + inline video (2026-11-23) */
+.rv-aud { display: flex; align-items: center; gap: 6px; margin-top: 3px; min-width: 0; }
+.rv-aud button { width: 24px; height: 22px; padding: 0; flex: none; font-size: 10px; line-height: 1; }
+.rv-aud input[type=range] { flex: 1; min-width: 40px; height: 4px; accent-color: var(--acc); cursor: pointer; }
+.rv-aud .tm { font: 10px var(--mono); color: var(--tx3); flex: none; white-space: nowrap; }
+.rev-media .rv-aud { width: min(520px, 90%); padding: 10px 12px; border: 1px solid var(--line); background: rgba(var(--bg-rgb),.5); }
+.rev-media .rv-aud button { width: 34px; height: 30px; font-size: 13px; }
+.rev-item .th video { width: 100%; height: 100%; object-fit: cover; pointer-events: none; }

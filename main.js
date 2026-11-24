@@ -120,7 +120,7 @@ app.whenReady().then(() => {
   refreshProjects();
   protocol.handle("hqreview", (req) => {
     let f = ""; try { f = path.resolve(decodeURIComponent(new URL(req.url).pathname.slice(1))); } catch (e) {}
-    if (!f || !/\.(png|jpe?g|gif|webp|mp4|webm)$/i.test(f) || !inReview(f)) return new Response("denied", { status: 403 });
+    if (!f || !/\.(png|jpe?g|gif|webp|mp4|webm|wav|mp3|ogg|m4a|flac)$/i.test(f) || !inReview(f)) return new Response("denied", { status: 403 });
     return net.fetch(pathToFileURL(f).toString(), { headers: req.headers });
   });
   // Read-only hqchat://f/<encoded path>: serves only images inside userData/chat-images.

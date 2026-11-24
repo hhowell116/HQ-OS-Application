@@ -610,22 +610,37 @@ function renderReview() {
   box.textContent = "";
   if (!list.length) box.append(el("div", "dim small", REV.all ? "Nothing in the review folder." : "Nothing to review."));
   for (const i of list) {
-    const r = el("div", "rev-item"), th = el("div", "th");
-    if (i.media[0] && !i.video) { const im = el("img"); im.src = i.media[0]; im.alt = ""; th.append(im); } else th.textContent = i.video ? "▶" : "✎";
+    const r = el("div", "rev-item"), th = el("div", "th"), au = i.media.find((u) => AUDIO_RE.test(uext(u))), vd = i.media.find((u) => VIDEO_RE.test(uext(u)));
+    if (vd) { const v = el("video"); v.src = vd + "#t=0.1"; v.muted = true; v.preload = "metadata"; v.onerror = () => { v.remove(); th.textContent = "\u25b6"; }; th.append(v); }
+    else if (au) th.textContent = "\u266a";
+    else if (i.media[0] && !i.video) { const im = el("img"); im.src = i.media[0]; im.alt = ""; th.append(im); } else th.textContent = i.video ? "▶" : "✎";
     const tt = el("div", "tt"); tt.append(el("b", "", i.title), el("span", "", ago(i.created) + " ago"));
     const cls = { approved: "ok", rejected: "bad", changes: "chg" }[i.status] || "";
-    r.append(th, tt); if (i.status !== "needs-review") r.append(el("span", "st " + cls, i.status));
+    r.append(th, tt); if (au) tt.append(rvPlayer(au)); if (i.status !== "needs-review") r.append(el("span", "st " + cls, i.status));
     r.onclick = () => openReview(i); box.append(r);
   }
   const p = S.projects.find((x) => x.id === S.cur); if (p && p.review !== todo.length) { p.review = todo.length; renderProjects(); }
 }
+const AUDIO_RE = /\.(wav|mp3|ogg|m4a|flac)$/i, VIDEO_RE = /\.(mp4|webm)$/i, uext = (u) => decodeURIComponent(u);
+const fmtT = (s) => { s = isFinite(s) ? Math.max(0, s) : 0; return Math.floor(s / 60) + ":" + String(Math.floor(s % 60)).padStart(2, "0"); };
+function rvPlayer(u) { // compact audio player: play/pause, scrubber, time
+  const w = el("div", "rv-aud"), a = new Audio(), b = el("button", "ghost", "\u25b6"), r = el("input"), t = el("span", "tm", "0:00 / 0:00");
+  a.preload = "metadata"; a.src = u; r.type = "range"; r.min = 0; r.max = 1000; r.value = 0; r.step = 1;
+  const upd = () => { if (!r.dataset.drag) r.value = a.duration ? Math.round(a.currentTime / a.duration * 1000) : 0; t.textContent = fmtT(a.currentTime) + " / " + fmtT(a.duration); };
+  b.onclick = (e) => { e.stopPropagation(); a.paused ? a.play().catch(() => {}) : a.pause(); };
+  a.onplay = () => (b.textContent = "\u275a\u275a"); a.onpause = a.onended = () => (b.textContent = "\u25b6");
+  a.ontimeupdate = a.onloadedmetadata = a.ondurationchange = upd;
+  r.oninput = () => { r.dataset.drag = 1; if (a.duration) a.currentTime = r.value / 1000 * a.duration; }; r.onchange = () => { delete r.dataset.drag; upd(); };
+  r.onclick = (e) => e.stopPropagation(); w.onclick = (e) => e.stopPropagation(); w._audio = a;
+  w.append(b, r, t); return w;
+}
 function openReview(i) {
   REV.cur = i; $("#rv-title").textContent = i.title; $("#rv-meta").textContent = i.status + " · " + ago(i.created) + " ago";
   const m = $("#rv-media"); m.textContent = "";
-  for (const u of i.media) { if (/\.(mp4|webm)$/i.test(decodeURIComponent(u))) { const v = el("video"); v.src = u; v.controls = true; m.append(v); } else { const im = el("img"); im.src = u; im.alt = i.title; m.append(im); } }
+  for (const u of i.media) { if (AUDIO_RE.test(uext(u))) m.append(rvPlayer(u)); else if (VIDEO_RE.test(uext(u))) { const v = el("video"); v.src = u; v.controls = true; m.append(v); } else { const im = el("img"); im.src = u; im.alt = i.title; m.append(im); } }
   $("#rv-note").innerHTML = md(i.note); $("#rv-comment").value = ""; $("#rev-ov").classList.remove("hidden");
 }
-function closeReview() { $("#rev-ov").classList.add("hidden"); $("#rv-media").textContent = ""; REV.cur = null; }
+function closeReview() { $("#rev-ov").classList.add("hidden"); document.querySelectorAll("#rv-media video, #rv-media .rv-aud").forEach((n) => { try { (n._audio || n).pause(); } catch (e) {} }); $("#rv-media").textContent = ""; REV.cur = null; }
 async function reviewAct(status) {
   const i = REV.cur; if (!i) return; const comment = $("#rv-comment").value.trim();
   try { await hq.reviewSet({ id: S.cur, key: i.key, status, comment }); closeReview(); toast(status === "approved" ? "Approved" : status === "changes" ? "Changes requested" : "Rejected"); await loadReview(); loadProjects(); }

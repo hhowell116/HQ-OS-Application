@@ -244,7 +244,7 @@ function fetchCommits(repo) {
 }
 
 // ---------- review inbox ----------
-const MEDIA = /\.(png|jpe?g|gif|webp|mp4|webm)$/i, VIDEO = /\.(mp4|webm)$/i;
+const MEDIA = /\.(png|jpe?g|gif|webp|mp4|webm|wav|mp3|ogg|m4a|flac)$/i, VIDEO = /\.(mp4|webm|wav|mp3|ogg|m4a|flac)$/i; // VIDEO = playable (audio too): play glyph instead of a thumbnail
 const inside = (root, p) => { const r = path.resolve(root), t = path.resolve(p); return t === r || t.startsWith(r + path.sep); };
 function parseSidecar(text) {
   const t = String(text || "").replace(/\r\n/g, "\n"), m = /^---\n([\s\S]*?)\n---\n?([\s\S]*)$/.exec(t), fm = {};
