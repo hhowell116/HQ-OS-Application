@@ -35,6 +35,17 @@ jobs:
           if ($LASTEXITCODE -ne 0) { Start-Sleep 10; npm run models }
           if ($LASTEXITCODE -ne 0) { exit 1 }
 
+      # Shipped dependencies must have no high/critical advisories (dev-only build tools are not in the installer).
+      - name: Security audit (shipped dependencies)
+        run: npm audit --omit=dev --audit-level=high
+
+      # Real speech synthesis through kokoro-js -> transformers -> sharp/onnxruntime, so a dependency bump that breaks voice fails the build.
+      - name: Voice smoke test
+        shell: pwsh
+        run: |
+          node tools/tts-test.js "$env:RUNNER_TEMP\tts.wav"
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
       - name: Build installer
         run: npm run dist -- --publish never
 
