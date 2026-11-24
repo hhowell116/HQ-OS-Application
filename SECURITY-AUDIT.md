@@ -1,5 +1,7 @@
 # HQ OS installer security audit
 
+Current installer (2026-11-23, GitHub Actions run 45321445159 on main 72a2918, windows-latest, `npm ci` from the same lockfile): `HQ-OS-Setup-2.0.0.exe`, 437,705,328 bytes, unsigned, SHA-256 `dba888b81cd46a06db1abeecbb5f4713c78068641ec01ad0ebe983854ddfffeb` (runner hash matches the downloaded file). Installed on IT-LT-HHOWELL under ThreatLocker Full Path rule `C:Program FilesHQ OS*`.
+
 Audited 2026-11-23 on main d37049f (re-run after the Build team change: npm audit unchanged, same 3 sharp highs; lockfile 410 entries, all on registry.npmjs.org). Installer: `dist\HQ-OS-Setup-2.0.0.exe` (440,194,359 bytes, unsigned, SHA-256 `30b58bd21bb8eb40624ed9ee6c7b8dd041a6d87e8d712d6cc1031803bf9670d5`; changes every build). Previous build (b9b5694): 440,185,950 bytes.
 
 ## Dependencies shipped
