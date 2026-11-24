@@ -113,8 +113,7 @@
   }
   function setMode(m, quiet) {
     if (m === N.mode && !quiet) return; N.mode = m; if (!quiet) saveMode(m);
-    document.querySelectorAll("#nb-shapes button").forEach((b) => b.classList.toggle("on", b.dataset.shape === m));
-    if (!N.g || !N.data) return;
+        if (!N.g || !N.data) return;
     const nodes = N.g.graphData().nodes;
     if (m !== "graph") { brainPin(nodes, 0); for (const n of nodes) { n.fx = n.x; n.fy = n.y; n.fz = n.z; } }
     else { N.tw = null; for (const n of nodes) { n.fx = n.fy = n.fz = undefined; } N.g.d3ReheatSimulation(); N.fitted = false; }
@@ -244,7 +243,24 @@
   inp.onblur = () => setTimeout(() => res.classList.add("hidden"), 150);
   $("#nb-ghosts").onclick = (e) => { N.ghosts = !N.ghosts; e.currentTarget.classList.toggle("on", N.ghosts); build(); };
   $("#nb-refresh").onclick = () => scan(true);
-  { const box = $("#nb-shapes"); for (const id of SHAPE_IDS.concat("graph")) { const b = document.createElement("button"); b.className = "ghost"; b.dataset.shape = id; b.textContent = SHAPE_NAMES[id]; b.title = id === "graph" ? "Free force graph" : "Lay the notes out as a " + SHAPE_NAMES[id]; b.onclick = () => setMode(id); box.appendChild(b); } }
+  { // shape switcher: one swap icon, popup lists the shapes (same popover pattern as the voice menu)
+    const box = $("#nb-shapes"), btn = document.createElement("button"); btn.className = "ghost nb-swap"; btn.title = "Change the home shape";
+    btn.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h15M15 4l4 4-4 4"/><path d="M20 16H5M9 12l-4 4 4 4"/></svg>'; box.appendChild(btn);
+    const close = () => { const p = $("#nbpop"); if (p) p.remove(); btn.classList.remove("on"); };
+    btn.onclick = () => {
+      if ($("#nbpop")) return close();
+      const p = document.createElement("div"); p.id = "nbpop"; p.className = "vpop"; btn.classList.add("on");
+      p.innerHTML = '<div class="vp-h">Shape</div>' + SHAPE_IDS.concat("graph").map((id) => '<button data-shape="' + id + '"' + (id === N.mode ? ' class="on"' : "") + ">" + SHAPE_NAMES[id] + "</button>").join("");
+      document.body.appendChild(p);
+      const place = () => { const r = btn.getBoundingClientRect(), z = parseFloat(getComputedStyle(document.documentElement).zoom) || 1, w = p.offsetWidth, h = p.offsetHeight, vw = innerWidth / z, vh = innerHeight / z, rt = r.top / z, rb = r.bottom / z, rr = r.right / z;
+        let top = rb + 4; if (top + h > vh - 6 && rt - h - 4 > 6) top = rt - h - 4; top = Math.max(6, Math.min(top, vh - h - 6)); p.style.left = Math.max(6, Math.min(rr - w, vw - w - 6)) + "px"; p.style.top = top + "px"; };
+      place();
+      const off = (e) => { if (e.type === "keydown" ? e.key === "Escape" : !p.contains(e.target) && !btn.contains(e.target)) shut(); };
+      const shut = () => { close(); document.removeEventListener("mousedown", off, true); document.removeEventListener("keydown", off, true); removeEventListener("resize", shut); removeEventListener("scroll", shut, true); removeEventListener("blur", shut); };
+      p.onclick = (e) => { const b = e.target.closest("button"); if (!b) return; setMode(b.dataset.shape); shut(); };
+      setTimeout(() => { document.addEventListener("mousedown", off, true); document.addEventListener("keydown", off, true); addEventListener("resize", shut); addEventListener("scroll", shut, true); addEventListener("blur", shut); }, 0);
+    };
+  }
   setMode(N.mode, true);
   $("#nb-back").onclick = () => window.HQView("hq");
   hq.on("todo-changed", () => { if (N.on) scan(true); else N.scanAt = 0; });
