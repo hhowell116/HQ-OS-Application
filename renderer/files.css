@@ -45,3 +45,8 @@ body.fx-drag .layout, body.fx-drag #fx-panel { transition: none; }
 #fx-rib { display: none; }
 .titlebar .fx-rb { -webkit-app-region: no-drag; margin-right: -6px; flex: none; }
 body.fx-hide .titlebar .fx-rb { display: none; }
+
+/* Explorer button + drawer on every view (Hayden 2026-11-23): in full-screen views (home, tower, floor) the panel floats over the view instead of pushing the layout */
+body.fx-hide .titlebar .fx-rb { display: grid; }
+body.fx-hide #fx-panel { display: flex; z-index: 19; background: rgb(var(--panel-rgb)); box-shadow: 6px 0 30px rgba(0,0,0,.6), 0 0 18px var(--acc-glow); }
+body.fx-hide #fx-ov { z-index: 60; }

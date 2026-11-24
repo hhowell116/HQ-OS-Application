@@ -50,3 +50,9 @@ body.in-nebula .layout { display: none; }
 .nb-swap { display: inline-flex; align-items: center; padding: 3px 7px; }
 .nb-swap.on { background: rgba(var(--acc-rgb, 25,227,208),.14); box-shadow: 0 0 8px var(--acc-glow); }
 #nbpop { z-index: 99999; }
+
+/* Node name labels: HTML overlay (not in the bloom pass), constant size, dark plate + outline so they read at any zoom */
+#nb-labels { position: absolute; inset: 0; z-index: 2; pointer-events: none; overflow: hidden; }
+.nb-lab { position: absolute; left: 0; top: 0; white-space: nowrap; font: 700 12px var(--mono); letter-spacing: .12em; color: var(--c, #fff); padding: 2px 7px; background: rgba(2,5,12,.72); border: 1px solid rgba(255,255,255,.12); border-radius: 3px; text-shadow: 0 1px 2px #000, 0 0 3px #000, 1px 0 0 #000, -1px 0 0 #000; will-change: transform; }
+.nb-lab.core { font-size: 13px; } .nb-lab.sel { border-color: var(--c); background: rgba(2,5,12,.88); }
+.nb-view { display: block; width: 100%; margin-top: 12px; padding: 7px 10px; font: 700 12px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--bg); background: var(--acc); border: 0; border-radius: 3px; cursor: pointer; box-shadow: 0 0 12px var(--acc-glow); } .nb-view:hover { filter: brightness(1.15); }

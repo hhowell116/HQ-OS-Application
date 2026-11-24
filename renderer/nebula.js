@@ -22,12 +22,20 @@
     g.addColorStop(0, "rgba(255,255,255,1)"); g.addColorStop(.18, "rgba(255,255,255,.85)"); g.addColorStop(.45, "rgba(255,255,255,.22)"); g.addColorStop(1, "rgba(255,255,255,0)");
     x.fillStyle = g; x.fillRect(0, 0, 128, 128); return new THREE.CanvasTexture(c);
   })();
-  function labelSprite(text, color) {
-    const c = document.createElement("canvas"), x = c.getContext("2d"); x.font = "600 44px Consolas, monospace";
-    const w = Math.ceil(x.measureText(text).width) + 20; c.width = w; c.height = 64; x.font = "600 44px Consolas, monospace";
-    x.textBaseline = "middle"; x.fillStyle = color; x.shadowColor = color; x.shadowBlur = 14; x.fillText(text, 10, 34);
-    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false }));
-    s.scale.set(w / 64 * 7, 7, 1); return s;
+  // Labels are HTML (never bloomed, always crisp): positioned each frame from the node's screen position, constant on-screen size.
+  const labels = () => { let e = $("#nb-labels"); if (!e) { e = document.createElement("div"); e.id = "nb-labels"; view.append(e); } return e; };
+  const _v = new THREE.Vector3();
+  function updateLabels() {
+    const cam = N.g.camera(), W = stage.clientWidth, H = stage.clientHeight; if (!W || !H) return;
+    cam.updateMatrixWorld(); const el = cam.matrixWorld.elements, ux = el[4], uy = el[5], uz = el[6];
+    for (const o of N.objs.values()) {
+      if (!o.lab) continue; const n = o.n; if (n.x == null) continue; const off = o.r * 0.9 + 3;
+      _v.set(n.x - ux * off, n.y - uy * off, n.z - uz * off).project(cam);
+      const vis = _v.z < 1 && Math.abs(_v.x) < 1.1 && Math.abs(_v.y) < 1.1;
+      o.lab.style.display = vis ? "" : "none"; if (!vis) continue;
+      o.lab.style.transform = "translate(-50%,0) translate(" + ((_v.x * 0.5 + 0.5) * W).toFixed(1) + "px," + ((-_v.y * 0.5 + 0.5) * H + 2).toFixed(1) + "px)";
+      o.lab.classList.toggle("sel", N.sel === n.id);
+    }
   }
   function radius(n) { return n.kind === "core" ? 11 : n.kind === "project" ? 9 + Math.sqrt(n.size || 0) * 0 + Math.min(10, (n.notes || 0) * 0.12) : n.kind === "ghost" ? 2.2 : 2.6 + Math.sqrt(n.deg || 0) * 1.7; }
 
@@ -37,8 +45,9 @@
     sp.scale.set(r * 3.4, r * 3.4, 1); grp.add(sp);
     const core = new THREE.Mesh(new THREE.SphereGeometry(r * (n.kind === "note" || n.kind === "ghost" ? 0.34 : 0.5), 16, 12), new THREE.MeshBasicMaterial({ color: n.kind === "ghost" ? color : color.clone().lerp(new THREE.Color("#ffffff"), 0.6), transparent: true, opacity: n.kind === "ghost" ? 0.5 : 1 }));
     grp.add(core);
-    if (n.kind === "project" || n.kind === "core") { const l = labelSprite(n.kind === "core" ? "RULES" : n.name.toUpperCase(), "#" + color.getHexString()); l.position.set(0, -(r * 1.1 + 4), 0); grp.add(l); }
-    N.objs.set(n.id, { n, r, grp, sp, core, base: sp.material.opacity, cbase: core.material.opacity, cur: sp.material.opacity, ccur: core.material.opacity });
+    let lab = null;
+    if (n.kind === "project" || n.kind === "core") { lab = document.createElement("div"); lab.className = "nb-lab " + n.kind; lab.textContent = n.kind === "core" ? "RULES" : n.name.toUpperCase(); lab.style.setProperty("--c", "#" + color.clone().lerp(new THREE.Color("#ffffff"), 0.35).getHexString()); labels().append(lab); }
+    N.objs.set(n.id, { n, r, lab, grp, sp, core, base: sp.material.opacity, cbase: core.material.opacity, cur: sp.material.opacity, ccur: core.material.opacity });
     return grp;
   }
 
@@ -54,7 +63,7 @@
     const ids = new Set(nodes.map((n) => n.id));
     const links = d.links.filter((l) => ids.has(l.source.id || l.source) && ids.has(l.target.id || l.target)).map((l) => ({ source: l.source.id || l.source, target: l.target.id || l.target, type: l.type }));
     N.nb = new Map(); links.forEach((l) => { if (l.type !== "link") return; (N.nb.get(l.source) || N.nb.set(l.source, new Set()).get(l.source)).add(l.target); (N.nb.get(l.target) || N.nb.set(l.target, new Set()).get(l.target)).add(l.source); });
-    N.fitted = false; N.objs.clear();
+    N.fitted = false; N.objs.clear(); labels().textContent = "";
     if (N.mode !== "graph") { const gath = N.gather; N.gather = 0; brainPin(nodes, gath); }
     N.g.graphData({ nodes, links });
     if (N.tw) N.tw.nodes = nodes;
@@ -132,7 +141,7 @@
       for (const n of N.tw.nodes) if (n.__from) { const f = n.__from, t = n.__to; n.fx = f[0] + (t[0] - f[0]) * e; n.fy = f[1] + (t[1] - f[1]) * e; n.fz = f[2] + (t[2] - f[2]) * e; }
       N.g.d3ReheatSimulation(); if (k >= 1) { N.tw = null; N.fitted = false; }
     }
-    nearFade();
+    nearFade(); updateLabels();
     if (N.dust) {
       N.dustA += ((N.mode !== "graph" ? 1 : 0) - N.dustA) * 0.04; N.dust.visible = N.dustA > 0.01;
       N.dust.material.opacity = N.dustA * (0.5 + 0.2 * Math.sin(now * 0.0011)); const s = 1 + 0.008 * Math.sin(now * 0.0011); N.dust.scale.set(s, s, s);
@@ -165,6 +174,9 @@
     const gn = N.g.graphData().nodes.find((n) => n.id === id); if (!gn) return;
     N.sel = id; paintSel(); fly(gn); panel(gn);
   }
+  function openNode(n) { if (!n || !n.path || n.kind === "project" || n.kind === "ghost") return; if (window.HQFiles && /.md$/i.test(n.path)) window.HQFiles.showNote(n.path, false); else hq.openPath(n.path); }
+  let lastClick = { id: "", t: 0 };
+  function nodeClick(n) { const now = Date.now(), dbl = lastClick.id === n.id && now - lastClick.t < 450; lastClick = { id: n.id, t: now }; select(n.id); if (dbl) openNode(N.g.graphData().nodes.find((x) => x.id === n.id)); }
   function deselect() { N.sel = null; $("#nb-panel").classList.add("hidden"); paintSel(); }
   function panel(n) {
     const p = $("#nb-panel"), nb = [...(N.nb.get(n.id) || [])].map((id) => N.data.nodes.find((x) => x.id === id)).filter(Boolean);
@@ -176,6 +188,7 @@
     h("div", "nb-t", n.name);
     if (n.path) h("div", "nb-p", n.path);
     if (n.tags && n.tags.length) h("div", "nb-tags", n.tags.map((t) => "#" + t).join("  "));
+    if (n.path && n.kind !== "project") { const v = h("button", "nb-view", "open file"); v.onclick = () => openNode(n); }
     if (n.path) { const b = h("button", "nb-open ghost", n.kind === "project" ? "open folder" : "open in editor"); b.onclick = () => hq.openPath(n.path); }
     if (n.kind === "project") nb.push(...N.data.nodes.filter((x) => x.project === n.id.slice(5) && x.kind === "note").sort((a, b) => b.deg - a.deg).slice(0, 12));
     h("div", "nb-k", (n.kind === "project" ? "TOP NOTES" : "LINKED (" + nb.length + ")"));
@@ -215,7 +228,7 @@
       .linkDirectionalParticles((l) => (l.type === "orbit" ? 0 : 1)).linkDirectionalParticleSpeed(0.006).linkDirectionalParticleWidth(1.3)
       .linkDirectionalParticleColor((l) => { const a = accCol(); return "#" + a.getHexString(); })
       .d3VelocityDecay(0.3).cooldownTicks(260).onEngineStop(() => { if (!N.fitted && N.on) { N.fitted = true; N.g.zoomToFit(900, 60); } })
-      .onNodeClick((n) => select(n.id)).onBackgroundClick(deselect)
+      .onNodeClick(nodeClick).onBackgroundClick(deselect)
       .onNodeHover((n) => { stage.style.cursor = n ? "pointer" : ""; });
     g.d3Force("link").distance((l) => (l.type === "orbit" ? ((l.source.id || l.source) === "core" ? 230 : 34) : 60)).strength((l) => (l.type === "orbit" ? ((l.source.id || l.source) === "core" ? 0.5 : 0.6) : 0.09));
     g.d3Force("charge").strength((n) => (n.kind === "project" ? -260 : n.kind === "core" ? -400 : -26));
