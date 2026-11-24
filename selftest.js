@@ -16,6 +16,8 @@ module.exports = (ctx) => {
       rep.checks.claudeExe.pass = fs.existsSync(rep.checks.claudeExe.path);
       await new Promise((r) => execFile(INS.claudeExe(ctx.settings), ["--version"], { windowsHide: true, timeout: 20000, env: INS.claudeEnv(ctx.settings) }, (err, out) => { ok("claudeVersion", !err && /Claude Code/.test(out), { out: String(out).trim(), err: err && err.message }); r(); }));
       const auth = await INS.authStatus(ctx.settings); ok("authStatus", auth.ok, { loggedIn: auth.loggedIn });
+      await new Promise((r) => setTimeout(r, 1500));
+      ok("signinCardMatchesLogin", (await js("!!document.getElementById('signin')")) === !auth.loggedIn, { loggedIn: auth.loggedIn });
       ok("homeRendered", await js("document.body.classList.contains('in-nebula') && !!document.querySelector('canvas') && typeof HQNebula==='object'"), { body: await js("document.body.className") });
       ok("projectsRoot", fs.existsSync(ctx.settings.projectsRoot), { root: ctx.settings.projectsRoot });
       const pr = await js("hq.projectCreate('Selftest Project')");

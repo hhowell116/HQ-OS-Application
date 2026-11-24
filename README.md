@@ -2,7 +2,9 @@
 
 A desktop command center for the projects in your `%USERPROFILE%\Projects` folder (change it with `projectsRoot` in settings). It doesn't need Obsidian. This repo holds only the app: no projects, notes, chats or settings.
 
-## Set up on a new computer
+## Work PC (ThreatLocker): see `INSTALL-WORK-PC.md` for the single installer.
+
+## Set up on a new computer (home PC)
 1. Install [Node.js LTS](https://nodejs.org), Git, and [Claude Code](https://docs.claude.com/en/docs/claude-code). Run `claude` once and sign in.
 2. `git clone https://github.com/hhowell116/HQ-OS-Application.git "%USERPROFILE%\Projects\HQ OS\app"`
 3. In that folder run `pwsh -NoProfile -File .\setup.ps1`. It installs dependencies and makes Desktop and Start menu shortcuts.
