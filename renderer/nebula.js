@@ -38,7 +38,7 @@
     const core = new THREE.Mesh(new THREE.SphereGeometry(r * (n.kind === "note" || n.kind === "ghost" ? 0.34 : 0.5), 16, 12), new THREE.MeshBasicMaterial({ color: n.kind === "ghost" ? color : color.clone().lerp(new THREE.Color("#ffffff"), 0.6), transparent: true, opacity: n.kind === "ghost" ? 0.5 : 1 }));
     grp.add(core);
     if (n.kind === "project" || n.kind === "core") { const l = labelSprite(n.kind === "core" ? "RULES" : n.name.toUpperCase(), "#" + color.getHexString()); l.position.set(0, -(r * 1.1 + 4), 0); grp.add(l); }
-    N.objs.set(n.id, { grp, sp, core, base: sp.material.opacity, cbase: core.material.opacity });
+    N.objs.set(n.id, { n, r, grp, sp, core, base: sp.material.opacity, cbase: core.material.opacity, cur: sp.material.opacity, ccur: core.material.opacity });
     return grp;
   }
 
@@ -73,7 +73,7 @@
     const nb = N.sel ? (N.nb.get(N.sel) || new Set()) : null, a = accCol();
     for (const [id, o] of N.objs) {
       const hot = !N.sel || id === N.sel || nb.has(id);
-      o.sp.material.opacity = o.base * (hot ? 1 : 0.18); o.core.material.opacity = o.cbase * (hot ? 1 : 0.25);
+      o.cur = o.base * (hot ? 1 : 0.18); o.ccur = o.cbase * (hot ? 1 : 0.25); o.sp.material.opacity = o.cur; o.core.material.opacity = o.ccur;
       o.sp.material.color.copy(id === N.sel ? a : o.sp.userData.c || (o.sp.userData.c = o.sp.material.color.clone()));
     }
     N.g.linkColor(linkColor).linkDirectionalParticles((l) => (l.type === "orbit" ? 0 : N.sel && ((l.source.id || l.source) === N.sel || (l.target.id || l.target) === N.sel) ? 3 : 1));
@@ -132,16 +132,31 @@
       for (const n of N.tw.nodes) if (n.__from) { const f = n.__from, t = n.__to; n.fx = f[0] + (t[0] - f[0]) * e; n.fy = f[1] + (t[1] - f[1]) * e; n.fz = f[2] + (t[2] - f[2]) * e; }
       N.g.d3ReheatSimulation(); if (k >= 1) { N.tw = null; N.fitted = false; }
     }
+    nearFade();
     if (N.dust) {
       N.dustA += ((N.mode !== "graph" ? 1 : 0) - N.dustA) * 0.04; N.dust.visible = N.dustA > 0.01;
       N.dust.material.opacity = N.dustA * (0.5 + 0.2 * Math.sin(now * 0.0011)); const s = 1 + 0.008 * Math.sin(now * 0.0011); N.dust.scale.set(s, s, s);
     }
   }
 
+  // Safe distances: never let the camera sit on top of a node, whatever its size, shape scale or position (core sits at the origin).
+  const MIN_ZOOM = 30;
+  const safeDist = (n, d) => Math.max(d || 0, 70 + radius(n) * 4.5);
+  function nearFade() { // fade a node's glow as the camera closes in, so additive blending + bloom can never white the screen out
+    const c = N.g.camera().position;
+    for (const o of N.objs.values()) {
+      const n = o.n; if (n.x == null) continue;
+      const d = Math.hypot(c.x - n.x, c.y - n.y, c.z - n.z), full = o.r * 7 + 40, k = Math.max(0.12, Math.min(1, (d - o.r * 1.5) / (full - o.r * 1.5)));
+      o.sp.material.opacity = o.cur * k; o.core.material.opacity = o.ccur * (0.35 + 0.65 * k);
+    }
+  }
   function fly(n, dist) {
     if (!n || n.x == null) return;
-    const d = dist || (n.kind === "project" ? 160 : n.kind === "core" ? 260 : 110), r = Math.hypot(n.x, n.y, n.z) || 1;
-    N.g.cameraPosition({ x: n.x + (n.x / r) * d, y: n.y + (n.y / r) * d * 0.4 + 8, z: n.z + (n.z / r) * d + 1 }, n, 1100);
+    const d = safeDist(n, dist || (n.kind === "project" ? 160 : n.kind === "core" ? 260 : 110)), r = Math.hypot(n.x, n.y, n.z);
+    let ux, uy, uz; // approach from outside when the node is off-centre, else from where the camera already is (core sits at the origin)
+    if (r > 40) { ux = n.x / r; uy = n.y / r; uz = n.z / r; }
+    else { const c = N.g.camera().position, ox = c.x - n.x, oy = c.y - n.y, oz = c.z - n.z, l = Math.hypot(ox, oy, oz); if (l > 1) { ux = ox / l; uy = oy / l; uz = oz / l; } else { ux = 0.3; uy = 0.4; uz = 0.86; } }
+    N.g.cameraPosition({ x: n.x + ux * d, y: n.y + uy * d * (r > 40 ? 0.4 : 1) + 8, z: n.z + uz * d + 1 }, n, 1100);
     pauseRot();
   }
   function pauseRot() { const c = N.g && N.g.controls(); if (!c) return; c.autoRotate = false; clearTimeout(N.rotTimer); N.rotTimer = setTimeout(() => { if (c) c.autoRotate = !N.sel; }, 9000); }
@@ -209,7 +224,7 @@
     N.bloom = new UnrealBloomPass(new THREE.Vector2(stage.clientWidth || 800, stage.clientHeight || 600), 0.6, 0.55, 0.3);
     comp.addPass(N.bloom);
     const c = g.controls(); c.autoRotate = true; c.autoRotateSpeed = 0.45; c.enableDamping = true; c.dampingFactor = 0.08;
-    c.addEventListener("start", pauseRot);
+    c.addEventListener("start", pauseRot); c.minDistance = MIN_ZOOM; c.maxDistance = 3500;
     g.camera().far = 9000; g.camera().updateProjectionMatrix();
     g.cameraPosition({ x: 0, y: 160, z: 520 });
     fit();
