@@ -117,12 +117,12 @@
     const fail = (m) => { S.rcBusy = ""; delete memo.al; renderAlerts(); toast(m); };
     try { if ((await hq.tfCmd(["recheck", a.id])) === false) fail("The engine is busy with another job. Try again in a moment."); } catch (x) { fail(x.message); }
   }
-  function rcBlock(a) { // RE-CHECK button + the result of the last re-check
+  function rcBlock(a) { // RE-CHECK button (returned as .btn) + the result of the last re-check (.res)
     if ((a.strategy === "Steady" || a.strategy === "Mirror") && a.action === "SELL") return null;
-    const box = mk("div", "fl-rcb"), r = a.recheck, busy = S.rcBusy === a.id, b = mk("button", "fl-btn fl-rc", busy ? "CHECKING…" : "RE-CHECK"); b.disabled = !!S.rcBusy; b.title = "Gets a fresh price and asks the team once more. Nothing is bought or sold. Takes about 10 seconds.";
-    b.onclick = (e) => { e.stopPropagation(); recheck(a); }; const top = mk("div", "rct"); top.append(b); if (r) top.append(mk("span", "rcs", "Re-checked " + rcTime(r.at))); box.append(top);
-    if (r) { const d = mk("div", "rcr" + (r.blocked ? " blk" : ""), (r.blocked ? "Safety rules said no. " : "") + r.sentence); d.title = "Now: " + r.decision + (r.tokens ? " · used about " + Math.round(r.tokens.total / 100) / 10 + "k tokens (" + (r.tokens.model || "haiku") + ")" : ""); box.append(d, mk("div", "rcc", "What changed: " + (r.changes || []).join("; "))); }
-    return box;
+    const r = a.recheck, busy = S.rcBusy === a.id, b = mk("button", "fl-btn fl-rc", busy ? "CHECKING…" : "RE-CHECK"); b.disabled = !!S.rcBusy; b.title = "Gets a fresh price and asks the team once more. Nothing is bought or sold. Takes about 10 seconds.";
+    b.onclick = (e) => { e.stopPropagation(); recheck(a); }; const res = mk("div", "fl-rcb");
+    if (r) { res.append(mk("div", "rcs", "Re-checked " + rcTime(r.at))); const d = mk("div", "rcr" + (r.blocked ? " blk" : ""), (r.blocked ? "Safety rules said no. " : "") + r.sentence); d.title = "Now: " + r.decision + (r.tokens ? " · used about " + Math.round(r.tokens.total / 100) / 10 + "k tokens (" + (r.tokens.model || "haiku") + ")" : ""); res.append(d, mk("div", "rcc", "What changed: " + (r.changes || []).join("; "))); }
+    return { btn: b, res: r ? res : null };
   }
 
   // ---------- plain-English ranking: actionable BUY/SELL, then WATCH, then "Passed on" ----------
@@ -141,18 +141,29 @@
   }
   function card(a, rank, compact) {
     const c = mk("div", "fl-card " + a.action + (compact ? " compact" : "") + (rank === 1 ? " top1" : "")), top = mk("div", "top"), px = mk("div", "px");
-    px.append(mk("div", "", a.px ? "$" + a.px : ""), mk("div", cls(a.chg), a.chg != null ? sgn(a.chg) + "%" + " today" : ""));
-    top.append(...(rank ? [mk("span", "rk", "#" + rank)] : []), mk("span", "act", a.action), mk("span", "tk", a.ticker), mk("span", "fl-strat " + (a.strategy || "Scanner"), (a.strategy || "Scanner").toUpperCase()), px); c.append(top, mk("div", "stline", statusLine(a)));
+    px.append(mk("span", "pv", a.px ? "$" + a.px : ""), mk("span", cls(a.chg), a.chg != null ? sgn(a.chg) + "% today" : ""));
+    top.append(...(rank ? [mk("span", "rk", "#" + rank)] : []), mk("span", "tk", a.ticker), mk("span", "act", a.action), mk("span", "fl-strat " + (a.strategy || "Scanner"), (a.strategy || "Scanner").toUpperCase()));
+    if (compact) top.append(px); c.append(top); if (!compact) c.append(px); c.append(mk("div", "stline", statusLine(a)));
+    if (!compact && a.plan && a.plan.shares > 0) {
+      const p = a.plan, l = mk("div", "fl-lad"); [["BUY NEAR", p.entry, ""], ["STOP-LOSS", p.stop, "s"], [a.strategy === "Steady" ? "52W HIGH" : "TARGET", p.t1, "t"], ["TARGET 2", p.t2, "t"]].filter((x) => x[1] != null).forEach(([k, v, z]) => { const d = mk("div", z); d.append(mk("small", "", k), document.createTextNode("$" + v)); l.append(d); });
+      const sd = mk("div", "sz2"); sd.append(mk("small", "", "SIZE"), document.createTextNode(p.shares + " sh" + (p.entry ? " · $" + Math.round(p.shares * p.entry) : ""))); l.append(sd); c.append(l);
+    }
+    if (!compact) { const fc = freshChip(a); if (fc) c.append(fc); }
     if (!compact) c.append(Object.assign(mk("div", "thesis", short(a.thesis, 120)), { title: a.thesis || "" }));
     if (!compact && a.confidence != null) { const cf = mk("div", "fl-conf"), bar = mk("i"), fill = mk("b"); fill.style.width = Math.max(0, Math.min(100, a.confidence || 0)) + "%"; bar.append(fill); cf.dataset.c = a.confidence || 0; cf.append(mk("span", "", "CONFIDENCE " + (a.confidence || 0) + "/100"), bar); c.append(cf); }
-    if (!compact && a.plan && a.plan.shares > 0) {
-      const l = mk("div", "fl-lad"); [["BUY NEAR", a.plan.entry, ""], ["STOP-LOSS", a.plan.stop, "s"], [a.strategy === "Steady" ? "52W HIGH" : "TAKE PROFIT", a.plan.t1, "t"]].filter((x) => x[1] != null).forEach(([k, v, z]) => { const d = mk("div", z); d.append(mk("small", "", k), document.createTextNode("$" + v)); l.append(d); }); c.append(l);
-    }
-    if (!compact) { const fc = freshChip(a); if (fc) c.append(fc); const rb = rcBlock(a); if (rb) c.append(rb); }
-    if (isLive() && !compact && (a.action === "BUY" || a.action === "SELL") && a.plan && a.plan.shares > 0 && a.id) {
-      const o = orderFor(a.id), ap = mk("div", "fl-appr"), btn = mk("button", "fl-btn fl-approve", o ? "RECORDED" : "APPROVE"); btn.disabled = !!o; btn.title = "Records this order. Live orders are OFF, so nothing is sent.";
-      btn.onclick = async (e) => { e.stopPropagation(); if (!confirm("Approve: " + orderTxt(a) + " - " + "Live orders are OFF, so this only records the order as blocked.")) return; try { await hq.tfCmd(["live-approve", a.id]); } catch (x) { toast(x.message); } };
-      ap.append(mk("span", "fl-ot", orderTxt(a)), btn); if (o) ap.append(mk("em", "", o.status)); c.append(ap);
+    if (!compact) {
+      const rb = rcBlock(a), live = isLive() && (a.action === "BUY" || a.action === "SELL") && a.plan && a.plan.shares > 0 && a.id;
+      if (rb || live) {
+        const acts = mk("div", "fl-acts"), row = mk("div", "fl-actr");
+        if (live) acts.append(mk("div", "fl-ot", orderTxt(a)));
+        if (rb) row.append(rb.btn);
+        if (live) {
+          const o = orderFor(a.id), btn = mk("button", "fl-btn fl-approve", o ? "RECORDED" : "APPROVE"); btn.disabled = !!o; btn.title = "Records this order. Live orders are OFF, so nothing is sent.";
+          btn.onclick = async (e) => { e.stopPropagation(); if (!confirm("Approve: " + orderTxt(a) + " - " + "Live orders are OFF, so this only records the order as blocked.")) return; try { await hq.tfCmd(["live-approve", a.id]); } catch (x) { toast(x.message); } };
+          row.append(btn); if (o) row.append(mk("em", "", o.status));
+        }
+        acts.append(row); if (rb && rb.res) acts.append(rb.res); c.append(acts);
+      }
     }
     c.title = "Click for the full reasoning"; c.onclick = () => openDrawer(a); return c;
   }
@@ -509,7 +520,7 @@
     shown: (on) => { S.active = on !== false; if (S.active) { S.autoPlay = true; refresh(); let st = ""; try { st = sessionStorage.getItem(DVK); } catch (e) {} if (st === "1" && !S.dv) dvEnter(true); } else { stopPlay(); closeCard(); if (S.dv || S.focusSet) { dvApply(false); if (S.focusSet && window.HQTower) HQTower.clearFocus(); S.focusSet = false; S.dvBusy = false; } } },
     tip: (id) => DESK_JOB[id] || "", help: toggleHelp, dv: () => !!S.dv, dataView: (on) => (on === false ? dvExit() : dvEnter()),
     events: () => events(), cur: () => S.cur, active: () => !!S.active, agentCard, agentClose,
-    preview: (al, pos, pred) => { S.preview = true; S.alerts = al; if (pred) S.pred = pred; if (pos && S.stats) S.stats = Object.assign({}, S.stats, { positions: pos }); all(); }, running: () => S.running, busy, desks: deskView, onChange: (f) => listeners.push(f), NAME, HUE, ANG, SEATS,
+    preview: (al, pos, pred, mode) => { S.preview = true; if (mode) { S.mode = mode; applyMode(); } S.alerts = al; if (pred) S.pred = pred; if (pos && S.stats) S.stats = Object.assign({}, S.stats, { positions: pos }); all(); }, running: () => S.running, busy, desks: deskView, onChange: (f) => listeners.push(f), NAME, HUE, ANG, SEATS,
     data: () => ({ tape: S.tape, equity: S.equity, alerts: S.alerts, stats: S.stats }),
     select: (seat) => { S.sel = S.sel === seat ? "" : seat; renderAgents(); }, selected: () => S.sel,
     escape: () => { if (S.dv) { dvExit(); return true; } if (S.card) { closeCard(); return true; } const d = $("#fl-drawer"); if (!d.classList.contains("hidden")) { d.classList.add("hidden"); return true; } if (S.sel) { S.sel = ""; renderAgents(); return true; } return false; },

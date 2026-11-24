@@ -331,3 +331,45 @@
 .pr .pbar { height: 6px; border-radius: 3px; background: rgba(255,255,255,.08); margin: 3px 0; overflow: hidden; } .pr .pbar i { display: block; height: 100%; border-radius: 3px; }
 .pr .prd, .pr .prk { font-size: 10px; color: var(--mut); } .fl-predbox .prrec { font-size: 10px; color: var(--mut); text-align: right; }
 .fl-drawer .pr { cursor: default; }
+
+/* ===== signal card v5 (2026-11-24): clean vertical stack, no overlap. header / price / plan / freshness / thesis / actions ===== */
+.fl-card:not(.compact) { display: flex; flex-direction: column; align-items: stretch; gap: 7px; min-width: 0; padding: 12px 14px; }
+.fl-card:not(.compact) > * { min-width: 0; order: 0; margin: 0; }
+.fl-card:not(.compact) .top { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 9px; }
+.fl-card:not(.compact) .top > * { order: 0; }
+.fl-card:not(.compact) .tk { font-size: 22px; line-height: 1.1; }
+.fl-card:not(.compact) .act { font-size: 10.5px; padding: 2px 8px; }
+.fl-card:not(.compact) .fl-strat { font-size: 9px; padding: 2px 7px; white-space: nowrap; }
+.fl-card:not(.compact) .px { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; margin: 0; text-align: left; white-space: normal; font-size: 12px; }
+.fl-card:not(.compact) .px .pv { font-size: 16px; font-weight: 700; color: var(--fg); }
+.fl-card:not(.compact) .stline { display: block; font-size: 11px; white-space: normal; }
+.fl-card:not(.compact) .fl-lad { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; }
+.fl-card:not(.compact) .fl-lad div { min-width: 0; padding: 5px 8px; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fl-card:not(.compact) .fl-lad .sz2 small { color: var(--amb); }
+.fl-card:not(.compact) .fl-fr { display: block; width: 100%; box-sizing: border-box; margin: 0; text-align: center; white-space: normal; overflow-wrap: anywhere; }
+.fl-card:not(.compact) .thesis { display: block; font-size: 12px; line-height: 1.4; overflow-wrap: anywhere; }
+.fl-card:not(.compact) .fl-conf { display: flex; white-space: normal; }
+.fl-card:not(.compact) .fl-conf span { display: inline; }
+.fl-card:not(.compact) .fl-acts { display: flex; flex-direction: column; gap: 7px; margin-top: auto; padding-top: 8px; border-top: 1px dashed rgba(255,255,255,.12); }
+.fl-card:not(.compact) .fl-acts .fl-ot { display: block; flex: none; width: 100%; box-sizing: border-box; font-size: 11px; line-height: 1.4; padding: 6px 8px; border-radius: 6px; background: rgba(255,200,97,.08); border: 1px solid rgba(255,106,77,.4); overflow-wrap: anywhere; }
+.fl-actr { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.fl-actr .fl-btn { flex: 0 0 auto; padding: 6px 12px; white-space: nowrap; }
+.fl-actr .fl-approve { margin-left: auto; padding: 6px 18px; }
+.fl-actr em { flex: 1 1 100%; }
+.fl-acts .fl-rcb { display: grid; gap: 3px; margin: 0; overflow-wrap: anywhere; }
+/* DATA view: the board is 3 cards per row; "Passed on" rows stay one-line rows */
+#tw-stonks.dv .fl-alerts { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; align-items: stretch; }
+#tw-stonks.dv .fl-alerts > .fl-fold, #tw-stonks.dv .fl-alerts > .fl-empty, #tw-stonks.dv .fl-alerts > .fl-card.compact { grid-column: 1 / -1; }
+#tw-stonks.dv .fl-card:not(.compact) { display: flex; border-radius: 12px; padding: 12px 14px; }
+#tw-stonks.dv .fl-card:not(.compact)::before { inset: 0 0 auto 0; width: auto; height: 2px; }
+#tw-stonks.dv .fl-card:not(.compact) .top { display: flex; }
+#tw-stonks.dv .fl-card:not(.compact) .stline, #tw-stonks.dv .fl-card:not(.compact) .fl-lad { display: grid; }
+#tw-stonks.dv .fl-card:not(.compact) .stline { display: block; color: color-mix(in srgb, var(--c) 80%, #fff); }
+#tw-stonks.dv .fl-card:not(.compact) .thesis { white-space: normal; overflow: visible; text-overflow: clip; font-size: 12px; color: #b4c0cc; }
+#tw-stonks.dv .fl-card:not(.compact) .fl-conf span { display: inline; } #tw-stonks.dv .fl-card:not(.compact) .fl-conf::before { content: none; }
+@media (max-height: 960px) { .fl-card:not(.compact) .thesis { display: block; } }
+@media (max-width: 1500px) { #tw-stonks.dv .fl-alerts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+#tw-stonks.dv .fl-card:not(.compact) > *, #tw-stonks.dv .fl-card:not(.compact) .top > * { order: 0; }
+.fl-card:not(.compact) .fl-lad .sz2 { grid-column: 1 / -1; }
+.fl-card:not(.compact) .fl-fr { font-size: 10px; letter-spacing: .02em; }
+#tw-stonks.dv .fl-card:not(.compact) { align-items: stretch; gap: 7px; }
