@@ -80,6 +80,51 @@
     const t = S.tape.length ? S.tape : [{ s: "SPY", px: 0, chg: 0 }]; const inn = $("#fl-tape-in"); inn.textContent = "";
     for (const x of [...t, ...t]) { const s = mk("span", "fl-tk " + cls(x.chg)); s.append(mk("b", "", x.s), document.createTextNode((x.chg > 0 ? "▲ " : x.chg < 0 ? "▼ " : "") + (x.px ? x.px + " " : "") + sgn(x.chg) + "%")); inn.append(s); }
   }
+  // ---------- plain-English help: desk jobs (also hover tooltips) and the replay bar explainer ----------
+  const DESK_JOB = { score: "Scorekeeper: re-prices every open paper position and closes any that hit their stop or target.", market: "Market Data: pulls live prices, the day's biggest movers, unusual volume and today's earnings reports.", news: "News & Policy: reads headlines, SEC filings, the Fed and White House for things that can move a stock.", sentiment: "Sentiment: checks what people are saying on Reddit and StockTwits so hype does not surprise the team.", analyst: "Analyst: studies the top movers (trend, RSI, price range, catalyst) and says bullish, bearish or neutral.", debate: "Bull vs Bear: one side argues to buy, the other argues to pass, then they give a verdict.", bull: "Bull: argues why the stock could go up.", bear: "Bear: argues why the stock could fall or why to stay out.", backtest: "Backtester: replays each idea on 2 years of past prices to see how often it would have worked.", risk: "Risk Manager: sizes the trade, sets the stop-loss and can VETO anything that breaks the safety rules.", steady: "Steady: the slow strategy. Holds a fixed list of big companies, buys the one furthest below its 52-week high and sells on a new high.", mirror: "Mirror: copies what insiders and big funds just bought (SEC filings), using small paper trades.", lead: "Lead: makes the final call and writes the BUY / WATCH cards you see on the right.", reflect: "Reflector: after each run, scores past signals and writes lessons so the team improves.", hub: "Lead Hub: where every desk hands its work to the Lead." };
+  const KIND_JOB = [["start", "A desk began working."], ["done", "A desk finished and handed its result on."], ["say", "An agent's message or handoff to another agent."], ["veto", "The Risk Manager blocked an idea (it will not be traded)."], ["error", "A desk hit a problem (for example a data source was down)."]];
+  function toggleHelp() {
+    let p = $("#fl-help"); if (p) { p.classList.toggle("hidden"); return; } const root = $("#tw-stonks"); if (!root) return;
+    p = mk("div", "fl-help"); p.id = "fl-help"; const x = mk("button", "fl-btn ghost", "CLOSE"); x.onclick = () => p.classList.add("hidden"); const hd = mk("div", "fh"); hd.append(mk("b", "", "HOW TO READ THE REPLAY BAR"), x); p.append(hd);
+    const sec = (t) => p.append(mk("div", "fl-h", t)), row = (k, v) => { const d = mk("div", "fr"); d.append(mk("b", "", k), document.createTextNode(" " + v)); p.append(d); };
+    sec("THE COUNTER"); row("3/38", "means you are looking at step 3 of the 38 events recorded in the last run. Drag the slider or press PLAY to step through them. Replaying costs nothing: no tokens, no new data, it only re-shows what already happened.");
+    sec("THE FILTERS"); row("ALL", "every event."); KIND_JOB.forEach(([k, v]) => row(k.toUpperCase(), v)); p.append(mk("div", "fr dim", "The number next to each word is how many of that kind happened in the last run."));
+    sec("THE DESKS (hover a desk for this too)"); ["score", "market", "news", "sentiment", "analyst", "debate", "backtest", "risk", "steady", "mirror", "lead", "reflect"].forEach((k) => { const t = DESK_JOB[k], i = t.indexOf(": "); row(t.slice(0, i), t.slice(i + 2)); });
+    root.append(p);
+  }
+  { const sc = $(".fl-scrub"), q = mk("button", "fl-q", "?"); q.id = "fl-helpbtn"; q.title = "What do the counter, filters and desks mean?"; q.setAttribute("aria-label", "Explain the replay bar and desks"); q.onclick = toggleHelp; if (sc) sc.insertBefore(q, $("#fl-live")); }
+
+  // ---------- signal freshness (same math as engine/fresh.js; the engine writes validUntil, this only counts down) ----------
+  const ET = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", weekday: "short", hour: "numeric", minute: "numeric", hour12: false });
+  const mktOpen = (ms) => { const p = {}; for (const x of ET.formatToParts(new Date(ms))) p[x.type] = x.value; const m = (+p.hour % 24) * 60 + +p.minute; return p.weekday !== "Sat" && p.weekday !== "Sun" && m >= 570 && m < 960; };
+  const humanMin = (m) => (m < 60 ? Math.max(1, Math.round(m)) + " min" : m < 390 ? Math.round(m / 6) / 10 + " hr" : Math.round(m / 39) / 10 + " days");
+  function fresh(a) {
+    if (!a.validUntil || !(a.action === "BUY" || a.action === "SELL") || !a.plan) return null; const now = Date.now(), p = a.plan, px = a.live && a.live.px, s = a.action === "SELL" ? -1 : 1, tg = p.t1 != null ? p.t1 : p.t2;
+    if (px > 0 && p.entry > 0) { const up = tg != null ? s * (tg - p.entry) : 0, dn = p.stop != null ? s * (p.entry - p.stop) : 0, mv = s * (px - p.entry);
+      if (up > 0 && mv / up > 0.3) return { c: "moved", t: "Price moved — re-check", tip: "The price is now $" + px + ", " + Math.round(mv / up * 100) + "% of the way to the target. The plan was made at $" + p.entry + "." };
+      if (dn > 0 && -mv / dn > 0.3) return { c: "moved", t: "Price moved — re-check", tip: "The price is now $" + px + ", " + Math.round(-mv / dn * 100) + "% of the way to the stop-loss. The plan was made at $" + p.entry + "." }; }
+    const w = a.freshness || {}, why = w.why || "";
+    if (!mktOpen(now)) return { c: "closed", t: "Market closed — re-check at open", tip: "Prices are not moving right now. " + why };
+    let left = 0; for (let t = now; t < a.validUntil && left < 6000; t += 300000) if (mktOpen(t)) left += 5;
+    if (left <= 0) return { c: "stale", t: "Stale — re-check before buying", tip: "This idea's time window is over. " + why };
+    if (w.windowMin && left <= w.windowMin * 0.25) return { c: "aging", t: "Getting stale · ~" + humanMin(left) + " left", tip: why };
+    return { c: "fresh", t: "Fresh · ~" + humanMin(left) + " left", tip: why };
+  }
+  const rcTime = (ts) => new Date(ts).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  function freshChip(a) { const f = fresh(a); if (!f) return null; const e = mk("div", "fl-fr " + f.c, f.t); e.title = f.tip + " (Based on how far this stock usually moves in a day. Not a guarantee.)"; return e; }
+  async function recheck(a) {
+    if (S.rcBusy) return; S.rcBusy = a.id; delete memo.al; renderAlerts();
+    const fail = (m) => { S.rcBusy = ""; delete memo.al; renderAlerts(); toast(m); };
+    try { if ((await hq.tfCmd(["recheck", a.id])) === false) fail("The engine is busy with another job. Try again in a moment."); } catch (x) { fail(x.message); }
+  }
+  function rcBlock(a) { // RE-CHECK button + the result of the last re-check
+    if ((a.strategy === "Steady" || a.strategy === "Mirror") && a.action === "SELL") return null;
+    const box = mk("div", "fl-rcb"), r = a.recheck, busy = S.rcBusy === a.id, b = mk("button", "fl-btn fl-rc", busy ? "CHECKING…" : "RE-CHECK"); b.disabled = !!S.rcBusy; b.title = "Gets a fresh price and asks the team once more. Nothing is bought or sold. Takes about 10 seconds.";
+    b.onclick = (e) => { e.stopPropagation(); recheck(a); }; const top = mk("div", "rct"); top.append(b); if (r) top.append(mk("span", "rcs", "Re-checked " + rcTime(r.at))); box.append(top);
+    if (r) { const d = mk("div", "rcr" + (r.blocked ? " blk" : ""), (r.blocked ? "Safety rules said no. " : "") + r.sentence); d.title = "Now: " + r.decision + (r.tokens ? " · used about " + Math.round(r.tokens.total / 100) / 10 + "k tokens (" + (r.tokens.model || "haiku") + ")" : ""); box.append(d, mk("div", "rcc", "What changed: " + (r.changes || []).join("; "))); }
+    return box;
+  }
+
   // ---------- plain-English ranking: actionable BUY/SELL, then WATCH, then "Passed on" ----------
   const vetoed = (a) => !!(a.vetoWhy && a.vetoWhy.length);
   const actionable = (a) => !vetoed(a) && ((a.action === "BUY" && a.plan && a.plan.shares > 0) || a.action === "SELL");
@@ -103,6 +148,7 @@
     if (!compact && a.plan && a.plan.shares > 0) {
       const l = mk("div", "fl-lad"); [["BUY NEAR", a.plan.entry, ""], ["STOP-LOSS", a.plan.stop, "s"], [a.strategy === "Steady" ? "52W HIGH" : "TAKE PROFIT", a.plan.t1, "t"]].filter((x) => x[1] != null).forEach(([k, v, z]) => { const d = mk("div", z); d.append(mk("small", "", k), document.createTextNode("$" + v)); l.append(d); }); c.append(l);
     }
+    if (!compact) { const fc = freshChip(a); if (fc) c.append(fc); const rb = rcBlock(a); if (rb) c.append(rb); }
     if (isLive() && !compact && (a.action === "BUY" || a.action === "SELL") && a.plan && a.plan.shares > 0 && a.id) {
       const o = orderFor(a.id), ap = mk("div", "fl-appr"), btn = mk("button", "fl-btn fl-approve", o ? "RECORDED" : "APPROVE"); btn.disabled = !!o; btn.title = "Records this order. Live orders are OFF, so nothing is sent.";
       btn.onclick = async (e) => { e.stopPropagation(); if (!confirm("Approve: " + orderTxt(a) + " - " + "Live orders are OFF, so this only records the order as blocked.")) return; try { await hq.tfCmd(["live-approve", a.id]); } catch (x) { toast(x.message); } };
@@ -132,6 +178,7 @@
     const head = mk("div", "hh"); head.append(mk("span", "ht", "TODAY'S MOVE")); if (pick) head.append(mk("span", "fl-strat " + (pick.strategy || "Scanner"), (pick.strategy || "Scanner").toUpperCase())); h.append(head);
     if (pick) {
       const p = pick.plan, big = mk("div", "hb"); big.append(mk("span", "hact " + pick.action, pick.action), mk("span", "htk", pick.ticker)); h.append(big);
+      { const fc = freshChip(pick); if (fc) h.append(fc); }
       h.append(mk("div", "hsay", pick.action === "BUY" ? "Buy " + p.shares + " share" + (p.shares === 1 ? "" : "s") + " of " + pick.ticker + " at about $" + p.entry : "Sell " + pick.ticker + (pick.px ? " at about $" + pick.px : "")));
       const k = mk("div", "hk"); const kv = (lab, val, c, tip) => { const d = mk("div", c); d.append(mk("small", "", lab), document.createTextNode(val)); if (tip) d.title = tip; k.append(d); };
       if (p) { kv("STOP-LOSS", "$" + p.stop, "s", "Sell if it falls here"); if (p.t1 != null) kv("TAKE PROFIT", "$" + p.t1, "t", "Sell here to bank the gain"); }
@@ -146,7 +193,7 @@
     if (holds.length) { const hb = mk("div", "hhold"); hb.append(mk("small", "", "NEEDS ACTION")); holds.slice(0, 3).forEach((x) => hb.append(mk("div", "", x.txt))); h.append(hb); }
   }
   function renderAlerts() {
-    if (!changed("al", [S.mode, S.live && S.live.orders, S.alerts, S.passedOpen, S.finishedAt, S.stats && S.stats.positions, Math.floor(Date.now() / 60000)])) return;
+    if (!changed("al", [S.rcBusy, S.mode, S.live && S.live.orders, S.alerts, S.passedOpen, S.finishedAt, S.stats && S.stats.positions, Math.floor(Date.now() / 60000)])) return;
     renderHero(); const box = $("#fl-alerts"), keepTop = box.scrollTop; box.textContent = "";
     if (!S.alerts.length) { box.append(mk("div", "fl-empty", "No alerts yet. Hit GO to send the desks to work.")); $("#fl-when").textContent = ""; return; }
     const g = ranked(); let n = 0;
@@ -324,7 +371,7 @@
     SEATS.forEach((id) => {
       const s = st[id] || { status: "idle", text: "" }, e = last[id], b = mk("div", "dvag " + s.status + (S.sel === id ? " sel" : "")), h = mk("div", "dvah"), full = s.text || "no activity yet";
       b.style.setProperty("--h", HUE[id] || "#4aa8ff"); h.append(mk("i", "dvdt"), mk("b", "", AG_NAME[id] || id), mk("em", "", ROLE[id] || ""), mk("time", "", sAgo(e && e.ts)));
-      b.append(h, mk("div", "dvl", short(full, 80))); b.title = (AG_NAME[id] || id) + " · " + s.status + "\n" + full; b.onclick = () => { S.sel = S.sel === id ? "" : id; renderAgents(); }; box.append(b);
+      b.append(h, mk("div", "dvl", short(full, 80))); b.title = (AG_NAME[id] || id) + " · " + s.status + (DESK_JOB[id] ? "\n" + DESK_JOB[id] : "") + "\n" + full; b.onclick = () => { S.sel = S.sel === id ? "" : id; renderAgents(); }; box.append(b);
     });
     const kb = $("#fl-kinds"); if (kb) { kb.textContent = ""; const cnt = {}; ev.forEach((m) => (cnt[m.kind] = (cnt[m.kind] || 0) + 1));
       [["", "ALL", ev.length], ...Object.keys(cnt).map((k) => [k, k.toUpperCase(), cnt[k]])].forEach(([k, l, n]) => { const c = mk("button", "kc" + ((S.kind || "") === k ? " on" : ""), l + " " + n); c.onclick = () => { S.kind = k; renderAgents(); }; kb.append(c); }); }
@@ -413,7 +460,8 @@
     if (m.t === "desk") { S.desks[m.id] = m.desk; renderHead(); if (m.id === "market" && m.desk.status === "done") { try { load(await hq.tfState()); } catch (e) {} } }
     else if (m.t === "msg" && m.ev) { if (m.ev.seq === 1) { S.ev = []; S.cur = -1; S.follow = true; } if (!S.ev.some((x) => x.seq === m.ev.seq && x.ts === m.ev.ts)) S.ev.push(m.ev); if (S.follow) renderAgents(); }
     else if (m.t === "start") { stopPlay(); S.autoPlay = false; S.running = true; S.alerts = []; S.ev = []; S.cur = -1; S.follow = true; S.hold = false; renderAlerts(); renderHead(); renderAgents(); }
-    else if (m.t === "done") { S.running = false; await refresh(); }
+    else if (m.t === "recheck") { S.rcBusy = ""; if (m.err) toast("Re-check: " + m.err); else if (m.alert) toast("Re-checked " + m.alert.ticker + ": " + m.alert.recheck.decision); }
+    else if (m.t === "done") { S.running = false; S.rcBusy = ""; delete memo.al; await refresh(); }
   });
   async function start(fn) { try { S.running = true; renderHead(); if ((await fn()) === false) await refresh(); } catch (e) { S.running = false; renderHead(); toast(e.message); } }
   $("#fl-go").onclick = () => start(() => hq.tfGo());
@@ -432,7 +480,7 @@
   clk(); setInterval(clk, 1000);
   window.HQFloor = {
     shown: (on) => { S.active = on !== false; if (S.active) { S.autoPlay = true; refresh(); let st = ""; try { st = sessionStorage.getItem(DVK); } catch (e) {} if (st === "1" && !S.dv) dvEnter(true); } else { stopPlay(); closeCard(); if (S.dv || S.focusSet) { dvApply(false); if (S.focusSet && window.HQTower) HQTower.clearFocus(); S.focusSet = false; S.dvBusy = false; } } },
-    dv: () => !!S.dv, dataView: (on) => (on === false ? dvExit() : dvEnter()),
+    tip: (id) => DESK_JOB[id] || "", help: toggleHelp, dv: () => !!S.dv, dataView: (on) => (on === false ? dvExit() : dvEnter()),
     events: () => events(), cur: () => S.cur, active: () => !!S.active, agentCard, agentClose,
     preview: (al, pos) => { S.preview = true; S.alerts = al; if (pos && S.stats) S.stats = Object.assign({}, S.stats, { positions: pos }); all(); }, running: () => S.running, busy, desks: deskView, onChange: (f) => listeners.push(f), NAME, HUE, ANG, SEATS,
     data: () => ({ tape: S.tape, equity: S.equity, alerts: S.alerts, stats: S.stats }),

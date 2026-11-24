@@ -338,7 +338,7 @@ app.whenReady().then(() => {
   // PAPER/LIVE switch: tf-live reads the cached read-only account + order records; tf-cmd runs only these whitelisted engine commands (arg = [cmd, id]).
   const tfOrders = () => { try { return fs.readFileSync(path.join(stkDir(), "data", "live-orders.jsonl"), "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l)).slice(-30); } catch (e) { return []; } };
   ipcMain.handle("tf-live", () => ({ account: tfRead("live-account.json", null), orders: tfOrders() }));
-  ipcMain.handle("tf-cmd", (_, ca) => { const [c, a] = Array.isArray(ca) ? ca : []; return ["live-mode", "live-refresh", "live-approve"].includes(c) && (!a || /^[A-Za-z0-9_-]{1,80}$/.test(String(a))) ? tfStart(c, a) : false; });
+  ipcMain.handle("tf-cmd", (_, ca) => { const [c, a] = Array.isArray(ca) ? ca : []; return ["live-mode", "live-refresh", "live-approve", "recheck"].includes(c) && (!a || /^[A-Za-z0-9_-]{1,80}$/.test(String(a))) ? tfStart(c, a) : false; });
   ipcMain.handle("tf-go", () => tfStart("go"));
   ipcMain.handle("tf-score", () => tfStart("score"));
   ipcMain.handle("tf-resume", () => tfStart("resume"));

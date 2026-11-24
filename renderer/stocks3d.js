@@ -231,7 +231,7 @@
     // calm by default: ticker ring, debate pit, spokes and desk names fade back unless a run is going or replaying
     S.cm += ((f.busy && f.busy() ? 1 : 0) - S.cm) * Math.min(1, dt * 2.5); const CM = S.cm, CK = 0.12 + 0.88 * CM, PK = 0.3 + 0.7 * CM;
     for (const id in S.lbl) S.lbl[id].material.opacity = Math.max(id === "hub" ? 1 : CM * 0.85, S.hov === id || S.focus === id ? 1 : 0);
-    if (S.md && S.cam) { S.md = false; S.hov = I.g.parent ? pick(I) : ""; if (S.cv) S.cv.style.cursor = S.hov ? "pointer" : ""; }
+    if (S.md && S.cam) { S.md = false; S.hov = I.g.parent ? pick(I) : ""; if (S.cv) { S.cv.style.cursor = S.hov ? "pointer" : ""; const tp = S.hov && F().tip ? F().tip(S.hov) : ""; if (S.cv.title !== tp) S.cv.title = tp; } }
     if (S.dvBtn) S.dvBtn.draw(S.hov === "dataview"); S.fk += (S.fgoal - S.fk) * Math.min(1, dt * 4.5); if (Math.abs(S.fgoal - S.fk) < 0.002) S.fk = S.fgoal;
     // hub: glass breathes, flashes on handoffs and vetoes
     S.hubFlash = Math.max(0, S.hubFlash - dt * 1.6); const vetoing = S.stamp && t - S.stamp.t0 < 1.2;
