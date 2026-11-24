@@ -109,6 +109,8 @@ select { background: var(--bg2); border: 1px solid var(--line); border-radius: 2
 .tool .nm { color: var(--acc); } .tool.err .nm { color: var(--danger); } .tool.open .nm::after { content: " …"; animation: blink 1s infinite; }
 .tool .res { display: none; white-space: pre-wrap; color: var(--tx3); background: rgba(var(--bg-rgb),.9); border: 1px solid var(--line); padding: 6px 8px; margin-top: 3px; max-height: 220px; overflow: auto; user-select: text; }
 .tool.x .res { display: block; }
+.toolgrp-h { font: 11px var(--mono); color: var(--tx3); cursor: pointer; margin: 2px 0; letter-spacing: .04em; } .toolgrp-h:hover { color: var(--tx2); }
+.toolgrp-b { display: none; padding-left: 10px; border-left: 1px solid var(--line); } .toolgrp.x .toolgrp-b { display: block; }
 .think { font: 11px var(--mono); color: var(--tx3); letter-spacing: .1em; }
 .errb { color: var(--danger); font: 12px var(--mono); }
 .cost { font: 10px var(--mono); color: var(--tx3); margin-top: 2px; }

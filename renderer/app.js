@@ -206,6 +206,13 @@ function renderMsg(m) {
     else if (b.k === "tool") { const t = el("div", "tool" + (b.open ? " open" : "") + (b.isErr ? " err" : "")); const nm = el("span", "nm", "▸ " + b.name); t.append(nm, document.createTextNode(" " + (b.target || ""))); if (b.result) { const r = el("div", "res", b.result); t.append(r); t.onclick = () => t.classList.toggle("x"); } body.append(t); }
     else if (b.k === "error") body.append(el("div", "errb", "⚠ " + b.text));
   });
+  // A turn that only ran tools (no text yet): fold them into one small "used N tools" line instead of a bare header.
+  if (m.r !== "user") { const bl = m.blocks || [], tl = bl.filter((b) => b.k === "tool");
+    if (tl.length && !bl.some((b) => b.k === "text" || b.k === "error") && !tl.some((b) => b.open)) {
+      const g = el("div", "toolgrp"), hd = el("div", "toolgrp-h", "▸ used " + tl.length + " tool" + (tl.length > 1 ? "s" : ""));
+      const inner = el("div", "toolgrp-b"); [...body.querySelectorAll(".tool")].forEach((t) => inner.append(t));
+      hd.onclick = () => g.classList.toggle("x"); g.append(hd, inner); body.append(g);
+    } }
   if (m.stopped) body.append(el("div", "cost", "stopped"));
   d.append(body); return d;
 }

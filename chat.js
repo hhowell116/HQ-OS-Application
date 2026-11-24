@@ -161,10 +161,25 @@ class Chats {
     const t = j.type; c.lastUse = Date.now();
     if (t === "system") { if (j.subtype === "init" && j.session_id) { c.sessionId = j.session_id; this.save(c); } return; }
     if (j.parent_tool_use_id) return;
+    // Turns Claude starts on its own (background task notifications, resume replays) arrive with no c.cur: open an assistant turn for them instead of dropping the text.
+    const evType = t === "stream_event" ? (j.event || {}).type : "";
+    if (!c.cur && (evType === "content_block_start" || (t === "assistant" && j.message && Array.isArray(j.message.content) && j.message.content.length))) {
+      c.cur = { r: "asst", blocks: [], at: Date.now(), auto: true }; c.msgs.push(c.cur); c.idx = {}; c.seen = {}; c.busy = true; c.stopping = false; c.updated = Date.now(); this.emit(c, "turn");
+    }
     const cur = c.cur;
-    if (t === "stream_event" && cur) {
+    if (t === "assistant" && cur) {
+      // Fallback: complete assistant messages. Only add blocks that never arrived as stream events (resume, or a CLI that skips partials).
+      const m = j.message || {}, id = m.id || ""; c.seen = c.seen || {};
+      if (!(id && c.seen[id]) && Array.isArray(m.content)) {
+        for (const b of m.content) {
+          if (b.type === "text" && b.text) cur.blocks.push({ k: "text", text: b.text });
+          else if (b.type === "tool_use") { if (!cur.blocks.some((x) => x.k === "tool" && x.id === b.id)) cur.blocks.push({ k: "tool", id: b.id, name: b.name, json: "", target: toolTarget(b.name, b.input || {}), result: "", open: true }); }
+        }
+        if (id) c.seen[id] = 1; this.emit(c, "stream");
+      }
+    } else if (t === "stream_event" && cur) {
       const e = j.event || {};
-      if (e.type === "message_start") { c.idx = {}; const u = e.message && e.message.usage; if (u) c.ctx = (u.input_tokens || 0) + (u.cache_read_input_tokens || 0) + (u.cache_creation_input_tokens || 0); }
+      if (e.type === "message_start") { c.idx = {}; c.seen = c.seen || {}; if (e.message && e.message.id) c.seen[e.message.id] = 1; const u = e.message && e.message.usage; if (u) c.ctx = (u.input_tokens || 0) + (u.cache_read_input_tokens || 0) + (u.cache_creation_input_tokens || 0); }
       else if (e.type === "content_block_start") {
         const b = e.content_block || {}; let nb;
         if (b.type === "text") nb = { k: "text", text: "" };
@@ -192,6 +207,8 @@ class Chats {
       if (j.is_error) { const r = String(j.result || ""); err = /login|log in|authenticat|401|credential/i.test(r) ? "Claude Code is not logged in. Open a terminal, run `claude`, then /login." : (r || "Claude Code reported an error.").slice(0, 400); }
       if (j.session_id) c.sessionId = j.session_id;
       if (cur && typeof j.total_cost_usd === "number") cur.cost = j.total_cost_usd;
+      // Last resort: the final result text, when the turn produced no text block at all.
+      if (cur && !err && typeof j.result === "string" && j.result.trim() && !cur.blocks.some((b) => b.k === "text")) cur.blocks.push({ k: "text", text: j.result });
       this.finish(c, c.stopping ? "" : err);
     }
   }
