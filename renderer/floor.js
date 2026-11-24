@@ -499,8 +499,45 @@
   }
   function load(r) {
     if (S.preview) return; // dev screenshot hook: HQFloor.preview() freezes the data
-    const st = r.state; if (st) { S.desks = st.desks || {}; S.alerts = st.alerts || []; S.tape = st.tape || []; S.finishedAt = st.finishedAt || 0; S.usage = st.usage || null; S.flag = st.flag || ""; S.pred = st.predictions || null; S.trk = st.tracker || null; S.mode = st.mode === "live" ? "live" : "paper"; }
-    S.health = r.health || { ok: true, why: [] }; S.running = !!r.running; S.stats = r.stats; S.sig = r.journal || {}; S.equity = r.equity || []; all();
+    const st = r.state; if (st) { S.desks = st.desks || {}; S.alerts = st.alerts || []; S.tape = st.tape || []; S.finishedAt = st.finishedAt || 0; S.usage = st.usage || null; S.flag = st.flag || ""; S.pred = st.predictions || null; S.trk = st.tracker || null; S.mode = st.mode === "live" ? "live" : "paper"; S.trades = st.trades || S.trades || []; }
+    S.health = r.health || { ok: true, why: [] }; S.running = !!r.running; S.stats = r.stats; S.sig = r.journal || {}; S.equity = r.equity || []; all(); renderTrades();
+  }
+  // ---------- TRADES: every trade (open first, then closed) with a click-to-expand card: how and why it was taken (engine: data/trades.jsonl via state.trades) ----------
+  const TFILT = { f: "" }, tOpen = new Set();
+  const tMoney = (n) => "$" + (Math.round(n * 100) / 100), tPct = (n) => (n >= 0 ? "+" : "") + (Math.round(n * 10) / 10) + "%";
+  const tWhen = (ms) => { const d = new Date(ms); return d.toLocaleDateString([], { month: "short", day: "numeric" }) + " " + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }); };
+  const REASON = { stop: "stop-loss", target2: "target", target1: "target", t1: "target", expiry: "time expiry", "new-high": "signal (new 52-week high)" };
+  function tradeCard(t) {
+    const card = mk("div", "tr-card " + (t.status === "open" ? "open" : (t.pnl || 0) >= 0 ? "win" : "loss") + (tOpen.has(t.key) ? " x" : "")), hd = mk("div", "tr-hd");
+    const pl = t.pnlPct != null ? tPct(t.pnlPct) : "", st = mk("span", "tr-st", t.status === "open" ? "OPEN" : "CLOSED");
+    hd.append(st, mk("b", "tr-tk", t.ticker), mk("span", "tr-meta", (t.strat || "") + " · " + (t.mode || "paper").toUpperCase() + " · " + tWhen(t.openedAt)), mk("span", "tr-pl " + ((t.pnlPct || 0) >= 0 ? "up" : "dn"), pl));
+    const head = (t.side === "short" ? "Shorted " : "Bought ") + t.shares + " " + t.ticker + (t.name && t.name !== t.ticker ? " (" + t.name + ")" : "") + " at " + tMoney(t.entry) + " on " + tWhen(t.openedAt) + " · Stop " + tMoney(t.stop) + " · Target " + (t.t1 ? tMoney(t.t1) : "n/a") + (t.t2 ? " then " + tMoney(t.t2) : "") + " · " + tMoney(t.usd) + (t.stopMode === "engine" ? " · engine-watched stop" : "");
+    const body = mk("div", "tr-body"), line = (k, v) => { if (v) { const d = mk("div", "tr-l"); d.append(mk("b", "", k + " "), document.createTextNode(v)); body.append(d); } }, e = t.evidence || {};
+    body.append(mk("div", "tr-head", head));
+    line("Why:", t.thesis); line("Setup:", t.setup); line("Analyst:", e.analyst); line("Bull:", e.bull); line("Bear:", e.bear); line("Debate:", e.verdict); line("Backtest:", e.backtest); line("Predictor:", e.predictor); line("Tracker:", e.tracker); line("Risk Manager:", e.risk); line("Source:", e.source);
+    if (e.reasons && e.reasons.length) line("Reasons:", e.reasons.join(" · "));
+    line("Picked over:", (t.alts || []).length ? t.alts.map((a) => a.ticker + " (" + (a.conf != null ? "confidence " + a.conf + "; " : "") + a.why + ")").join(", ") : "no other candidates recorded");
+    line("Status:", t.status === "open" ? "open " + (t.pnlPct != null ? tPct(t.pnlPct) : "") + (t.unreal != null ? " (" + tMoney(t.unreal) + ")" : "") + (t.t1Hit ? " · first target already touched" : "")
+      : "closed at " + (REASON[t.reason] || t.reason) + " " + tMoney(t.exit) + " on " + tWhen(t.closedAt) + " · " + tPct(t.pnlPct) + " (" + (t.pnl >= 0 ? "+" : "-") + tMoney(Math.abs(t.pnl)) + ")" + (t.vsSpy != null ? " vs SPY " + tPct(t.spyPct) + " (" + (t.vsSpy >= 0 ? "+" : "") + t.vsSpy + " pts)" : ""));
+    line("Lesson:", t.lesson);
+    hd.onclick = () => { tOpen.has(t.key) ? tOpen.delete(t.key) : tOpen.add(t.key); card.classList.toggle("x"); };
+    card.append(hd, body); return card;
+  }
+  function renderTrades() {
+    const p = $("#fl-trades"); if (!p || p.classList.contains("hidden")) return; const list = p.querySelector(".tr-list"), all = S.trades || [];
+    const f = TFILT.f || S.mode || "paper", rows = all.filter((t) => f === "all" || (t.mode || "paper") === f).sort((a, b) => (a.status === "open" ? 0 : 1) - (b.status === "open" ? 0 : 1) || b.openedAt - a.openedAt);
+    p.querySelectorAll(".tr-tabs button").forEach((b) => b.classList.toggle("on", b.dataset.f === f));
+    const op = rows.filter((t) => t.status === "open").length, cl = rows.length - op, wins = rows.filter((t) => t.status === "closed" && t.pnl > 0).length;
+    p.querySelector(".tr-sum").textContent = rows.length ? op + " open · " + cl + " closed" + (cl ? " · " + wins + " wins" : "") : "";
+    list.textContent = ""; if (!rows.length) { list.append(mk("div", "fl-empty", "No " + (f === "all" ? "" : f.toUpperCase() + " ") + "trades yet. Every trade the desks take shows up here with the full reasoning.")); return; }
+    rows.forEach((t) => list.append(tradeCard(t)));
+  }
+  function toggleTrades() {
+    let p = $("#fl-trades"); const root = $("#tw-stonks"); if (!root) return;
+    if (!p) { p = mk("div", "fl-trades hidden"); p.id = "fl-trades"; const hd = mk("div", "tr-top"), x = mk("button", "fl-btn ghost", "CLOSE"); x.onclick = () => p.classList.add("hidden"); const tabs = mk("span", "tr-tabs");
+      [["paper", "PAPER"], ["live", "LIVE"], ["all", "ALL"]].forEach(([k, l]) => { const b = mk("button", "", l); b.dataset.f = k; b.onclick = () => { TFILT.f = k; renderTrades(); }; tabs.append(b); });
+      hd.append(mk("b", "", "TRADES"), tabs, mk("span", "tr-sum", ""), x); p.append(hd, mk("div", "tr-list")); root.append(p); }
+    p.classList.toggle("hidden"); renderTrades();
   }
   async function refresh() {
     try { load(await hq.tfState()); if (!S.running || !S.ev.length) { S.ev = await hq.tfEvents(); renderAgents(); } } catch (e) {}
@@ -523,6 +560,7 @@
   { const b = mk("button", "fl-btn ghost", "CHAT"); b.id = "fl-chat"; b.title = "Chat with Claude about the Stocks project (C)"; const r = $("#fl-resume"); r.parentNode.insertBefore(b, r.nextSibling);
     b.onclick = () => { const C = window.HQTowerChat; if (C && C.open) { C.isOpen() ? C.close() : C.open(true); } else { const t = document.getElementById("tw-chatbtn"); if (t) t.click(); else toast("Chat is not available here"); } };
     const dvb = mk("button", "fl-btn ghost", "DATA VIEW"); dvb.id = "fl-dvbtn"; dvb.title = "Dense dashboard view (also the DATA VIEW button on the wall)"; dvb.onclick = () => dvEnter(); b.after(dvb);
+    const trb = mk("button", "fl-btn ghost", "TRADES"); trb.id = "fl-trbtn"; trb.title = "Every trade: how and why it was taken (open first, then closed)"; trb.onclick = toggleTrades; dvb.after(trb);
     setInterval(() => { const on = !!(window.HQTowerChat && HQTowerChat.isOpen && HQTowerChat.isOpen()); if (b.classList.contains("on") !== on) b.classList.toggle("on", on); dvb.classList.toggle("hidden", !!S.dv); }, 500); }
   { const root = $("#tw-stonks"), bar = root && root.querySelector(".fl-bar"); // measured header height drives the tape/banner/DV offsets (CSS var --flh); only writes on change
     if (bar) { let last = 0; const m = () => { const h = Math.ceil(bar.getBoundingClientRect().height); if (h > 0 && h !== last) { last = h; root.style.setProperty("--flh", h + "px"); } };
@@ -533,7 +571,7 @@
     shown: (on) => { S.active = on !== false; if (S.active) { S.autoPlay = true; refresh(); let st = ""; try { st = sessionStorage.getItem(DVK); } catch (e) {} if (st === "1" && !S.dv) dvEnter(true); } else { stopPlay(); closeCard(); if (S.dv || S.focusSet) { dvApply(false); if (S.focusSet && window.HQTower) HQTower.clearFocus(); S.focusSet = false; S.dvBusy = false; } } },
     tip: (id) => DESK_JOB[id] || "", help: toggleHelp, dv: () => !!S.dv, dataView: (on) => (on === false ? dvExit() : dvEnter()),
     events: () => events(), cur: () => S.cur, active: () => !!S.active, agentCard, agentClose,
-    preview: (al, pos, pred, mode) => { S.preview = true; if (mode) { S.mode = mode; applyMode(); } S.alerts = al; if (pred) S.pred = pred; if (pos && S.stats) S.stats = Object.assign({}, S.stats, { positions: pos }); all(); }, running: () => S.running, busy, desks: deskView, onChange: (f) => listeners.push(f), NAME, HUE, ANG, SEATS,
+    preview: (al, pos, pred, mode, trades) => { S.preview = true; if (trades) { S.trades = trades; const p = $("#fl-trades"); if (!p || p.classList.contains("hidden")) toggleTrades(); else renderTrades(); } if (mode) { S.mode = mode; applyMode(); } S.alerts = al; if (pred) S.pred = pred; if (pos && S.stats) S.stats = Object.assign({}, S.stats, { positions: pos }); all(); }, running: () => S.running, busy, desks: deskView, onChange: (f) => listeners.push(f), NAME, HUE, ANG, SEATS,
     data: () => ({ tape: S.tape, equity: S.equity, alerts: S.alerts, stats: S.stats }),
     select: (seat) => { S.sel = S.sel === seat ? "" : seat; renderAgents(); }, selected: () => S.sel,
     escape: () => { if (S.dv) { dvExit(); return true; } if (S.card) { closeCard(); return true; } const d = $("#fl-drawer"); if (!d.classList.contains("hidden")) { d.classList.add("hidden"); return true; } if (S.sel) { S.sel = ""; renderAgents(); return true; } return false; },

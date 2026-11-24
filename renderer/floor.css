@@ -222,7 +222,7 @@
 #tw-stonks.dv:has(.fl-banner:not(.hidden)) { --dvt: calc(var(--flh, 46px) + 72px); }
 #tw-stonks.dv .fl-viewbtn { display: inline-block; }
 .stk-dv #tw-tags, .stk-dv #tw-labels, .stk-dv #tw-lines, .stk-dv #tw-feed, .stk-dv .tw-roster { visibility: hidden; pointer-events: none; }
-#tw-stonks.dv .fl-agstrip { display: grid; position: absolute; left: 12px; right: 12px; top: var(--dvt); z-index: 2; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 5px; }
+#tw-stonks.dv .fl-agstrip { display: grid; position: absolute; left: 12px; right: 12px; top: var(--dvt); z-index: 2; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 5px; } /* 15 desks = 2 rows of 8 (7 columns wrapped the 15th onto a hidden 3rd row) */
 #tw-stonks.dv .dvag { display: block; max-width: none; background: rgba(255,255,255,.03); border: 1px solid var(--line); border-left: 3px solid var(--h); border-radius: 6px; padding: 4px 8px 5px; min-width: 0; cursor: pointer; }
 #tw-stonks.dv .dvag:hover { background: rgba(255,255,255,.07); } #tw-stonks.dv .dvag.sel { box-shadow: 0 0 0 1px var(--amb); }
 #tw-stonks.dv .dvah { display: flex; align-items: baseline; gap: 6px; font-size: 10.5px; min-width: 0; }
@@ -379,3 +379,16 @@
 .fl-trkbox .trk:hover { background: rgba(255,255,255,.05); } .fl-trkbox .trkh { font-size: 9px; color: var(--mut); cursor: default; letter-spacing: .06em; } .fl-trkbox .trkh:hover { background: none; }
 .fl-trkbox .trkn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--fg); } .fl-trkbox .trks { font-weight: 600; font-size: 9.5px; letter-spacing: .05em; }
 .fl-trkbox .prrec { font-size: 10px; color: var(--mut); margin-top: 4px; }
+
+/* ===== TRADES panel (2026-11-24): full trade log, click a row to expand ===== */
+.fl-trades { position: absolute; z-index: 12; left: 50%; top: calc(var(--flh, 46px) + 44px); transform: translateX(-50%); width: min(820px, calc(100% - 40px)); max-height: calc(100% - var(--flh, 46px) - 110px); display: flex; flex-direction: column; background: rgba(8,12,18,.97); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px 12px; font-size: 11.5px; box-shadow: 0 12px 40px rgba(0,0,0,.6); }
+.fl-trades.hidden { display: none; }
+.tr-top { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; } .tr-top > b { color: var(--amb); letter-spacing: .2em; font-size: 11px; } .tr-sum { flex: 1; color: var(--mut); font-size: 10.5px; }
+.tr-tabs { display: inline-flex; gap: 4px; } .tr-tabs button { font: 600 9.5px var(--mono); letter-spacing: .1em; padding: 3px 9px; border-radius: 6px; border: 1px solid var(--line); background: none; color: var(--mut); cursor: pointer; } .tr-tabs button.on { color: var(--amb); border-color: var(--amb); }
+.tr-list { overflow-y: auto; display: flex; flex-direction: column; gap: 5px; }
+.tr-card { border: 1px solid var(--line); border-left: 3px solid #4aa8ff; border-radius: 7px; background: rgba(255,255,255,.03); } .tr-card.win { border-left-color: var(--up); } .tr-card.loss { border-left-color: var(--dn); }
+.tr-hd { display: flex; align-items: baseline; gap: 10px; padding: 6px 10px; cursor: pointer; } .tr-hd:hover { background: rgba(255,255,255,.05); }
+.tr-st { font: 700 8.5px var(--mono); letter-spacing: .12em; color: #4aa8ff; width: 46px; flex: none; } .tr-card.win .tr-st { color: var(--up); } .tr-card.loss .tr-st { color: var(--dn); }
+.tr-tk { font-size: 13px; color: var(--fg); } .tr-meta { flex: 1; color: var(--mut); font-size: 10px; } .tr-pl { font: 700 12px var(--mono); } .tr-pl.up { color: var(--up); } .tr-pl.dn { color: var(--dn); }
+.tr-body { display: none; padding: 2px 12px 9px 12px; color: #aab9c2; line-height: 1.45; } .tr-card.x .tr-body { display: block; }
+.tr-head { color: var(--fg); margin-bottom: 4px; } .tr-l { margin: 2px 0; } .tr-l b { color: var(--amb); font-weight: 600; }
