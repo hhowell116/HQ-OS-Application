@@ -703,7 +703,7 @@
   function paintHud() {
     if (window.HQTowerChat) HQTowerChat.sync();
     if (!interior) return; const f = interior.f, lst = [...interior.members.values()], w = lst.filter((o) => o.working).length, p = projectList().find((x) => x.id === f.id) || {};
-    $("#tw-openhq").classList.toggle("hidden", f.kind !== "lobby");
+    $("#tw-openhq").classList.toggle("hidden", f.kind !== "lobby"); pen.classList.toggle("hidden", !(f.kind === "project" && !f.stonks)); pen.style.left = ($("#tw-htitle").offsetWidth + 10) + "px";
     if (f.kind === "lobby") { const ps = projectList(); $("#tw-htitle").textContent = "G · LOBBY"; $("#tw-hstat").textContent = ps.length + " floors · " + T.groups.total + " working · " + ps.reduce((a, x) => a + x.wait, 0) + " need you · click a row to ride up"; return; }
     if (f.kind === "deck") { $("#tw-htitle").textContent = "TOP · COMMAND DECK"; $("#tw-hstat").textContent = T.teams.core.length + " core agents · " + w + " working · " + T.groups.deck.length + " general or unmapped"; return; }
     $("#tw-htitle").textContent = "F" + f.i + " · " + f.name.toUpperCase();
@@ -821,7 +821,7 @@
 
   // ---------- main loop ----------
   function frame(now) {
-    if (!T.on) { T.raf = 0; return; } T.raf = requestAnimationFrame(frame);
+    if (!T.on || T.paused) { T.raf = 0; return; } T.raf = requestAnimationFrame(frame);
     if (document.hidden || now - T.lastFrame < 15) return; const dt = Math.min(0.1, (now - (T.lastFrame || now - 16)) / 1000); T.lastFrame = now;
     const t = (performance.now() - clock0) / 1000;
     updateCamera(t, dt); { const nr = T.mode === "ext" && !T.flight ? 1.5 : T.flight ? 0.3 : 0.1; if (camera.near !== nr) { camera.near = nr; camera.updateProjectionMatrix(); } } view.classList.toggle("inside", T.mode === "int"); view.dataset.fl = T.cur ? (T.cur.stonks ? "stonks" : T.cur.kind) : ""; stonksEl.classList.toggle("show", !!(T.cur && T.cur.stonks && interior && T.e > 0.85 && !(T.flight && T.flight.dir === "out")));
@@ -843,9 +843,34 @@
     if (!on) { clearInterval(T.poll); if (T.mode === "int" || T.flight) { T.flight = null; T.mode = "ext"; T.e = 0; destroyInterior(); T.cur = null; hud.classList.add("hidden"); labelsEl.classList.remove("gone"); hintEl.textContent = HINT; } return; }
     ensure(); hintEl.textContent = HINT; refreshTeams(); sync(); resize();
     clearInterval(T.poll); T.poll = setInterval(() => { if (T.on) { sync(); } }, 2500);
-    if (!T.raf) T.raf = requestAnimationFrame(frame);
+    if (!T.raf && !T.paused) T.raf = requestAnimationFrame(frame);
   }
   const find = (id) => T.floors.find((x) => x.id === id || x.name.toLowerCase() === String(id).toLowerCase() || (/^(stonks|stocks|trading)$/i.test(id) && x.stonks));
+  // ---------- pause the render loop while the Trading Floor DATA VIEW is open (floor.js toggles .stk-dv on #tower-view) or the page is hidden ----------
+  function setPaused() {
+    const p = view.classList.contains("stk-dv") || document.hidden; if (p === !!T.paused) return; T.paused = p;
+    if (!p && T.on && !T.raf) { T.lastFrame = 0; T.raf = requestAnimationFrame(frame); }
+  }
+  new MutationObserver(setPaused).observe(view, { attributes: true, attributeFilter: ["class"] }); document.addEventListener("visibilitychange", setPaused);
+
+  // ---------- rename the floor's project from the HUD (pencil), same IPC and limits as the home card rename ----------
+  const pen = document.createElement("button"); pen.id = "tw-hrename"; pen.className = "ghost hidden"; pen.title = "Rename this project"; pen.innerHTML = "&#9998;"; hud.append(pen);
+  function startRename() {
+    const f = interior && interior.f; if (!f || f.kind !== "project" || f.stonks || hud.querySelector(".tw-ren")) return;
+    const w = document.createElement("div"), inp = document.createElement("input"), er = document.createElement("div"); w.className = "tw-ren"; er.className = "tw-ren-err";
+    inp.type = "text"; inp.maxLength = 60; inp.spellcheck = false; inp.value = f.name; w.append(inp, er); hud.append(w); $("#tw-htitle").style.visibility = "hidden"; let busy = false;
+    const done = () => { w.remove(); $("#tw-htitle").style.visibility = ""; paintHud(); };
+    inp.addEventListener("keydown", async (e) => {
+      e.stopPropagation();
+      if (e.key === "Escape") { e.preventDefault(); done(); return; }
+      if (e.key !== "Enter") return; e.preventDefault(); if (busy) return; const v = inp.value.trim(); if (v === f.name) return done(); busy = true;
+      try { const r = await hq.projectRename({ id: f.id, name: v }); if (!r.ok) er.textContent = r.err; else { await loadProjects(); f.id = r.id; f.name = r.name; done(); toast("Renamed to " + r.name); } }
+      catch (x) { er.textContent = /No handler/.test(x.message) ? "Restart HQ OS to use this" : x.message; } busy = false;
+    });
+    inp.addEventListener("input", () => (er.textContent = "")); inp.addEventListener("blur", () => setTimeout(() => { if (!busy && w.isConnected) done(); }, 150)); inp.focus(); inp.select();
+  }
+  pen.onclick = startRename;
+
   window.HQTower = { debugDesks: (n) => { if (interior) { interior.dbg = n; makeDesks(interior, n); } }, termXY: () => { const I = interior; if (!I || !I.term) return null; const v = new THREE.Vector3(); I.term.scr.getWorldPosition(v); v.project(camera); const b = renderer.domElement.getBoundingClientRect(); return { x: b.left + (v.x * 0.5 + 0.5) * b.width, y: b.top + (-v.y * 0.5 + 0.5) * b.height }; }, termFocus, term: () => interior && interior.term, setFocus: (p) => { if (p && p.pos && p.target) T.focus = { pos: p.pos, target: p.target, fov: p.fov }; }, clearFocus: () => { T.focus = null; }, show, go: (id) => { const f = find(id); if (!f) return; if (T.mode === "int" && T.cur) hopTo(f); else flyIn(f); }, demo: (on) => { if (on !== T.demo) toggleDemo(); }, state: T, enter: (id) => { const f = T.floors.find((x) => x.id === id || x.name.toLowerCase() === String(id).toLowerCase()); if (f) flyIn(f); }, exit: flyOut, hop: (id) => { const f = T.floors.find((x) => x.id === id || x.name.toLowerCase() === String(id).toLowerCase()); if (f) hopTo(f); }, enterHQ, setAz: (a) => { T.az = a; T.autoAz = false; }, summary: () => ({ floors: T.floors.map((f) => ({ name: f.name, kind: f.kind, n: f.n, act: +f.act.toFixed(2) })), total: T.groups.total }) };
   hq.on("todo-changed", () => { if (T.on) setTimeout(sync, 400); });
 })();

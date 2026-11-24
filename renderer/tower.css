@@ -153,3 +153,17 @@ body.in-tower .layout { display: none; }
 #tw-lobsum .l i { width: 8px; height: 8px; border-radius: 50%; flex: none; }
 #tw-lobsum .l .n { flex: 1; font-weight: 700; color: var(--tx); }
 #tw-lobsum .l .r { color: #ff3d6b; } #tw-lobsum .l .w { color: #ffc65d; }
+
+/* task tab + HUD rename */
+#tw-chat[data-tab="task"] .twc-pane.p-task { display: flex; }
+.twc-task-in { width: 100%; box-sizing: border-box; background: rgba(0,0,0,.35); color: var(--tx); border: 1px solid var(--fc); border-radius: 4px; font: 12px var(--mono); padding: 8px; resize: vertical; }
+.twc-task-row { display: flex; align-items: center; gap: 10px; margin: 6px 0; }
+.twc-task-msg { font: 11px var(--mono); color: var(--tx3); } .twc-task-msg.ok { color: #4dffb0; } .twc-task-msg.bad { color: #ff6b8b; }
+.twc-sent-it { font: 11px var(--mono); color: var(--tx2); border-left: 2px solid var(--fc); padding: 2px 8px; margin-bottom: 3px; } .twc-sent-it b { color: var(--fc); margin-right: 8px; }
+#tw-hrename { position: absolute; top: -2px; left: 0; pointer-events: auto; padding: 0 6px; font-size: 13px; line-height: 20px; opacity: .75; }
+#tw-hrename:hover { opacity: 1; }
+.tw-ren { position: absolute; top: -4px; left: 0; pointer-events: auto; }
+.tw-ren input { font: 700 16px var(--mono); letter-spacing: .1em; color: var(--acc); background: rgba(0,0,0,.6); border: 1px solid var(--acc); border-radius: 3px; padding: 2px 8px; width: 260px; }
+.tw-ren-err { font: 11px var(--mono); color: #ff6b8b; margin-top: 2px; }
+#tw-htitle { display: inline-block; }
+#tw-hrename { font-size: 17px; color: var(--acc); opacity: .95; top: -4px; }

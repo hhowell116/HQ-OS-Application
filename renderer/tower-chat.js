@@ -8,7 +8,7 @@
   let open = false, marker = null, seq = 0; const unread = new Set();
 
   const panel = document.createElement("aside"); panel.id = "tw-chat"; panel.className = "hidden";
-  panel.innerHTML = '<div class="twc-h"><span class="twc-t" id="twc-t"></span><span class="twc-s" id="twc-s"></span><button class="ghost" id="twc-x" title="Close chat (Esc when idle)">&#10005;</button></div><div class="twc-tabs" id="twc-tabs"></div><div class="twc-b" id="twc-b"></div><div class="twc-pane p-review" id="twp-review"></div><div class="twc-pane p-next" id="twp-next"></div><div class="twc-pane p-wait" id="twp-wait"></div>';
+  panel.innerHTML = '<div class="twc-h"><span class="twc-t" id="twc-t"></span><span class="twc-s" id="twc-s"></span><button class="ghost" id="twc-x" title="Close chat (Esc when idle)">&#10005;</button></div><div class="twc-tabs" id="twc-tabs"></div><div class="twc-b" id="twc-b"></div><div class="twc-pane p-review" id="twp-review"></div><div class="twc-pane p-next" id="twp-next"></div><div class="twc-pane p-wait" id="twp-wait"></div><div class="twc-pane p-task" id="twp-task"></div>';
   const btn = document.createElement("button"); btn.id = "tw-chatbtn"; btn.className = "ghost hidden"; btn.title = "Chat with Claude about this floor's project (C)";
   btn.innerHTML = '&#128172; chat (C)<i class="twc-dot hidden"></i>';
   view.append(panel, btn);
@@ -28,7 +28,7 @@
 
   // ---------- HQ panels as tabs (same data/IPC as the HQ dashboard: hq.reviewList/reviewSet, hq.project, hq.todoToggle) ----------
   const api = () => window.__twApi || window.hq; // test hook only
-  const TABS = [["chat", "CHAT"], ["review", "REVIEW"], ["next", "NEXT"], ["wait", "WAITING"]];
+  const TABS = [["chat", "CHAT"], ["review", "REVIEW"], ["next", "NEXT"], ["wait", "WAITING"], ["task", "TASK"]];
   let tab = "chat", data = null, dataFor = "", rvOpen = null; const rvDraft = {};
   const tabsEl = panel.querySelector("#twc-tabs");
   const mk = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
@@ -74,8 +74,31 @@
       acts.append(ok, chg); c.append(top, ta, acts); pr.append(c);
     }
   }
+  // ---------- TASK tab: send a task to this project's Claude as a NEW conversation (worker chat; the open chat is not disturbed) ----------
+  const sentLog = {}; // proj id -> [{text, at}]
+  function paintTask() {
+    const p = curProj(), pane = panel.querySelector("#twp-task"); if (!p) return; const id = p.id;
+    if (pane.dataset.for === id && pane.firstChild) { paintSent(pane, id); return; }
+    pane.textContent = ""; pane.dataset.for = id;
+    const ta = mk("textarea", "twc-task-in"); ta.id = "twc-task-in"; ta.rows = 4; ta.maxLength = 4000; ta.placeholder = "Give " + (p.name || "this team") + " a task...  (Ctrl+Enter sends)";
+    const row = mk("div", "twc-task-row"), go = mk("button", "ghost ok", "SEND TASK"), msg = mk("span", "twc-task-msg", ""); msg.id = "twc-task-msg"; go.id = "twc-task-go";
+    const send = async () => {
+      const text = ta.value.trim(); if (!text || go.disabled) return; go.disabled = true; msg.textContent = "sending..."; msg.className = "twc-task-msg";
+      try {
+        const conv = await api().chatNew({ proj: id, model: ($("#model-pick") || {}).value });
+        const first = text.split(/\r?\n/)[0].slice(0, 50); try { await api().chatRename({ id: conv.id, title: "Task: " + first }); } catch (e) {}
+        await api().chatSend({ id: conv.id, text: "Task for the " + (p.name || "project") + " team (work on it with the project's specialists, then report back briefly):\n\n" + text, images: [] });
+        (sentLog[id] = sentLog[id] || []).unshift({ text, at: Date.now() }); ta.value = ""; msg.textContent = "\u2713 sent to " + (p.name || "team"); msg.className = "twc-task-msg ok";
+        toast2("Task sent to " + (p.name || "team")); paintSent(pane, id);
+      } catch (e) { msg.textContent = "failed: " + e.message; msg.className = "twc-task-msg bad"; }
+      go.disabled = false;
+    };
+    go.onclick = send; ta.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); send(); } });
+    row.append(go, msg); pane.append(mk("div", "twc-none", "Starts a new chat for this project; the team works on it. Replies show a dot on the chat button."), ta, row, mk("div", "twc-sent")); paintSent(pane, id);
+  }
+  function paintSent(pane, id) { const box = pane.querySelector(".twc-sent"); if (!box) return; box.textContent = ""; for (const x of (sentLog[id] || []).slice(0, 6)) { const r = mk("div", "twc-sent-it"); r.append(mk("b", "", new Date(x.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })), mk("span", "", x.text.replace(/\s+/g, " ").slice(0, 120))); box.append(r); } }
   function setTab(t, noFocus) {
-    tab = t; paintTabs(); if (t !== "chat") { paintPanes(); refresh(); } else if (window.HQPinLog) requestAnimationFrame(HQPinLog);
+    tab = t; paintTabs(); if (t === "task") { paintTask(); setTimeout(() => { if (!noFocus && tab === "task") { const i = $("#twc-task-in"); if (i) i.focus(); } }, 30); } else if (t !== "chat") { paintPanes(); refresh(); } else if (window.HQPinLog) requestAnimationFrame(HQPinLog);
     if (t === "chat" && !noFocus && open) { const i = $("#input"); if (i) i.focus(); }
   }
 
@@ -88,7 +111,7 @@
     $("#twc-t").textContent = (f.kind === "deck" ? "COMMAND DECK" : p.name.toUpperCase()) + " TERMINAL";
     $("#twc-s").textContent = f.kind === "deck" ? "general chat (" + p.name + ")" : "chat · Esc closes";
     unread.delete(p.id); paintBtn();
-    if (dataFor !== p.id) { data = null; rvOpen = null; } if (wantTab) tab = wantTab; paintTabs(); if (tab !== "chat") { paintPanes(); refresh(); } else refresh();
+    if (dataFor !== p.id) { data = null; rvOpen = null; } if (wantTab) tab = wantTab; paintTabs(); if (tab === "task") paintTask(); else if (tab !== "chat") { paintPanes(); refresh(); } else refresh();
     if (S.cur !== p.id) { await selectProject(p.id); if (my !== seq) return; } else if (window.HQPinLog) HQPinLog();
     if (window.HQPinLog) requestAnimationFrame(HQPinLog);
     if (focus && tab === "chat") $("#input").focus();
