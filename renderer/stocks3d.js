@@ -23,14 +23,14 @@
     const cv = document.createElement("canvas"); cv.width = cw; cv.height = chh; const ctx = cv.getContext("2d"), T = K.THREE;
     const tex = new T.CanvasTexture(cv); tex.colorSpace = T.SRGBColorSpace; tex.anisotropy = 16; tex.generateMipmaps = true; tex.minFilter = T.LinearMipmapLinearFilter; tex.magFilter = T.LinearFilter;
     // linear x0.5 keeps the brightest text under the bloom threshold (0.55): glow halos on thin text flip on/off with the camera sway = shimmer
-    const m = new T.Mesh(new T.PlaneGeometry(w, h), new T.MeshBasicMaterial({ map: tex, toneMapped: false, color: 0xbbbbbb })); m.position.set(x, y, z); m.rotation.y = rotY || 0; I.g.add(m);
+    const m = new T.Mesh(new T.PlaneGeometry(w, h), new T.MeshBasicMaterial({ map: tex, toneMapped: false, color: 0xbbbbbb, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 })); m.position.set(x, y, z); m.rotation.y = rotY || 0; I.g.add(m);
     const fm = new T.MeshBasicMaterial({ color: frame, toneMapped: false });
     for (const [bw, bh, bx, by] of [[w + 0.12, 0.05, 0, h / 2], [w + 0.12, 0.05, 0, -h / 2], [0.05, h, -w / 2, 0], [0.05, h, w / 2, 0]]) { const b = new T.Mesh(new T.BoxGeometry(bw, bh, 0.04), fm); b.position.set(bx, by, -0.03); m.add(b); }
     return { m, tex, ctx, cw, ch: chh, sig: "" };
   }
   function lineChart(c, x, y, w, h, vals, col) {
     if (vals.length < 2) { c.strokeStyle = "rgba(255,255,255,.18)"; c.setLineDash([8, 8]); c.beginPath(); c.moveTo(x, y + h / 2); c.lineTo(x + w, y + h / 2); c.stroke(); c.setLineDash([]); return; }
-    const lo = Math.min(...vals), hi = Math.max(...vals), sp = hi - lo || 1; c.strokeStyle = col; c.lineWidth = 5; c.beginPath();
+    const lo = Math.min(...vals), hi = Math.max(...vals), sp = hi - lo || 1; c.strokeStyle = col; c.lineWidth = 8; c.lineJoin = "round"; c.lineCap = "round"; c.beginPath();
     vals.forEach((v, i) => { const px = x + (i / (vals.length - 1)) * w, py = y + h - ((v - lo) / sp) * h; i ? c.lineTo(px, py) : c.moveTo(px, py); }); c.stroke();
   }
 
@@ -66,12 +66,14 @@
     }
     // wall screens along the back
     const z = -hw + 0.1, fc = col.clone().multiplyScalar(1.4), sc = S.screens;
-    sc.eq = screen(K, I, 3.5, 1.95, 768, 428, -hw * 0.62, 2.0, z, 0, fc);
-    sc.main = screen(K, I, 4.2, 2.35, 896, 500, 0, 2.05, z, 0, fc);
-    sc.sig = screen(K, I, 3.5, 1.95, 768, 428, hw * 0.62, 2.0, z, 0, fc);
+    // layout from the wall width so neighbours never intersect: 0.3 gap between frames, side panels shrink to fit
+    const mW = 3.6, mH = mW * 500 / 896, gap = 0.3, sW = Math.min(3.5, hw - 0.4 - (mW / 2 + gap)), sH = sW * 428 / 768, sX = mW / 2 + gap + sW / 2;
+    sc.eq = screen(K, I, sW, sH, 768, 428, -sX, 1.95, z, 0, fc);
+    sc.main = screen(K, I, mW, mH, 896, 500, 0, 1.95, z, 0, fc);
+    sc.sig = screen(K, I, sW, sH, 768, 428, sX, 1.95, z, 0, fc);
     const stripM = new T.MeshBasicMaterial({ color: col.clone().multiplyScalar(0.8), toneMapped: false }); for (const x of [-hw + 0.1, hw - 0.1]) K.box(g, 0.06, 3.0, 0.06, stripM, x, 1.5, -hw + 0.12);
     // DATA VIEW button on the back wall (below the big screen): raycast-clickable, gentle hover
-    const bd = (S.dvBtn = screen(K, I, 1.8, 0.45, 384, 96, 0, 3.28, z + 0.03, 0, col.clone().multiplyScalar(0.55))); bd.hov = null;
+    const bd = (S.dvBtn = screen(K, I, 1.8, 0.45, 384, 96, 0, 3.38, z + 0.03, 0, col.clone().multiplyScalar(0.55))); bd.hov = null;
     bd.draw = (h) => { if (bd.hov === h) return; bd.hov = h; const c = bd.ctx; c.clearRect(0, 0, 384, 96); c.fillStyle = h ? "rgba(26,20,8,.96)" : "rgba(5,9,14,.94)"; c.fillRect(0, 0, 384, 96); c.strokeStyle = h ? "#f5b94acc" : "#f5b94a66"; c.lineWidth = 3; c.strokeRect(6, 6, 372, 84); c.font = "700 36px Consolas, monospace"; c.textAlign = "center"; c.textBaseline = "middle"; c.fillStyle = h ? "#f2d79a" : "#b8955a"; c.fillText("▤  DATA VIEW", 192, 50); bd.tex.needsUpdate = true; }; bd.draw(false);
     buildExtras(I, K); bd.m.userData.id = "dataview"; S.prox.push(bd.m);
     I.anim = (t, dt) => anim(I, K, t, dt);
