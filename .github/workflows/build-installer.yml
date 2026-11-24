@@ -26,8 +26,14 @@ jobs:
       - name: Install dependencies (lockfile only)
         run: npm ci --no-fund --no-audit
 
+      # A fresh runner can hit "system error 13" when onnxruntime opens a model file that was only just written
+      # (the download stream or Defender still holds it). The second pass loads it from the cache.
       - name: Speech models (Whisper + Kokoro, from Hugging Face)
-        run: npm run models
+        shell: pwsh
+        run: |
+          npm run models
+          if ($LASTEXITCODE -ne 0) { Start-Sleep 10; npm run models }
+          if ($LASTEXITCODE -ne 0) { exit 1 }
 
       - name: Build installer
         run: npm run dist
