@@ -183,7 +183,7 @@
   }
   // holds (Steady / Mirror / Scanner) that hit their target or stop-loss
   function holdsNeedingAction() {
-    const out = []; for (const p of (S.stats && S.stats.positions) || []) { if (p.status !== "open" || p.last == null) continue; const st = p.strat || "Scanner";
+    const out = []; if (isLive()) return out; for (const p of (S.stats && S.stats.positions) || []) { if (p.status !== "open" || p.last == null) continue; const st = p.strat || "Scanner";
       const sh = p.side === "short";
       if (p.t1 != null && (sh ? p.last <= p.t1 : p.last >= p.t1)) out.push({ p, txt: st + ": sell " + p.ticker + (st === "Steady" ? " - hit a new high ($" + p.last + ")" : " - hit its profit target ($" + p.last + ")") });
       else if (p.stop != null && (sh ? p.last >= p.stop : p.last <= p.stop)) out.push({ p, txt: st + ": sell " + p.ticker + " - fell to its stop-loss ($" + p.last + ")" }); }
@@ -218,7 +218,7 @@
     if (holds.length) { const hb = mk("div", "hhold"); hb.append(mk("small", "", "NEEDS ACTION")); holds.slice(0, 3).forEach((x) => hb.append(mk("div", "", x.txt))); h.append(hb); }
   }
   function renderAlerts() {
-    if (!changed("al", [S.rcBusy, S.mode, S.live && S.live.orders, S.alerts, S.passedOpen, S.finishedAt, S.stats && S.stats.positions, Math.floor(Date.now() / 60000)])) return;
+    if (!changed("al", [S.rcBusy, S.view, S.live && S.live.orders, S.alerts, S.passedOpen, S.finishedAt, S.stats && S.stats.positions, Math.floor(Date.now() / 60000)])) return;
     renderHero(); const box = $("#fl-alerts"), keepTop = box.scrollTop; box.textContent = "";
     if (!S.alerts.length) { box.append(mk("div", "fl-empty", "No alerts yet. Hit GO to send the desks to work.")); $("#fl-when").textContent = ""; return; }
     const g = ranked(); let n = 0;
@@ -246,7 +246,7 @@
     }
   }
   function renderSafety() {
-    if (!changed("sf", [S.stats && S.stats.safety, S.stats && S.stats.limits, S.health, S.flag])) return;
+    if (!changed("sf", [isLive(), S.stats && S.stats.safety, S.stats && S.stats.limits, S.health, S.flag])) return;
     const sf = (S.stats && S.stats.safety) || {}, paused = sf.status === "PAUSED", h = S.health || { ok: true, why: [] }, fl = S.flag;
     const pill = $("#fl-pill"); pill.textContent = paused ? "PAUSED" : "ACTIVE"; pill.className = "fl-pill " + (paused ? "paused" : "active"); pill.title = paused ? (sf.reason || "paused") : "Agent is allowed to trade";
     $("#fl-resume").classList.toggle("hidden", !paused);
@@ -257,7 +257,7 @@
     b.textContent = msgs.join("  |  "); b.classList.toggle("hidden", !msgs.length);
     const L = (S.stats && S.stats.limits) || null, box = $("#fl-rules"); box.textContent = ""; if (!L) return;
     [["CAP", "$" + L.maxCapital], ["BREAKER", "-" + L.circuitBreakerPct + "% from peak"], ["ORDER", "<= " + L.maxOrderPct + "% of cap"], ["TRADES", "<= " + L.maxTradesPerDay + "/day"], ["DAILY LOSS", L.dailyLossPct + "%"], ["MIN CONF", L.minConfidence], ["SHORTS", L.allowShort ? "on" : "off"], ["STOP", "every order"], ["APPROVAL", L.requireApproval ? "live: required" : "off"]].forEach(([k, v]) => { const s = mk("span", "", ""); s.append(mk("small", "", k), document.createTextNode(v)); box.append(s); });
-    if (sf.peak) box.append(Object.assign(mk("span", "pk", ""), { textContent: "PEAK $" + Math.round(sf.peak) }));
+    if (sf.peak && !isLive()) box.append(Object.assign(mk("span", "pk", ""), { textContent: "PEAK $" + Math.round(sf.peak) }));
   }
   function renderCmp() {
     if (!changed("cmp", [S.stats, S.day])) return;
@@ -369,14 +369,16 @@
   // ---------- Header: equity, usage meter, run state ----------
   function renderHead() {
     syncBusy();
-    const s = S.stats, eq = s && (s.totalEquity != null ? s.totalEquity : s.equity), cap = s && (s.capital || 0);
-    if (!changed("hd", [eq, cap, s && s.spy, S.running, S.finishedAt, Object.values(S.desks).filter((d) => d.status === "working").map((d) => d.name)])) { notify(); return; }
+    const s = S.stats, lv = isLive(), A = (S.live && S.live.account) || null, eq = lv ? (A && A.netValue != null ? A.netValue : null) : s && (s.totalEquity != null ? s.totalEquity : s.equity), cap = s && (s.capital || 0);
+    if (!changed("hd", [lv, A, Math.floor(Date.now() / 60000), eq, cap, s && s.spy, S.running, S.finishedAt, Object.values(S.desks).filter((d) => d.status === "working").map((d) => d.name)])) { notify(); return; }
     $("#fl-eq").textContent = eq == null ? "--" : usd(eq);
+    if (lv) { const r = $("#fl-ret"), v = $("#fl-vs"), dc = A && A.dayChange; r.textContent = dc == null ? "--" : (dc > 0 ? "+" : "") + usd(dc); r.className = cls(dc || 0); v.textContent = A && A.cash != null ? usd(A.cash) : "--"; v.className = ""; v.title = A && A.buyingPower != null ? "Buying power " + usd(A.buyingPower) : ""; }
     const ret = eq != null && cap ? Math.round((eq / cap - 1) * 10000) / 100 : null, spy = s && s.spy && s.spy.retPct;
-    const r = $("#fl-ret"); r.textContent = ret == null ? "--" : sgn(ret) + "%"; r.className = cls(ret);
-    const vs = ret != null && spy != null ? Math.round((ret - spy) * 100) / 100 : null, v = $("#fl-vs"); v.textContent = vs == null ? "--" : sgn(vs) + " pts"; v.className = cls(vs); v.title = spy != null ? "SPY " + sgn(spy) + "% over the same period" : "";
+    if (!lv) { const r = $("#fl-ret"); r.textContent = ret == null ? "--" : sgn(ret) + "%"; r.className = cls(ret); }
+    if (!lv) { const vs = ret != null && spy != null ? Math.round((ret - spy) * 100) / 100 : null, v = $("#fl-vs"); v.textContent = vs == null ? "--" : sgn(vs) + " pts"; v.className = cls(vs); v.title = spy != null ? "SPY " + sgn(spy) + "% over the same period" : ""; }
     notify(); const w = Object.values(S.desks).filter((d) => d.status === "working");
-    $("#fl-sub").textContent = S.running ? (w.length ? w.map((d) => d.name).join(" + ") + " working" : "run in progress") : S.finishedAt ? "last run " + new Date(S.finishedAt).toLocaleTimeString() + usageLine() : "desks idle";
+    const stale = lv && (!A || !A.fetchedAt || A.status !== "ok" || Date.now() - A.fetchedAt > 10 * 60000), liveSub = !A || !A.fetchedAt ? (A && A.status === "login-needed" ? "LIVE: Webull login needed" : "LIVE: waiting for account data") : "LIVE account " + (A.status === "login-needed" ? "LOGIN EXPIRED, last data " : A.status !== "ok" ? "STALE (" + A.status + "), last data " : Date.now() - A.fetchedAt > 10 * 60000 ? "STALE, last data " : "refreshed ") + ago(A.fetchedAt);
+    $("#fl-sub").classList.toggle("stale", !!stale); $("#fl-sub").textContent = lv ? liveSub + (S.running ? " · desks running" : "") : S.running ? (w.length ? w.map((d) => d.name).join(" + ") + " working" : "run in progress") : S.finishedAt ? "last run " + new Date(S.finishedAt).toLocaleTimeString() + usageLine() : "desks idle";
     const go = $("#fl-go"); go.textContent = S.running ? "RUNNING" : "GO"; go.classList.toggle("run", S.running); go.disabled = S.running; $("#fl-score").disabled = S.running;
   }
   const lvl = (p) => (p >= 80 ? "r" : p >= 50 ? "a" : "g");
@@ -477,18 +479,23 @@
   }
   const all = () => { predSection(); trkSection(); renderTrk(); fmSection(); renderFm(); collapsibles(); renderPred(); renderSafety(); renderCmp(); renderHead(); renderTape(); renderAlerts(); renderBook(); renderSig(); renderCurve(); renderAgents(); renderLive(); };
   // ---------- PAPER / LIVE mode. LIVE = read-only view of the agent's real account + locked order approvals (no order is sent while live orders are off). ----------
-  const isLive = () => S.mode === "live";
+  const VKEY = "stk.floor.view"; S.view = (() => { try { return localStorage.getItem(VKEY) === "live" ? "live" : "paper"; } catch (e) { return "paper"; } })();
+  const isLive = () => S.view === "live"; // a VIEW preference only (localStorage); engine state.mode is never changed from the UI
   const orderTxt = (a) => { const p = a.plan || {}; return (a.action === "SELL" ? "SELL " : "BUY ") + p.shares + " " + a.ticker + " limit $" + p.entry + " · stop $" + p.stop + " · est. $" + Math.round((p.shares || 0) * (p.entry || 0)); };
   const orderFor = (id) => ((S.live && S.live.orders) || []).filter((o) => o.alertId === id).pop();
   function applyMode() {
     const t = $("#tw-stonks"), live = isLive(); if (!t) return;
     t.classList.toggle("modelive", live); const tv = $("#tower-view"); if (tv) tv.classList.toggle("stk-modelive", live);
-    const b = $("#fl-mode"); if (b) { b.textContent = live ? "LIVE" : "PAPER"; b.className = "fl-btn fl-mode " + (live ? "mlive" : "mpaper"); b.title = live ? "LIVE view (real account, read-only). Click to go back to PAPER." : "PAPER mode. Click to switch to LIVE (read-only real account view; orders stay locked)."; }
-    const g = $("#fl-livebadge"); if (g) g.classList.toggle("hidden", !live);
+    document.querySelectorAll("#fl-vtabs button").forEach((b) => { const on = b.dataset.v === (live ? "live" : "paper"); b.classList.toggle("on", on); b.setAttribute("aria-selected", on); });
+    const g = $("#fl-livebadge"); if (g) { g.textContent = live ? "LIVE · REAL MONEY" : "PAPER · simulated $"; g.className = "fl-livebadge " + (live ? "lv" : "pp"); }
+    const lab = (id, t2) => { const e = $(id); if (e && e.previousElementSibling) e.previousElementSibling.textContent = t2; };
+    lab("#fl-eq", live ? "NET VALUE" : "EQUITY"); lab("#fl-ret", live ? "TODAY" : "RETURN"); lab("#fl-vs", live ? "CASH" : "VS SPY");
+    const sg = $("#fl-sig"); if (sg) { sg.classList.add("pa-only"); if (sg.previousElementSibling) sg.previousElementSibling.classList.add("pa-only"); }
   }
+  function setView(v) { if (v === S.view) return; S.view = v; try { localStorage.setItem(VKEY, v); } catch (e) {} S.liveAsk = 0; TFILT.f = ""; for (const k in memo) delete memo[k]; applyMode(); all(); renderTrades(); refreshLive(); }
   function renderLive() {
     applyMode(); const box = $("#fl-livepanel"); if (!box) return;
-    if (!changed("live", [S.mode, S.live, Math.floor(Date.now() / 30000)])) return; box.textContent = "";
+    if (!changed("live", [S.view, S.live, Math.floor(Date.now() / 30000)])) return; box.textContent = "";
     if (!isLive()) return;
     const a = (S.live && S.live.account) || {}, hd = mk("div", "fl-h"); hd.append(mk("span", "", "LIVE ACCOUNT" + (a.account ? " " + a.account : "")), mk("span", "fl-rule"), mk("span", "fl-note", a.fetchedAt ? "read-only · " + ago(a.fetchedAt) : "read-only"));
     const body = mk("div", "fl-livebody"); box.append(hd, body);
@@ -513,13 +520,11 @@
     renderLive(); renderAlerts();
     if (Date.now() - (S.liveAsk || 0) > 65000 && !S.running) { S.liveAsk = Date.now(); try { await hq.tfCmd(["live-refresh"]); } catch (e) {} } // engine enforces the 60s minimum and backoff
   }
-  async function setMode(m) {
-    try { S.running = true; renderHead(); await hq.tfCmd(["live-mode", m]); S.mode = m; S.liveAsk = 0; applyMode(); renderAlerts(); } catch (e) { S.running = false; renderHead(); toast(e.message); }
-  }
-  { const b = mk("button", "fl-btn fl-mode mpaper", "PAPER"); b.id = "fl-mode"; const r = $("#fl-resume"); r.parentNode.insertBefore(b, r.nextSibling);
-    const g = mk("span", "fl-livebadge hidden", "LIVE · REAL MONEY"); g.id = "fl-livebadge"; $("#fl-pill").before(g);
-    const lv = mk("div", "fl-sc fl-livesc"); lv.id = "fl-livepanel"; $(".fl-rcol").prepend(lv);
-    b.onclick = () => { if (S.running) return; if (isLive()) setMode("paper"); else if (confirm("Switch to LIVE?\n\nThis shows your real Webull agent account (read-only). Live orders are OFF: nothing can be sent. Continue?")) setMode("live"); }; }
+  { const vt = mk("span", "fl-vtabs"); vt.id = "fl-vtabs"; vt.setAttribute("role", "tablist");
+    [["paper", "PAPER"], ["live", "LIVE"]].forEach(([k, l]) => { const b = mk("button", "fl-vt " + (k === "live" ? "vt-l" : "vt-p"), l); b.dataset.v = k; b.setAttribute("role", "tab"); b.title = k === "live" ? "Real Webull agent account (read-only; orders stay locked). Paper keeps running." : "Simulated $1000 book. Live keeps running."; b.onclick = () => setView(k); vt.append(b); });
+    $(".fl-ttl").after(vt);
+    const g = mk("span", "fl-livebadge pp", "PAPER · simulated $"); g.id = "fl-livebadge"; $("#fl-pill").before(g);
+    const lv = mk("div", "fl-sc fl-livesc"); lv.id = "fl-livepanel"; $(".fl-rcol").prepend(lv); }
   const busy = () => !!(S.running || S.play);
   function syncBusy() { const t = $("#tw-stonks"); if (t) t.classList.toggle("fl-busy", busy()); }
   function collapsibles() { // book/safety panels: compact, click a header to fold; Paper Book open by default
@@ -555,7 +560,7 @@
   }
   function renderTrades() {
     const p = $("#fl-trades"); if (!p || p.classList.contains("hidden")) return; const list = p.querySelector(".tr-list"), all = S.trades || [];
-    const f = TFILT.f || S.mode || "paper", rows = all.filter((t) => f === "all" || (t.mode || "paper") === f).sort((a, b) => (a.status === "open" ? 0 : 1) - (b.status === "open" ? 0 : 1) || b.openedAt - a.openedAt);
+    const f = isLive() ? "live" : "paper", rows = all.filter((t) => f === "all" || (t.mode || "paper") === f).sort((a, b) => (a.status === "open" ? 0 : 1) - (b.status === "open" ? 0 : 1) || b.openedAt - a.openedAt);
     p.querySelectorAll(".tr-tabs button").forEach((b) => b.classList.toggle("on", b.dataset.f === f));
     const op = rows.filter((t) => t.status === "open").length, cl = rows.length - op, wins = rows.filter((t) => t.status === "closed" && t.pnl > 0).length;
     p.querySelector(".tr-sum").textContent = rows.length ? op + " open · " + cl + " closed" + (cl ? " · " + wins + " wins" : "") : "";
@@ -566,7 +571,7 @@
     let p = $("#fl-trades"); const root = $("#tw-stonks"); if (!root) return;
     if (!p) { p = mk("div", "fl-trades hidden"); p.id = "fl-trades"; const hd = mk("div", "tr-top"), x = mk("button", "fl-btn ghost", "CLOSE"); x.onclick = () => p.classList.add("hidden"); const tabs = mk("span", "tr-tabs");
       [["paper", "PAPER"], ["live", "LIVE"], ["all", "ALL"]].forEach(([k, l]) => { const b = mk("button", "", l); b.dataset.f = k; b.onclick = () => { TFILT.f = k; renderTrades(); }; tabs.append(b); });
-      hd.append(mk("b", "", "TRADES"), tabs, mk("span", "tr-sum", ""), x); p.append(hd, mk("div", "tr-list")); root.append(p); }
+      hd.append(mk("b", "", "TRADES"), mk("span", "tr-sum tr-view", ""), mk("span", "tr-sum", ""), x); p.append(hd, mk("div", "tr-list")); root.append(p); }
     p.classList.toggle("hidden"); renderTrades();
   }
   async function refresh() {
@@ -601,8 +606,8 @@
     shown: (on) => { S.active = on !== false; if (S.active) { S.autoPlay = true; refresh(); let st = ""; try { st = sessionStorage.getItem(DVK); } catch (e) {} if (st === "1" && !S.dv) dvEnter(true); } else { stopPlay(); closeCard(); if (S.dv || S.focusSet) { dvApply(false); if (S.focusSet && window.HQTower) HQTower.clearFocus(); S.focusSet = false; S.dvBusy = false; } } },
     tip: (id) => DESK_JOB[id] || "", help: toggleHelp, dv: () => !!S.dv, dataView: (on) => (on === false ? dvExit() : dvEnter()),
     events: () => events(), cur: () => S.cur, active: () => !!S.active, agentCard, agentClose,
-    preview: (al, pos, pred, mode, trades) => { S.preview = true; if (trades) { S.trades = trades; const p = $("#fl-trades"); if (!p || p.classList.contains("hidden")) toggleTrades(); else renderTrades(); } if (mode) { S.mode = mode; applyMode(); } S.alerts = al; if (pred) S.pred = pred; if (pos && S.stats) S.stats = Object.assign({}, S.stats, { positions: pos }); all(); }, running: () => S.running, busy, desks: deskView, onChange: (f) => listeners.push(f), NAME, HUE, ANG, SEATS,
-    data: () => ({ tape: S.tape, equity: S.equity, alerts: S.alerts, stats: S.stats }),
+    preview: (al, pos, pred, mode, trades) => { S.preview = true; if (trades) { S.trades = trades; const p = $("#fl-trades"); if (!p || p.classList.contains("hidden")) toggleTrades(); else renderTrades(); } if (mode) { S.view = mode; applyMode(); } S.alerts = al; if (pred) S.pred = pred; if (pos && S.stats) S.stats = Object.assign({}, S.stats, { positions: pos }); all(); }, running: () => S.running, busy, desks: deskView, onChange: (f) => listeners.push(f), NAME, HUE, ANG, SEATS,
+    data: () => ({ tape: S.tape, equity: S.equity, alerts: S.alerts, stats: S.stats, view: S.view, live: (S.live && S.live.account) || null }),
     select: (seat) => { S.sel = S.sel === seat ? "" : seat; renderAgents(); }, selected: () => S.sel,
     escape: () => { if (S.dv) { dvExit(); return true; } if (S.card) { closeCard(); return true; } const d = $("#fl-drawer"); if (!d.classList.contains("hidden")) { d.classList.add("hidden"); return true; } if (S.sel) { S.sel = ""; renderAgents(); return true; } return false; },
   };

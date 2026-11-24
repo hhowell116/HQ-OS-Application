@@ -400,3 +400,16 @@
 .fl-fmbox .fm { display: grid; grid-template-columns: minmax(0, 1.3fr) .7fr .6fr .6fr .7fr .9fr .8fr; gap: 6px; align-items: baseline; font-size: 10.5px; padding: 3px 4px; border-bottom: 1px solid rgba(255,255,255,.06); }
 .fl-fmbox .fmh { font-size: 9px; color: var(--mut); letter-spacing: .06em; } .fl-fmbox .fmn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--fg); }
 .fl-fmbox .fmo { display: block; color: var(--mut); font-size: 10px; } .fl-fmbox .prrec { font-size: 10px; color: var(--mut); margin-top: 4px; }
+
+/* PAPER / LIVE view tabs (view preference only; both modes keep running) */
+.fl-vtabs { display: inline-flex; gap: 0; margin: 0 10px; border: 1px solid rgba(255,255,255,.18); border-radius: 3px; overflow: hidden; }
+.fl-vt { background: transparent; border: 0; color: #9fb0c0; font: 800 11px/1 inherit; letter-spacing: .18em; padding: 7px 14px; cursor: pointer; }
+.fl-vt:hover { color: #fff; background: rgba(255,255,255,.08); }
+.fl-vt:focus-visible { outline: 2px solid #ffb02e; outline-offset: -2px; }
+.fl-vt.vt-p.on { color: #04140d; background: #00f5a0; }
+.fl-vt.vt-l.on { color: #fff; background: #d9382f; box-shadow: 0 0 12px rgba(255,90,60,.6); }
+.fl-livebadge.pp { color: #00f5a0; background: rgba(0,245,160,.1); border: 1px solid rgba(0,245,160,.45); animation: none; }
+#fl-sub.stale { color: #ff6a4d; font-weight: 700; }
+#tw-stonks.modelive .pa-only { display: none; }
+#tw-stonks .tr-tabs { display: none; }
+#tw-stonks.modelive #fl-fm, #tw-stonks.modelive #fl-trk { display: none; } /* paper-only research panels */

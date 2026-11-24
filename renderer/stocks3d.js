@@ -278,17 +278,17 @@
   }
 
   function drawScreens(I, K) {
-    const S = I.stonks, f = F(), D = f.data(), V = f.desks(), st = D.stats || {}, sf = st.safety || {}, paused = sf.status === "PAUSED", run = V.running, eq = (D.equity || []).map((p) => p.total).filter((v) => v != null);
+    const S = I.stonks, f = F(), D = f.data(), V = f.desks(), st = D.stats || {}, sf = st.safety || {}, paused = sf.status === "PAUSED", run = V.running, LV = D.view === "live", LA = D.live || {}, eq = LV ? [] : (D.equity || []).map((p) => p.total).filter((v) => v != null);
     const sg = (name, sig, fn) => { const s = S.screens[name]; if (s.sig === sig) return; s.sig = sig; const c = s.ctx; c.clearRect(0, 0, s.cw, s.ch); c.fillStyle = "rgba(3,9,14,.96)"; c.fillRect(0, 0, s.cw, s.ch); fn(c, s.cw, s.ch); s.tex.needsUpdate = true; };
     const head = (c, w, txt, col) => { c.textBaseline = "middle"; c.textAlign = "left"; c.font = "700 34px Consolas, monospace"; c.fillStyle = col; c.fillText(txt, 28, 38); c.fillStyle = "rgba(255,255,255,.1)"; c.fillRect(24, 68, w - 48, 4); };
-    sg("eq", "e" + eq.length + "|" + (eq[eq.length - 1] || 0), (c, w, h) => { head(c, w, "EQUITY CURVE", amb); lineChart(c, 40, 100, w - 80, h - 150, eq, up); c.font = "600 24px Consolas, monospace"; c.fillStyle = "#8fa3b0"; c.textAlign = "right"; c.fillText(eq.length ? usd(eq[eq.length - 1]) : "no ledger yet", w - 30, h - 24); });
-    const total = st.totalEquity != null ? st.totalEquity : st.equity, ret = st.retPct, label = paused ? "PAUSED" : run ? "RUNNING" : "IDLE", lc = paused ? dn : run ? amb : "#5eead4";
-    sg("main", label + "|" + total + "|" + ret + "|" + (run ? Math.floor(performance.now() / 700) % 2 : 0), (c, w, h) => {
+    sg("eq", "e" + eq.length + "|" + (eq[eq.length - 1] || 0), (c, w, h) => { head(c, w, LV ? "LIVE ACCOUNT" : "EQUITY CURVE", amb); lineChart(c, 40, 100, w - 80, h - 150, eq, up); c.font = "600 24px Consolas, monospace"; c.fillStyle = "#8fa3b0"; c.textAlign = "right"; c.fillText(LV ? "no live history yet" : eq.length ? usd(eq[eq.length - 1]) : "no ledger yet", w - 30, h - 24); });
+    const total = LV ? LA.netValue : st.totalEquity != null ? st.totalEquity : st.equity, ret = LV ? null : st.retPct, label = paused ? "PAUSED" : run ? "RUNNING" : "IDLE", lc = paused ? dn : run ? amb : "#5eead4";
+    sg("main", LV + "|" + (LA.dayChange || 0) + "|" + label + "|" + total + "|" + ret + "|" + (run ? Math.floor(performance.now() / 700) % 2 : 0), (c, w, h) => {
       c.textAlign = "center"; c.textBaseline = "middle"; c.fillStyle = lc; c.font = "800 64px Consolas, monospace"; c.fillText("TRADING FLOOR", w / 2, 78);
       c.font = "700 44px Consolas, monospace"; c.fillStyle = lc; c.fillText((run && Math.floor(performance.now() / 700) % 2 ? "● " : "○ ") + label, w / 2, 160);
-      c.font = "800 92px Consolas, monospace"; c.fillStyle = "#e6edf3"; c.fillText(total != null ? usd(total) : "--", w / 2, 292);
-      c.font = "700 46px Consolas, monospace"; c.fillStyle = ret > 0 ? up : ret < 0 ? dn : "#8fa3b0"; c.fillText(ret != null ? (ret > 0 ? "+" : "") + ret + "% since start" : "paper book", w / 2, 392);
-      c.font = "600 24px Consolas, monospace"; c.fillStyle = "#6b7d8a"; c.fillText("PAPER TRADING · research only", w / 2, 462);
+      c.font = "800 92px Consolas, monospace"; c.fillStyle = "#e6edf3"; c.fillText(total != null ? (LV ? "$" + total.toFixed(2) : usd(total)) : "--", w / 2, 292);
+      c.font = "700 46px Consolas, monospace"; c.fillStyle = ret > 0 ? up : ret < 0 ? dn : "#8fa3b0"; c.fillText(LV ? (LA.dayChange > 0 ? "+" : "") + usd(LA.dayChange || 0) + " today" : ret != null ? (ret > 0 ? "+" : "") + ret + "% since start" : "paper book", w / 2, 392);
+      c.font = "600 24px Consolas, monospace"; c.fillStyle = "#6b7d8a"; c.fillText(LV ? "LIVE · REAL MONEY · read-only" : "PAPER TRADING · research only", w / 2, 462);
     });
     const al = (D.alerts || []).slice().sort((a, b) => ({ BUY: 0, SELL: 1, WATCH: 2 }[a.action] - { BUY: 0, SELL: 1, WATCH: 2 }[b.action]) || b.confidence - a.confidence).slice(0, 5);
     // calm panel: per-signal text was ~8px on screen (5x minified) and crawled under any motion; the HTML signal board lists the details.
