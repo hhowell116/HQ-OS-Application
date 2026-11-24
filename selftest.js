@@ -23,6 +23,14 @@ module.exports = (ctx) => {
       const pr = await js("hq.projectCreate('Selftest Project')");
       const folder = path.join(ctx.settings.projectsRoot, "Selftest Project");
       ok("newProject", pr && pr.ok && fs.existsSync(path.join(folder, "Notes", "Selftest Project To-Do.md")) && fs.existsSync(path.join(folder, ".claude", "agents", "selftest-project-team-builder.md")), { r: pr });
+      // Existing plain folders (made by the test harness before launch) must appear as projects, and Build team must scaffold them without a Claude call (HQ_TEAM_NORUN=1).
+      const plain = fs.readdirSync(ctx.settings.projectsRoot, { withFileTypes: true }).filter((d) => d.isDirectory() && /^Sample /.test(d.name)).map((d) => d.name);
+      const plist = await js("hq.projects()");
+      ok("plainFoldersDiscovered", plain.length >= 2 && plain.every((n) => plist.some((p) => p.name === n && p.hasTeam === false)), { plain, listed: plist.map((p) => p.name) });
+      const builds = [];
+      for (const n of plain) { const p = plist.find((x) => x.name === n); const r = p && await js("hq.teamBuild(" + JSON.stringify(p.id) + ")"); const f = path.join(ctx.settings.projectsRoot, n); const sl = n.toLowerCase().replace(/[^a-z0-9]+/g, "-"); builds.push({ n, ok: !!(r && r.ok && fs.existsSync(path.join(f, "Notes", n + " To-Do.md")) && fs.existsSync(path.join(f, "Notes", "Claude", "Index.md")) && fs.existsSync(path.join(f, ".claude", "agents", sl + "-team-builder.md")) && fs.existsSync(path.join(f, ".claude", "agents", sl + "-cartographer.md"))) }); }
+      ok("buildTeamScaffolds", builds.length >= 2 && builds.every((b) => b.ok), { builds });
+      ok("teamsListedAfter", (await js("hq.projects()")).filter((p) => plain.includes(p.name)).every((p) => p.hasTeam === true));
       ok("modelsBundled", ctx.WHISPER.offline && ctx.KOKORO.offline, { whisper: ctx.WHISPER.dir, kokoro: ctx.KOKORO.dir });
       const t0 = Date.now();
       const stt = await js("hq.sttTranscribe(new Float32Array(32000)).then(function(t){return {ok:true,t:t}},function(e){return {ok:false,e:String(e.message||e)}})");
