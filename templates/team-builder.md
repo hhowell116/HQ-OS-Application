@@ -19,6 +19,7 @@ Follow all rules in the shared rules file (`CLAUDE.md` in the projects root, the
    - Last step: write what it learned to `Notes/Claude/`, link it in Index.md, and report in under 200 words.
 5. Update `Notes/Claude/Index.md` with a `Team:` line listing the specialists, and a note on what each is for.
 6. If the project is a git repo, commit the new agent files by name only, and push only if the repo is private.
-7. Re-run this whenever the project grows: refine the specialists' instructions from what `Notes/Claude/` has learned.
+7. Every project also gets a `{{SLUG}}-cartographer` agent (`templates/cartographer.md`, scaffolded by the + button; if it is missing, create it from that template). Its first run reads the whole project once and writes `Notes/Claude/` (Architecture Overview, one note per part, How To Run). Run it before training the specialists, so they start from its notes; list it on the `Team:` line.
+8. Re-run this whenever the project grows: refine the specialists' instructions from what `Notes/Claude/` has learned.
 
 Report in under 150 words: the specialists created and why.

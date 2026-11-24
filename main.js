@@ -168,9 +168,10 @@ app.whenReady().then(() => {
       fs.mkdirSync(path.join(folder, "Notes", "Claude"), { recursive: true });
       fs.writeFileSync(path.join(folder, "Notes", name + " To-Do.md"), "# " + name + " To-Do\n\n## Now\n\n## Next\n\n## Waiting on Hayden\n\n## Done\n");
       const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "project";
-      fs.writeFileSync(path.join(folder, "Notes", "Claude", "Index.md"), "# " + name + ": Claude's Notes\n\nKnowledge base for the " + name + " team. Read this first; add a line per note.\n\nTeam: " + slug + "-team-builder (ask it to \"build the " + name + " team\" to create the specialists)\n");
+      fs.writeFileSync(path.join(folder, "Notes", "Claude", "Index.md"), "# " + name + ": Claude's Notes\n\nKnowledge base for the " + name + " team. Read this first; add a line per note.\n\nTeam: " + slug + "-team-builder, " + slug + "-cartographer (cartographer maps the project into these notes on its first run; ask it to \"build the " + name + " team\" to create the specialists)\n");
       // Starter team: a team-builder agent that writes this floor's specialists on first use (rules: Projects/CLAUDE.md "Project teams").
       try { const tpl = fs.readFileSync(path.join(__dirname, "templates", "team-builder.md"), "utf8"); fs.mkdirSync(path.join(folder, ".claude", "agents"), { recursive: true }); fs.writeFileSync(path.join(folder, ".claude", "agents", slug + "-team-builder.md"), tpl.split("{{PROJECT}}").join(name).split("{{SLUG}}").join(slug).split("{{FOLDER}}").join(folder)); } catch (e) {}
+      try { const tp = fs.readFileSync(path.join(__dirname, "templates", "cartographer.md"), "utf8"); fs.writeFileSync(path.join(folder, ".claude", "agents", slug + "-cartographer.md"), tp.split("{{PROJECT}}").join(name).split("{{SLUG}}").join(slug).split("{{FOLDER}}").join(folder)); } catch (e) {}
     } catch (e) { return { ok: false, err: "Could not create: " + e.message }; }
     refreshProjects(); watchTodos();
     const p = cache.projects.find((x) => path.basename(x.folder).toLowerCase() === name.toLowerCase());
