@@ -36,7 +36,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit 1 }
 
       - name: Build installer
-        run: npm run dist
+        run: npm run dist -- --publish never
 
       - name: SHA-256 for the ThreatLocker approval
         shell: pwsh
