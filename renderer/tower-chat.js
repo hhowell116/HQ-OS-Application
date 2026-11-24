@@ -5,7 +5,7 @@
   const $ = (s) => document.querySelector(s);
   const view = $("#tower-view"), consoleEl = $("#console");
   if (!view || !consoleEl) return;
-  let open = false, marker = null, seq = 0; const unread = new Set();
+  let open = false, marker = null, seq = 0, openFor = null; const unread = new Set(); // openFor: project the open panel is showing
 
   const panel = document.createElement("aside"); panel.id = "tw-chat"; panel.className = "hidden";
   panel.innerHTML = '<div class="twc-h"><span class="twc-t" id="twc-t"></span><span class="twc-s" id="twc-s"></span><button class="ghost" id="twc-x" title="Close chat (Esc when idle)">&#10005;</button></div><div class="twc-tabs" id="twc-tabs"></div><div class="twc-b" id="twc-b"></div><div class="twc-pane p-review" id="twp-review"></div><div class="twc-pane p-next" id="twp-next"></div><div class="twc-pane p-wait" id="twp-wait"></div><div class="twc-pane p-task" id="twp-task"></div>';
@@ -103,7 +103,7 @@
   }
 
   async function openChat(focus, wantTab) {
-    const f = floorNow(); if (!f || !available()) return; const p = projFor(f), my = ++seq;
+    const f = floorNow(); if (!f || !available()) return; const p = projFor(f), my = ++seq; openFor = p.id;
     if (!open) { marker = document.createComment("console-home"); consoleEl.before(marker); body.append(consoleEl); open = true; }
     consoleEl.classList.add("in-tower-chat"); if (window.HQTower && HQTower.termFocus) HQTower.termFocus(true); // camera pushes toward this floor's terminal
     panel.classList.remove("hidden"); requestAnimationFrame(() => panel.classList.add("show")); view.classList.add("chat-open");
@@ -119,7 +119,7 @@
   function closeChat() {
     ++seq; if (window.HQTower && HQTower.termFocus) HQTower.termFocus(false); // camera eases back
     if (!open) { paintBtn(); return; }
-    open = false; tab = "chat"; panel.classList.remove("show"); view.classList.remove("chat-open"); consoleEl.classList.remove("in-tower-chat");
+    open = false; openFor = null; tab = "chat"; panel.classList.remove("show"); view.classList.remove("chat-open"); consoleEl.classList.remove("in-tower-chat");
     if (marker && marker.parentNode) { marker.replaceWith(consoleEl); } marker = null;
     setTimeout(() => { if (!open) panel.classList.add("hidden"); }, 260);
     if (window.HQPinLog) requestAnimationFrame(HQPinLog); paintBtn();
@@ -133,7 +133,8 @@
   // called by tower.js whenever the interior is (re)built: stay open across floor hops (switching project), close for the lobby
   function sync() {
     lobby(); if (!available()) { closeChat(); return; }
-    if (open) openChat(false); else paintBtn();
+    // tower calls this on every crew refresh: only re-open (and re-pin the log) when the floor's project changed, so scrolling back through the chat is not yanked to the bottom
+    if (open) { const p = projFor(floorNow()); if (!p || p.id !== openFor) openChat(false); else paintBtn(); } else paintBtn();
   }
 
   btn.onclick = () => openChat(true);
