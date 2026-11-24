@@ -291,9 +291,13 @@
       c.font = "600 24px Consolas, monospace"; c.fillStyle = "#6b7d8a"; c.fillText("PAPER TRADING · research only", w / 2, 462);
     });
     const al = (D.alerts || []).slice().sort((a, b) => ({ BUY: 0, SELL: 1, WATCH: 2 }[a.action] - { BUY: 0, SELL: 1, WATCH: 2 }[b.action]) || b.confidence - a.confidence).slice(0, 5);
-    sg("sig", "s" + al.map((a) => a.ticker + a.action + a.confidence).join(","), (c, w, h) => {
-      head(c, w, "SIGNAL BOARD", amb); if (!al.length) { c.font = "600 26px Consolas, monospace"; c.fillStyle = "#6b7d8a"; c.fillText("no alerts yet", 40, 140); }
-      al.forEach((a, i) => { const y = 118 + i * 60, cc = a.action === "BUY" ? up : a.action === "SELL" ? dn : amb; c.fillStyle = cc; c.fillRect(30, y - 24, 10, 48); c.textAlign = "left"; c.font = "800 44px Consolas, monospace"; c.fillText(a.action, 56, y); c.fillStyle = "#e6edf3"; c.fillText(a.ticker, 250, y); c.textAlign = "right"; c.fillStyle = "#8fa3b0"; c.fillText(String(a.confidence != null ? a.confidence : ""), w - 30, y); });
+    // calm panel: per-signal text was ~8px on screen (5x minified) and crawled under any motion; the HTML signal board lists the details.
+    sg("sig", "s" + al.map((a) => a.action + a.confidence).join(","), (c, w, h) => {
+      c.textAlign = "center"; c.textBaseline = "middle"; c.fillStyle = amb; c.font = "800 84px Consolas, monospace"; c.fillText("SIGNALS", w / 2, 78);
+      c.fillStyle = "rgba(255,255,255,.1)"; c.fillRect(40, 140, w - 80, 6);
+      c.fillStyle = "#e6edf3"; c.font = "800 150px Consolas, monospace"; c.fillText(String(al.length), w / 2, 250);
+      const bw = 110, gap = 24, n = Math.max(al.length, 1), x0 = (w - (n * bw + (n - 1) * gap)) / 2;
+      for (let i = 0; i < n; i++) { const a = al[i]; c.fillStyle = a ? (a.action === "BUY" ? up : a.action === "SELL" ? dn : amb) : "rgba(255,255,255,.12)"; c.fillRect(x0 + i * (bw + gap), 340, bw, 40); }
     });
   }
 
