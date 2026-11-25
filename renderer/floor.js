@@ -242,7 +242,7 @@
     const pb = $("#fl-pos"); pb.textContent = ""; if (!s.positions.length) pb.append(mk("div", "fl-empty", "No paper positions yet."));
     for (const p of s.positions.slice(0, 12)) {
       const closed = p.status === "closed", pl = closed ? p.pnl : p.unreal || 0, r = mk("div", "fl-row " + (closed ? (pl > 0 ? "win" : "loss") : "open"));
-      r.append(mk("b", "", p.ticker), Object.assign(mk("span", "sd", (p.strat === "Steady" ? "S " : p.strat === "Day" ? "DAY " : "") + p.side.toUpperCase()), { title: p.strat || "Scanner" }), mk("span", "lv", "$" + p.entry + (closed ? " → $" + p.exit + " (" + p.reason + ")" : p.last ? " → $" + p.last : "")), mk("span", "pl " + cls(pl), usd(pl))); pb.append(r);
+      r.append(mk("b", "", p.contract ? "SPY " + p.strike + (p.right === "call" ? "C" : "P") : p.ticker), Object.assign(mk("span", "sd", (p.strat === "Steady" ? "S " : p.strat === "Day" ? "DAY " : p.strat === "Options" ? "OPT " : "") + p.side.toUpperCase() + (p.alpaca ? " · ALPACA" : "")), { title: (p.strat || "Scanner") + (p.alpaca ? " · Alpaca paper order " + (p.alpaca.state || "") : "") }), mk("span", "lv", "$" + p.entry + (closed ? " → $" + p.exit + " (" + p.reason + ")" : p.last ? " → $" + p.last : "")), mk("span", "pl " + cls(pl), usd(pl))); pb.append(r);
     }
   }
   function renderSafety() {
@@ -260,11 +260,13 @@
     if (sf.peak && !isLive()) box.append(Object.assign(mk("span", "pk", ""), { textContent: "PEAK $" + Math.round(sf.peak) }));
   }
   function renderCmp() {
-    if (!changed("cmp", [S.stats, S.day])) return;
+    if (!changed("cmp", [S.stats, S.day, S.alpaca, S.options])) return;
     const s = S.stats, box = $("#fl-cmp"); box.textContent = ""; if (!s || !s.steady) return;
-    const rows = [["SCANNER", s.retPct, s.trades + " closed · " + s.open + " open"], ["STEADY", s.steady.retPct, s.steady.trades + " closed · " + s.steady.open + " open"], ...(s.mirror ? [["MIRROR", s.mirror.retPct, s.mirror.trades + " closed · " + s.mirror.open + " open"]] : []), ...(s.day ? [["DAY", s.day.retPct, s.day.trades + " closed · " + s.day.open + " open" + (s.day.aiToday ? " · " + s.day.aiToday + " AI" : "")]] : []), ["SPY", s.spy && s.spy.retPct, s.spy && s.spy.since ? "since " + new Date(s.spy.since).toLocaleDateString() : "benchmark"]];
+    const rows = [["SCANNER", s.retPct, s.trades + " closed · " + s.open + " open"], ["STEADY", s.steady.retPct, s.steady.trades + " closed · " + s.steady.open + " open"], ...(s.mirror ? [["MIRROR", s.mirror.retPct, s.mirror.trades + " closed · " + s.mirror.open + " open"]] : []), ...(s.day ? [["DAY", s.day.retPct, s.day.trades + " closed · " + s.day.open + " open" + (s.day.aiToday ? " · " + s.day.aiToday + " AI" : "")]] : []), ...(s.options ? [["OPTIONS", s.options.retPct, s.options.trades + " closed · " + s.options.open + " open"]] : []), ["SPY", s.spy && s.spy.retPct, s.spy && s.spy.since ? "since " + new Date(s.spy.since).toLocaleDateString() : "benchmark"]];
     for (const [k, v, n] of rows) { const d = mk("div", "t " + k); d.append(mk("small", "", k), mk("b", cls(v), v == null ? "--" : sgn(v) + "%"), mk("em", "", n)); box.append(d); }
     if (s.review && s.review.due) box.append(mk("div", "rev", "Steady watchlist review due (every " + s.review.every + " days)"));
+    if (S.alpaca && S.alpaca.enabled) { const A = S.alpaca; box.append(Object.assign(mk("div", "dayst alp", "ALPACA PAPER (intraday only): DAY sleeve $" + (A.sleeve == null ? "--" : A.sleeve) + " · " + (A.open || 0) + " open · " + (A.pending || 0) + " pending" + (A.at ? " · synced " + ago(A.at) : "") + (A.ok === false ? " · LAST SYNC FAILED" : "") + ((A.flags || []).length ? " · FLAG: " + A.flags[A.flags.length - 1].msg : "")), { title: "Our own small sleeve of the Alpaca paper account, not its $100k balance. Day and Options Day only; nothing is held overnight." + (S.day && S.day.alpaca ? " " + S.day.alpaca : "") })); }
+    if (S.options && S.options.status) box.append(Object.assign(mk("div", "dayst", "OPTIONS DAY: " + S.options.status + (S.options.at ? " (" + ago(S.options.at) + ")" : "")), { title: S.options.signal ? "SPY signal: " + (S.options.signal.dir || "none") + " - " + S.options.signal.why : "" }));
     if (S.day && S.day.status) box.append(Object.assign(mk("div", "dayst", "DAY scan: " + S.day.status + (S.day.at ? " (" + ago(S.day.at) + ")" : "")), { title: (S.day.cands || []).map((c) => c.sym + " +" + c.gap + "% " + c.rvol + "x score " + c.score + (c.vetoes && c.vetoes.length ? " - " + c.vetoes[0] : " - READY")).join("\n") }));
   }
   function renderSig() {
@@ -534,7 +536,7 @@
   }
   function load(r) {
     if (S.preview) return; // dev screenshot hook: HQFloor.preview() freezes the data
-    const st = r.state; if (st) { S.desks = st.desks || {}; S.alerts = st.alerts || []; S.tape = st.tape || []; S.finishedAt = st.finishedAt || 0; S.usage = st.usage || null; S.flag = st.flag || ""; S.day = st.day || null; S.pred = st.predictions || null; S.trk = st.tracker || null; S.fm = st.fastmirror || null; S.mode = st.mode === "live" ? "live" : "paper"; S.trades = st.trades || S.trades || []; }
+    const st = r.state; if (st) { S.desks = st.desks || {}; S.alerts = st.alerts || []; S.tape = st.tape || []; S.finishedAt = st.finishedAt || 0; S.usage = st.usage || null; S.flag = st.flag || ""; S.day = st.day || null; S.alpaca = st.alpaca || null; S.options = st.options || null; S.pred = st.predictions || null; S.trk = st.tracker || null; S.fm = st.fastmirror || null; S.mode = st.mode === "live" ? "live" : "paper"; S.trades = st.trades || S.trades || []; }
     S.health = r.health || { ok: true, why: [] }; S.running = !!r.running; S.stats = r.stats; S.sig = r.journal || {}; S.equity = r.equity || []; all(); renderTrades();
   }
   // ---------- TRADES: every trade (open first, then closed) with a click-to-expand card: how and why it was taken (engine: data/trades.jsonl via state.trades) ----------
@@ -545,8 +547,9 @@
   function tradeCard(t) {
     const card = mk("div", "tr-card " + (t.status === "open" ? "open" : (t.pnl || 0) >= 0 ? "win" : "loss") + (tOpen.has(t.key) ? " x" : "")), hd = mk("div", "tr-hd");
     const pl = t.pnlPct != null ? tPct(t.pnlPct) : "", st = mk("span", "tr-st", t.status === "open" ? "OPEN" : "CLOSED");
-    hd.append(st, mk("b", "tr-tk", t.ticker), mk("span", "tr-meta", (t.strat || "") + " · " + (t.mode || "paper").toUpperCase() + " · " + tWhen(t.openedAt)), mk("span", "tr-pl " + ((t.pnlPct || 0) >= 0 ? "up" : "dn"), pl));
-    const head = (t.side === "short" ? "Shorted " : "Bought ") + t.shares + " " + t.ticker + (t.name && t.name !== t.ticker ? " (" + t.name + ")" : "") + " at " + tMoney(t.entry) + " on " + tWhen(t.openedAt) + " · Stop " + tMoney(t.stop) + " · Target " + (t.t1 ? tMoney(t.t1) : "n/a") + (t.t2 ? " then " + tMoney(t.t2) : "") + " · " + tMoney(t.usd) + (t.stopMode === "engine" ? " · engine-watched stop" : "");
+    const alp = t.alpaca, optNm = t.contract ? "SPY " + t.strike + (t.right === "call" ? "C " : "P ") + String(t.expiry || "").slice(5) : t.ticker, ALPST = { pending: "PENDING", filled: "FILLED", stopped: "STOPPED", target: "TARGET", flat: "FLAT", time: "TIME STOP" };
+    hd.append(st, mk("b", "tr-tk", optNm), ...(alp ? [Object.assign(mk("span", "tr-alp", "ALPACA PAPER · " + (ALPST[alp.state] || String(alp.state || "").toUpperCase())), { title: "Order placed on the Alpaca paper account" })] : []), mk("span", "tr-meta", (t.strat || "") + " · " + (t.mode || "paper").toUpperCase() + " · " + tWhen(t.openedAt)), mk("span", "tr-pl " + ((t.pnlPct || 0) >= 0 ? "up" : "dn"), pl));
+    const head = t.contract ? "Bought " + t.shares / 100 + " contract(s) of " + t.contract + " at premium " + tMoney(t.entry) + "/share (" + tMoney(t.usd) + " total) on " + tWhen(t.openedAt) + " · Stop " + tMoney(t.stop) + " · Target " + tMoney(t.t1) + " (engine-watched exits)" : (t.side === "short" ? "Shorted " : "Bought ") + t.shares + " " + t.ticker + (t.name && t.name !== t.ticker ? " (" + t.name + ")" : "") + " at " + tMoney(t.entry) + " on " + tWhen(t.openedAt) + " · Stop " + tMoney(t.stop) + " · Target " + (t.t1 ? tMoney(t.t1) : "n/a") + (t.t2 ? " then " + tMoney(t.t2) : "") + " · " + tMoney(t.usd) + (t.stopMode === "engine" ? " · engine-watched stop" : "");
     const body = mk("div", "tr-body"), line = (k, v) => { if (v) { const d = mk("div", "tr-l"); d.append(mk("b", "", k + " "), document.createTextNode(v)); body.append(d); } }, e = t.evidence || {};
     body.append(mk("div", "tr-head", head));
     line("Why:", t.thesis); line("Setup:", t.setup); line("Analyst:", e.analyst); line("Bull:", e.bull); line("Bear:", e.bear); line("Debate:", e.verdict); line("Backtest:", e.backtest); line("Predictor:", e.predictor); line("Tracker:", e.tracker); line("Risk Manager:", e.risk); line("Source:", e.source);
@@ -554,6 +557,7 @@
     line("Picked over:", (t.alts || []).length ? t.alts.map((a) => a.ticker + " (" + (a.conf != null ? "confidence " + a.conf + "; " : "") + a.why + ")").join(", ") : "no other candidates recorded");
     line("Status:", t.status === "open" ? "open " + (t.pnlPct != null ? tPct(t.pnlPct) : "") + (t.unreal != null ? " (" + tMoney(t.unreal) + ")" : "") + (t.t1Hit ? " · first target already touched" : "")
       : "closed at " + (REASON[t.reason] || t.reason) + " " + tMoney(t.exit) + " on " + tWhen(t.closedAt) + " · " + tPct(t.pnlPct) + " (" + (t.pnl >= 0 ? "+" : "-") + tMoney(Math.abs(t.pnl)) + ")" + (t.vsSpy != null ? " vs SPY " + tPct(t.spyPct) + " (" + (t.vsSpy >= 0 ? "+" : "") + t.vsSpy + " pts)" : ""));
+    if (alp) line("Alpaca:", "order " + (ALPST[alp.state] || alp.state) + (alp.state !== "pending" && alp.fill != null ? " · fill " + tMoney(alp.fill) + " (planned " + tMoney(alp.plannedEntry) + ", slippage " + (alp.slip >= 0 ? "+" : "-") + tMoney(Math.abs(alp.slip || 0)) + ")" : " · waiting for a fill"));
     line("Lesson:", t.lesson);
     hd.onclick = () => { tOpen.has(t.key) ? tOpen.delete(t.key) : tOpen.add(t.key); card.classList.toggle("x"); };
     card.append(hd, body); return card;
