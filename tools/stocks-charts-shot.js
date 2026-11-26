@@ -1,0 +1,30 @@
+// dev-only: chart drawer + closed-signals fold shots with in-memory fake cards around REAL AAPL prices (chart data comes from the engine cache). usage: electron tools/stocks-charts-shot.js <outDir>
+const { app, BrowserWindow } = require("electron");
+const fs = require("fs"), os = require("os"), path = require("path");
+const out = process.argv[2];
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "hqos-shot-")); const real = path.join(process.env.APPDATA, "HQ OS");
+for (const n of ["settings.json"]) if (fs.existsSync(path.join(real, n))) fs.cpSync(path.join(real, n), path.join(tmp, n), { recursive: true });
+app.setPath("userData", tmp); require("../main.js");
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+app.whenReady().then(async () => {
+  const W = +process.argv[3] || 1600, H = +process.argv[4] || 900;
+  await sleep(1500); const win = BrowserWindow.getAllWindows()[0]; win.setOpacity(0); win.showInactive(); win.setBounds({ x: 0, y: 0, width: W, height: H });
+  const wc = win.webContents; await sleep(2500);
+  wc.on("console-message", (e, l, m) => { if (l >= 2) console.log("CONSOLE", m); });
+  await wc.executeJavaScript(`window.HQView && window.HQView("tower")`); await sleep(2500);
+  await wc.executeJavaScript(`HQTower.go("stonks")`); await sleep(7000);
+  const d = JSON.parse(await wc.executeJavaScript(`hq.tfChart(["AAPL","6M"]).then(JSON.stringify)`)); const bars = d.bars, last = bars[bars.length - 1].c, T = Date.now();
+  const r2 = (x) => Math.round(x * 100) / 100, mkA = (id, tk, act, conf, px, e, st, t1, sh, th, x) => Object.assign({ id, ticker: tk, action: act, strategy: "Scanner", confidence: conf, ts: T, px, chg: 1.2, plan: e ? { entry: e, stop: st, t1, shares: sh, riskUsd: r2((e - st) * sh) } : undefined, thesis: th, signals: [], reasons: [], validUntil: T + 3600000, freshness: { windowMin: 120, why: "Typical move vs distance." }, spark: bars.slice(-30).map((b) => b.c) }, x || {});
+  const live = [mkA("c1", "AAPL", "BUY", 78, r2(last), r2(last), r2(last * 0.96), r2(last * 1.06), 2, "Pullback to the 20-day average with improving volume; buy near the entry with the stop below recent support.")];
+  const closedA = [mkA("c2", "NVDA", "BUY", 70, 125, 124.5, 118, 134, 3, "Breakout attempt.", { closed: { at: T - 600000, state: "EXPIRED", reason: "Price ran +4.1% past entry, chase risk, closed 10:42 ET", px: 129.6 } }), mkA("c3", "TSLA", "BUY", 62, 342, 341, 322, 370, 1, "Momentum idea.", { closed: { at: T - 1800000, state: "INVALIDATED", reason: "Price already hit the stop-loss ($322.00) before entry, idea dead, closed 10:15 ET", px: 321.4 } })];
+  const trades = [{ key: "t1", ticker: "AAPL", status: "open", side: "long", entry: bars[bars.length - 25].c, shares: 2, openedAt: bars[bars.length - 25].t, strat: "Scanner", mode: "paper", stop: r2(last * 0.9), t1: r2(last * 1.08) }];
+  await wc.executeJavaScript(`HQFloor.dataView(true)`); await sleep(3500);
+  await wc.executeJavaScript(`HQFloor.preview(${JSON.stringify(live)}, null, null, "paper", ${JSON.stringify(trades)}, ${JSON.stringify(closedA)})`); await sleep(1500);
+  await wc.executeJavaScript(`document.querySelector("#fl-trades .tr-close, #fl-trades .fl-btn.ghost") && document.querySelector("#fl-trades .fl-btn.ghost").click()`); await sleep(300);
+  await wc.executeJavaScript(`[...document.querySelectorAll("#fl-alerts .fl-fold")].filter(b => /Closed/.test(b.textContent)).forEach(b => b.click())`); await sleep(800);
+  await wc.executeJavaScript(`document.querySelector("#fl-alerts").scrollTop = 99999`); await sleep(500);
+  fs.writeFileSync(path.join(out, "stocks-signals-autoclose.png"), (await wc.capturePage()).toPNG());
+  await wc.executeJavaScript(`document.querySelector("#fl-alerts").scrollTop = 0; document.querySelector("#fl-alerts .fl-card:not(.compact)").click()`); await sleep(4500);
+  fs.writeFileSync(path.join(out, "stocks-charts.png"), (await wc.capturePage()).toPNG());
+  app.exit(0);
+});

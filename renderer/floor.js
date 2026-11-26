@@ -153,11 +153,21 @@
     if (b.short) o.push("Short interest: " + (b.short.shares / 1e6).toFixed(1) + "M shares, " + b.short.daysToCover + " days to cover (" + b.short.date + ")");
     return o;
   }
+  // sparkline (last 1D closes, written by the engine's signal watcher) + chart helpers
+  function spark(a) { const v = a.spark; if (!v || v.length < 3) return null; const W = 64, H = 20, lo = Math.min(...v), hi = Math.max(...v), r = hi - lo || 1, ns = "http://www.w3.org/2000/svg", s = document.createElementNS(ns, "svg"), p = document.createElementNS(ns, "polyline");
+    s.setAttribute("viewBox", "0 0 " + W + " " + H); s.setAttribute("width", W); s.setAttribute("height", H); s.setAttribute("class", "fl-spk " + (v[v.length - 1] >= v[0] ? "u" : "d")); p.setAttribute("fill", "none"); p.setAttribute("stroke", "currentColor"); p.setAttribute("stroke-width", "1.5");
+    p.setAttribute("points", v.map((y, i) => (i / (v.length - 1) * W).toFixed(1) + "," + (H - 2 - (y - lo) / r * (H - 4)).toFixed(1)).join(" ")); s.append(p); s.setAttribute("aria-label", "Price line for the last trading day"); return s; }
+  function marksFor(sym) { const o = []; for (const t of S.trades || []) { if (t.ticker !== sym || t.contract) continue; const sh = t.side === "short"; if (t.openedAt) o.push({ t: t.openedAt, side: sh ? "sell" : "buy", px: t.entry }); if (t.status === "closed" && t.closedAt) o.push({ t: t.closedAt, side: sh ? "buy" : "sell", px: t.exit }); } return o; }
+  const linesFor = (p) => p ? [["ENTRY", p.entry, ""], ["STOP", p.stop, "s"], ["T1", p.t1, "t"], ["T2", p.t2, "t"]].filter((x) => x[1] != null).map(([k, v, c]) => ({ k, v, c })) : [];
+  function chartBox(sym, p, tf) { const h = mk("div", "fl-chart"); if (window.HQStockChart) { const c = HQStockChart.mount(h, { symbol: sym, tf: tf || "1D", lines: linesFor(p), marks: marksFor(sym) }); return { el: h, c }; } return { el: h, c: null }; }
   function card(a, rank, compact) {
     const c = mk("div", "fl-card " + a.action + (compact ? " compact" : "") + (rank === 1 ? " top1" : "")), top = mk("div", "top"), px = mk("div", "px");
     px.append(mk("span", "pv", a.px ? "$" + a.px : ""), mk("span", cls(a.chg), a.chg != null ? sgn(a.chg) + "% today" : ""));
     top.append(...(rank ? [mk("span", "rk", "#" + rank)] : []), mk("span", "tk", a.ticker), mk("span", "act", a.action), mk("span", "fl-strat " + (a.strategy || "Scanner"), (a.strategy === "Day" ? "CATALYST" : (a.strategy || "Scanner").toUpperCase())), hz(a));
+    { const sp = spark(a); if (sp) px.append(sp); }
     if (compact) top.append(px); c.append(top); if (!compact) c.append(px); c.append(mk("div", "stline", statusLine(a)));
+    if (a.closed) c.append(mk("div", "fl-clr " + a.closed.state, a.closed.state + ": " + a.closed.reason));
+    else if (a.sig && a.sig.state === "STALE" && !compact) c.append(mk("div", "fl-clr STALE", "STALE: " + (a.sig.note || "re-check before acting")));
     if (!compact && a.plan && a.plan.shares > 0) {
       const p = a.plan, l = mk("div", "fl-lad"); [["BUY NEAR", p.entry, ""], ["STOP-LOSS", p.stop, "s"], [a.strategy === "Steady" ? "52W HIGH" : "TARGET", p.t1, "t"], ["TARGET 2", p.t2, "t"]].filter((x) => x[1] != null).forEach(([k, v, z]) => { const d = mk("div", z); d.append(mk("small", "", k), document.createTextNode("$" + v)); l.append(d); });
       const sd = mk("div", "sz2"); sd.append(mk("small", "", "SIZE"), document.createTextNode(p.shares + " sh" + (p.entry ? " · $" + Math.round(p.shares * p.entry) : ""))); l.append(sd); c.append(l);
@@ -218,16 +228,18 @@
     if (holds.length) { const hb = mk("div", "hhold"); hb.append(mk("small", "", "NEEDS ACTION")); holds.slice(0, 3).forEach((x) => hb.append(mk("div", "", x.txt))); h.append(hb); }
   }
   function renderAlerts() {
-    if (!changed("al", [S.rcBusy, S.view, S.live && S.live.orders, S.alerts, S.passedOpen, S.finishedAt, S.stats && S.stats.positions, Math.floor(Date.now() / 60000)])) return;
+    if (!changed("al", [S.rcBusy, S.view, S.live && S.live.orders, S.alerts, S.closed, S.closedOpen, S.passedOpen, S.finishedAt, S.stats && S.stats.positions, Math.floor(Date.now() / 60000)])) return;
     renderHero(); const box = $("#fl-alerts"), keepTop = box.scrollTop; box.textContent = "";
-    if (!S.alerts.length) { box.append(mk("div", "fl-empty", "No alerts yet. Hit GO to send the desks to work.")); $("#fl-when").textContent = ""; return; }
+    const cl = S.closed || [], closedFold = () => { if (!cl.length) return; const f = mk("button", "fl-fold", (S.closedOpen ? "▾ " : "▸ ") + "Closed signals (" + cl.length + ")"); f.title = "Ideas the engine retired automatically (too late, price moved, stop or target already passed). Kept for learning."; f.onclick = () => { S.closedOpen = !S.closedOpen; renderAlerts(); }; box.append(f); if (S.closedOpen) cl.forEach((a) => box.append(card(a, 0, true))); };
+    if (S.sigAt && S.alerts.length) box.append(Object.assign(mk("div", "fl-upd", "Signals checked " + ago(S.sigAt)), { title: "Every open idea is re-checked against a fresh price about every 10 minutes (every minute or two during the day-trade scan). Dead ideas close themselves." }));
+    if (!S.alerts.length) { box.append(mk("div", "fl-empty", "No alerts yet. Hit GO to send the desks to work.")); closedFold(); $("#fl-when").textContent = ""; return; }
     const g = ranked(); let n = 0;
     [...g.act, ...g.watch].forEach((a) => box.append(card(a, ++n)));
     if (g.passed.length) {
       const f = mk("button", "fl-fold", (S.passedOpen ? "▾ " : "▸ ") + "Passed on (" + g.passed.length + ")"); f.onclick = () => { S.passedOpen = !S.passedOpen; renderAlerts(); }; box.append(f);
       if (S.passedOpen) g.passed.forEach((a) => box.append(card(a, 0, true)));
     }
-    const t = S.alerts[0] && S.alerts[0].ts; $("#fl-when").textContent = t ? new Date(t).toLocaleString([], { hour: "numeric", minute: "2-digit" }) : ""; box.scrollTop = keepTop;
+    closedFold(); const t = S.alerts[0] && S.alerts[0].ts; $("#fl-when").textContent = t ? new Date(t).toLocaleString([], { hour: "numeric", minute: "2-digit" }) : ""; box.scrollTop = keepTop;
   }
   function renderBook() {
     if (!changed("bk", S.stats)) return;
@@ -332,10 +344,12 @@
   // ---------- Signals drawer ----------
   function openDrawer(a) {
     if (S.card) { S.card = null; if (window.HQStocks3D && HQStocks3D.focused()) HQStocks3D.unfocus(); }
-    const d = $("#fl-drawer"); d.textContent = ""; d.classList.remove("hidden");
-    const x = mk("button", "fl-btn ghost", "CLOSE"); x.onclick = () => d.classList.add("hidden");
+    const d = $("#fl-drawer"); if (S.dch) { try { S.dch.destroy(); } catch (e) {} S.dch = null; } d.textContent = ""; d.classList.remove("hidden");
+    const x = mk("button", "fl-btn ghost", "CLOSE"); x.onclick = () => { d.classList.add("hidden"); if (S.dch) { try { S.dch.destroy(); } catch (e) {} S.dch = null; } };
     const top = mk("div", "dtop"); top.append(mk("span", "dact " + a.action, a.action), mk("b", "tk", a.ticker), mk("span", "fl-strat " + (a.strategy || "Scanner"), (a.strategy === "Day" ? "CATALYST" : (a.strategy || "Scanner").toUpperCase())), hz(a), mk("span", "spacer"), x); d.append(top);
     d.append(mk("div", "dpx", (a.px ? "$" + a.px + "  " : "") + (a.chg != null ? sgn(a.chg) + "% today" : "") + (a.confidence != null ? "   confidence " + a.confidence : "")), mk("p", "dth", a.thesis || ""));
+    if (a.closed) d.append(mk("div", "fl-clr " + a.closed.state, a.closed.state + ": " + a.closed.reason));
+    { const cb = chartBox(a.ticker, a.plan, a.horizon === "SHORT" || a.strategy === "Day" ? "1D" : "6M"); S.dch = cb.c; d.append(cb.el); }
     const sec = (t, rows) => { if (!rows.length) return; d.append(mk("div", "fl-h", t)); const ul = mk("ul", "dl"); rows.forEach((r) => ul.append(mk("li", "", r))); d.append(ul); };
     sec("REASONS", a.reasons || []);
     sec("STOCK BRIEF", briefLines(a.brief));
@@ -536,7 +550,7 @@
   }
   function load(r) {
     if (S.preview) return; // dev screenshot hook: HQFloor.preview() freezes the data
-    const st = r.state; if (st) { S.desks = st.desks || {}; S.alerts = st.alerts || []; S.tape = st.tape || []; S.finishedAt = st.finishedAt || 0; S.usage = st.usage || null; S.flag = st.flag || ""; S.day = st.day || null; S.alpaca = st.alpaca || null; S.options = st.options || null; S.pred = st.predictions || null; S.trk = st.tracker || null; S.fm = st.fastmirror || null; S.mode = st.mode === "live" ? "live" : "paper"; S.trades = st.trades || S.trades || []; }
+    const st = r.state; if (st) { S.desks = st.desks || {}; S.alerts = st.alerts || []; S.tape = st.tape || []; S.finishedAt = st.finishedAt || 0; S.usage = st.usage || null; S.flag = st.flag || ""; S.day = st.day || null; S.alpaca = st.alpaca || null; S.options = st.options || null; S.pred = st.predictions || null; S.trk = st.tracker || null; S.fm = st.fastmirror || null; S.mode = st.mode === "live" ? "live" : "paper"; S.trades = st.trades || S.trades || []; S.closed = st.closedSignals || []; S.sigAt = (st.sigWatch && st.sigWatch.at) || 0; }
     S.health = r.health || { ok: true, why: [] }; S.running = !!r.running; S.stats = r.stats; S.sig = r.journal || {}; S.equity = r.equity || []; all(); renderTrades();
   }
   // ---------- TRADES: every trade (open first, then closed) with a click-to-expand card: how and why it was taken (engine: data/trades.jsonl via state.trades) ----------
@@ -559,7 +573,9 @@
       : "closed at " + (REASON[t.reason] || t.reason) + " " + tMoney(t.exit) + " on " + tWhen(t.closedAt) + " · " + tPct(t.pnlPct) + " (" + (t.pnl >= 0 ? "+" : "-") + tMoney(Math.abs(t.pnl)) + ")" + (t.vsSpy != null ? " vs SPY " + tPct(t.spyPct) + " (" + (t.vsSpy >= 0 ? "+" : "") + t.vsSpy + " pts)" : ""));
     if (alp) line("Alpaca:", "order " + (ALPST[alp.state] || alp.state) + (alp.state !== "pending" && alp.fill != null ? " · fill " + tMoney(alp.fill) + " (planned " + tMoney(alp.plannedEntry) + ", slippage " + (alp.slip >= 0 ? "+" : "-") + tMoney(Math.abs(alp.slip || 0)) + ")" : " · waiting for a fill"));
     line("Lesson:", t.lesson);
-    hd.onclick = () => { tOpen.has(t.key) ? tOpen.delete(t.key) : tOpen.add(t.key); card.classList.toggle("x"); };
+    let ch = null; const holder = mk("div", "tr-chart"); if (!t.contract) body.append(holder);
+    const showCh = () => { if (!ch && !t.contract && card.classList.contains("x")) { const cb = chartBox(t.ticker, t, t.status === "open" ? "1D" : "6M"); ch = cb.c; holder.append(cb.el); } };
+    hd.onclick = () => { tOpen.has(t.key) ? tOpen.delete(t.key) : tOpen.add(t.key); card.classList.toggle("x"); showCh(); }; if (tOpen.has(t.key)) setTimeout(showCh, 0);
     card.append(hd, body); return card;
   }
   function renderTrades() {
@@ -610,7 +626,7 @@
     shown: (on) => { S.active = on !== false; if (S.active) { S.autoPlay = true; refresh(); let st = ""; try { st = sessionStorage.getItem(DVK); } catch (e) {} if (st === "1" && !S.dv) dvEnter(true); } else { stopPlay(); closeCard(); if (S.dv || S.focusSet) { dvApply(false); if (S.focusSet && window.HQTower) HQTower.clearFocus(); S.focusSet = false; S.dvBusy = false; } } },
     tip: (id) => DESK_JOB[id] || "", help: toggleHelp, dv: () => !!S.dv, dataView: (on) => (on === false ? dvExit() : dvEnter()),
     events: () => events(), cur: () => S.cur, active: () => !!S.active, agentCard, agentClose,
-    preview: (al, pos, pred, mode, trades) => { S.preview = true; if (trades) { S.trades = trades; const p = $("#fl-trades"); if (!p || p.classList.contains("hidden")) toggleTrades(); else renderTrades(); } if (mode) { S.view = mode; applyMode(); } S.alerts = al; if (pred) S.pred = pred; if (pos && S.stats) S.stats = Object.assign({}, S.stats, { positions: pos }); all(); }, running: () => S.running, busy, desks: deskView, onChange: (f) => listeners.push(f), NAME, HUE, ANG, SEATS,
+    preview: (al, pos, pred, mode, trades, closed) => { S.preview = true; if (closed) { S.closed = closed; S.sigAt = Date.now() - 120000; } if (trades) { S.trades = trades; const p = $("#fl-trades"); if (!p || p.classList.contains("hidden")) toggleTrades(); else renderTrades(); } if (mode) { S.view = mode; applyMode(); } S.alerts = al; if (pred) S.pred = pred; if (pos && S.stats) S.stats = Object.assign({}, S.stats, { positions: pos }); all(); }, running: () => S.running, busy, desks: deskView, onChange: (f) => listeners.push(f), NAME, HUE, ANG, SEATS,
     data: () => ({ tape: S.tape, equity: S.equity, alerts: S.alerts, stats: S.stats, view: S.view, live: (S.live && S.live.account) || null }),
     select: (seat) => { S.sel = S.sel === seat ? "" : seat; renderAgents(); }, selected: () => S.sel,
     escape: () => { if (S.dv) { dvExit(); return true; } if (S.card) { closeCard(); return true; } const d = $("#fl-drawer"); if (!d.classList.contains("hidden")) { d.classList.add("hidden"); return true; } if (S.sel) { S.sel = ""; renderAgents(); return true; } return false; },

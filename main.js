@@ -375,6 +375,9 @@ app.whenReady().then(() => {
   const tfOrders = () => { try { return fs.readFileSync(path.join(stkDir(), "data", "live-orders.jsonl"), "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l)).slice(-30); } catch (e) { return []; } };
   ipcMain.handle("tf-live", () => ({ account: tfRead("live-account.json", null), orders: tfOrders() }));
   ipcMain.handle("tf-cmd", (_, ca) => { const [c, a] = Array.isArray(ca) ? ca : []; return ["live-mode", "live-refresh", "live-approve", "recheck"].includes(c) && (!a || /^[A-Za-z0-9_-]{1,80}$/.test(String(a))) ? tfStart(c, a) : false; });
+  // Chart bars via the engine's cached charts module (symbol + timeframe whitelisted; one short-lived process, 60s/1h disk cache).
+  ipcMain.handle("tf-chart", (_, a) => new Promise((res) => { const [sy, tf] = Array.isArray(a) ? a : []; if (!/^[A-Za-z0-9.\-^=]{1,12}$/.test(String(sy || "")) || !["1D", "5D", "1M", "6M"].includes(tf)) return res({ error: "bad request" });
+    require("child_process").execFile(process.execPath, [path.join(stkDir(), "engine", "charts.js"), String(sy), tf], { cwd: path.join(stkDir(), "engine"), windowsHide: true, timeout: 20000, maxBuffer: 4e6, env: Object.assign({}, process.env, { ELECTRON_RUN_AS_NODE: "1" }) }, (err, out) => { try { res(JSON.parse(out)); } catch (e) { res({ error: err ? "chart source unavailable" : "bad data" }); } }); }));
   ipcMain.handle("tf-go", () => tfStart("go"));
   ipcMain.handle("tf-score", () => tfStart("score"));
   ipcMain.handle("tf-resume", () => tfStart("resume"));
