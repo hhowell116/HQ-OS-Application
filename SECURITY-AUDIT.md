@@ -1,6 +1,8 @@
 # HQ OS installer security audit
 
-Current installer (2026-11-24, GitHub Actions run 45437463971 on tag v2.1.3, windows-latest, `npm ci` from the lockfile): `HQ-OS-Setup-2.1.3.exe`, 437,746,557 bytes, unsigned, SHA-256 `39246e592e203c5fadb9f07c83e7b7afeee695180864aaeb81a5c91baacdf2dc`. Published as GitHub Release v2.1.3. Previous: 2.1.2 (SHA-256 `2b109e07...3999a9`), 2.0.0 (`dba888b8...fffeb`).
+Current installer (2026-11-26, 2.1.5, local build from the installer worktree at a5726cb): `HQ-OS-Setup-2.1.5.exe`, 440,204,834 bytes, unsigned, SHA-256 `3f108fbe5524f563527c9afe8fc4f6b5218ebf1f7bf2e25d46a4b1e82d1891e4`. npm audit --omit=dev: 0 vulnerabilities. Published as GitHub Release v2.1.5.
+
+Earlier installer (2026-11-24, GitHub Actions run 45437463971 on tag v2.1.3, windows-latest, `npm ci` from the lockfile): `HQ-OS-Setup-2.1.3.exe`, 437,746,557 bytes, unsigned, SHA-256 `39246e592e203c5fadb9f07c83e7b7afeee695180864aaeb81a5c91baacdf2dc`. Published as GitHub Release v2.1.3. Previous: 2.1.2 (SHA-256 `2b109e07...3999a9`), 2.0.0 (`dba888b8...fffeb`).
 
 Audited 2026-11-23 on main d37049f (re-run after the Build team change: npm audit unchanged, same 3 sharp highs; lockfile 410 entries, all on registry.npmjs.org). Installer: `dist\HQ-OS-Setup-2.0.0.exe` (440,194,359 bytes, unsigned, SHA-256 `30b58bd21bb8eb40624ed9ee6c7b8dd041a6d87e8d712d6cc1031803bf9670d5`; changes every build). Previous build (b9b5694): 440,185,950 bytes.
 
