@@ -470,11 +470,11 @@
   function dvApply(on) { S.dv = on; const t = $("#tw-stonks"), tv = $("#tower-view"); t.classList.toggle("dv", on); if (tv) tv.classList.toggle("stk-dv", on); $("#fl-view").classList.toggle("hidden", !on); if (on) renderAgents(); notify(); }
   function dvSwap(fn) { const t = $("#tw-stonks"); t.style.transition = "opacity .2s"; t.style.opacity = "0"; setTimeout(() => { fn(); t.style.opacity = ""; setTimeout(() => { t.style.transition = ""; }, 260); }, 200); } // 0.4s cross-fade of the whole HUD
   function dvEnter(instant, n) {
-    if (S.dv || S.dvBusy) return; const fp = window.HQStocks3D && HQStocks3D.wallFocus && HQStocks3D.wallFocus();
+    if (S.dv || S.dvBusy || !S.active) return; const fp = window.HQStocks3D && HQStocks3D.wallFocus && HQStocks3D.wallFocus();
     if (instant && !fp) { if ((n || 0) < 30 && S.active) setTimeout(() => dvEnter(true, (n || 0) + 1), 100); return; }
     dvStore(true); if (fp && window.HQTower) { HQTower.setFocus(fp); S.focusSet = true; }
     if (instant) { dvApply(true); return; }
-    S.dvBusy = true; setTimeout(() => dvSwap(() => { dvApply(true); S.dvBusy = false; }), 800); // camera pushes in ~0.8s, then cross-fade
+    S.dvBusy = true; setTimeout(() => { if (!S.active) { S.dvBusy = false; return; } dvSwap(() => { if (!S.active) { S.dvBusy = false; return; } dvApply(true); S.dvBusy = false; }); }, 800); // not if the floor was left meanwhile: a late dvApply(true) left .stk-dv on and the tower loop paused for good // camera pushes in ~0.8s, then cross-fade
   }
   function dvExit() {
     if (!S.dv || S.dvBusy) return; dvStore(false); S.dvBusy = true;

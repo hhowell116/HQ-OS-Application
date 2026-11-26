@@ -12,6 +12,7 @@ if (!REAL) { const proj = path.join(tmp, "Projects"); fs.mkdirSync(proj); proces
 require("../main.js");
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const fails = [];
+const document_view_is_tower_ok = (so) => so.dv && so.paused; // data-view class left on after leaving the floor = tower loop paused forever
 let hung = false;
 app.whenReady().then(async () => {
   await sleep(1200);
@@ -46,11 +47,12 @@ app.whenReady().then(async () => {
     try {
       await ev(`HQGoStonks()`);
       await sleep(i % 3 === 0 ? 100 : 700 + (i % 5) * 150);
-      if (i % 2 === 0) await ev(`(document.querySelector("#fl-dv, .fl-dv, #fl-dataview, [data-dv]")||{click(){}}).click()`);
+      if (i % 2 === 0) await ev(`(document.querySelector("#fl-dvbtn")||{click(){}}).click()`);
       await sleep(250);
       await ev(`HQView("hq")`);
       await sleep(i % 4 === 0 ? 50 : 300);
       if (i % 4 === 1) { await ev(`HQView("tower")`); await sleep(200); await ev(`HQView("home")`); await sleep(200); }
+      await sleep(1300); const st = await ev(`JSON.stringify({dv: document.querySelector("#tower-view").classList.contains("stk-dv"), paused: !!HQTower.state.paused, raf: !!HQTower.state.raf, mode: HQTower.state.mode})`); const so = JSON.parse(st); if (document_view_is_tower_ok(so)) throw new Error("stale pause: " + st);
       const gap = await beat(); maxGap = Math.max(maxGap, gap);
       if (gap > 3000) throw new Error("rAF stalled " + Math.round(gap) + "ms");
       ok2++;

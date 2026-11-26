@@ -328,7 +328,7 @@
   function flyOut() { T.focus = null; T.fk = 0; T.lastFocus = null;
     if (T.flight || T.mode !== "int") return; const f = T.cur; if (window.HQTowerChat) HQTowerChat.close();
     T.flight = { t0: performance.now(), dur: 1200, dir: "out", floor: f, az0: T.az, azT: Math.round(T.az / (Math.PI * 2)) * Math.PI * 2, el0: T.el, k0: T.k }; T.mode = "ext2"; T.autoAz = true;
-    labelsEl.classList.remove("gone"); hintEl.textContent = HINT; hud.classList.add("hidden");
+    labelsEl.classList.remove("gone"); hintEl.textContent = HINT; hud.classList.add("hidden"); setPaused();
   }
   const HINT = "hover a floor · click or scroll in to enter · drag to orbit · Ctrl+D demo · Esc back";
   function activate(f) {
@@ -842,14 +842,14 @@
   function show(on) {
     T.on = on; view.classList.toggle("on", on); if (!on && window.HQTowerChat) HQTowerChat.close();
     if (!on) { clearInterval(T.poll); if (T.mode === "int" || T.flight) { T.flight = null; T.mode = "ext"; T.e = 0; destroyInterior(); T.cur = null; hud.classList.add("hidden"); labelsEl.classList.remove("gone"); hintEl.textContent = HINT; } return; }
-    ensure(); hintEl.textContent = HINT; refreshTeams(); sync(); resize();
+    ensure(); hintEl.textContent = HINT; refreshTeams(); sync(); resize(); setPaused();
     clearInterval(T.poll); T.poll = setInterval(() => { if (T.on) { sync(); } }, 2500);
     if (!T.raf && !T.paused) T.raf = requestAnimationFrame(frame);
   }
   const find = (id) => T.floors.find((x) => x.id === id || x.name.toLowerCase() === String(id).toLowerCase() || (/^(stonks|stocks|trading)$/i.test(id) && x.stonks));
   // ---------- pause the render loop while the Trading Floor DATA VIEW is open (floor.js toggles .stk-dv on #tower-view) or the page is hidden ----------
   function setPaused() {
-    const p = view.classList.contains("stk-dv") || document.hidden; if (p === !!T.paused) return; T.paused = p;
+    const p = (view.classList.contains("stk-dv") && T.mode === "int" && !!(T.cur && T.cur.stonks)) || document.hidden; // a stale .stk-dv outside the Trading floor must never keep the tower paused if (p === !!T.paused) return; T.paused = p;
     if (!p && T.on && !T.raf) { T.lastFrame = 0; T.raf = requestAnimationFrame(frame); }
   }
   new MutationObserver(setPaused).observe(view, { attributes: true, attributeFilter: ["class"] }); document.addEventListener("visibilitychange", setPaused);
