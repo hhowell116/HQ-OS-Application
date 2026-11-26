@@ -99,12 +99,12 @@
   const mktOpen = (ms) => { const p = {}; for (const x of ET.formatToParts(new Date(ms))) p[x.type] = x.value; const m = (+p.hour % 24) * 60 + +p.minute; return p.weekday !== "Sat" && p.weekday !== "Sun" && m >= 570 && m < 960; };
   const humanMin = (m) => (m < 60 ? Math.max(1, Math.round(m)) + " min" : m < 390 ? Math.round(m / 6) / 10 + " hr" : Math.round(m / 39) / 10 + " days");
   function fresh(a) {
-    if (!a.validUntil || !(a.action === "BUY" || a.action === "SELL") || !a.plan) return null; const now = Date.now(), p = a.plan, px = a.live && a.live.px, s = a.action === "SELL" ? -1 : 1, tg = p.t1 != null ? p.t1 : p.t2;
+    if (!a.validUntil || !(a.action === "BUY" || a.action === "SELL") || !a.plan) return null; const now = nowMs(), p = a.plan, px = a.live && a.live.px, s = a.action === "SELL" ? -1 : 1, tg = p.t1 != null ? p.t1 : p.t2;
     if (px > 0 && p.entry > 0) { const up = tg != null ? s * (tg - p.entry) : 0, dn = p.stop != null ? s * (p.entry - p.stop) : 0, mv = s * (px - p.entry);
       if (up > 0 && mv / up > 0.3) return { c: "moved", t: "Price moved — re-check", tip: "The price is now $" + px + ", " + Math.round(mv / up * 100) + "% of the way to the target. The plan was made at $" + p.entry + "." };
       if (dn > 0 && -mv / dn > 0.3) return { c: "moved", t: "Price moved — re-check", tip: "The price is now $" + px + ", " + Math.round(-mv / dn * 100) + "% of the way to the stop-loss. The plan was made at $" + p.entry + "." }; }
     const w = a.freshness || {}, why = w.why || "";
-    if (!mktOpen(now)) return { c: "closed", t: "Market closed — re-check at open", tip: "Prices are not moving right now. " + why };
+    if (!boardOpen()) return { c: "closed", t: "Market closed — re-check at open", tip: "Prices are not moving right now. " + why };
     let left = 0; for (let t = now; t < a.validUntil && left < 6000; t += 300000) if (mktOpen(t)) left += 5;
     if (left <= 0) return { c: "stale", t: "Stale — re-check before buying", tip: "This idea's time window is over. " + why };
     if (w.windowMin && left <= w.windowMin * 0.25) return { c: "aging", t: "Getting stale · ~" + humanMin(left) + " left", tip: why };
@@ -129,11 +129,25 @@
   const vetoed = (a) => !!(a.vetoWhy && a.vetoWhy.length);
   const actionable = (a) => !vetoed(a) && ((a.action === "BUY" && a.plan && a.plan.shares > 0) || a.action === "SELL");
   const byConf = (x, y) => (y.confidence || 0) - (x.confidence || 0);
-  function ranked() {
-    const g = { act: [], watch: [], passed: [] };
-    for (const a of S.alerts) (actionable(a) ? g.act : vetoed(a) ? g.passed : g.watch).push(a);
-    g.act.sort(byConf); g.watch.sort(byConf); g.passed.sort(byConf); return g;
+  // Board rules (mirror of Stocks engine/board.js): the main board shows only what could be bought RIGHT NOW.
+  const nowMs = () => S.fakeNow || Date.now();
+  const boardOpen = () => { const b = S.board, t = nowMs(); if (b && b.start) return t >= b.start && t < b.end; const p = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", weekday: "short", hour: "numeric", minute: "numeric", hour12: false }).formatToParts(new Date(t)).reduce((o, x) => (o[x.type] = x.value, o), {}), m = (+p.hour % 24) * 60 + +p.minute; return p.weekday !== "Sat" && p.weekday !== "Sun" && m >= 570 && m < 960; };
+  const liveBar = () => (S.board && S.board.bar) || 60;
+  const ordered = (a) => !!orderFor(a.id);
+  function boardClass(a) {
+    if (a.positionId) return "held"; if (ordered(a)) return "ordered";
+    if (a.action === "WATCH") return "watch"; if (vetoed(a)) return "passed";
+    if (!((a.action === "BUY" && a.plan && a.plan.shares > 0) || a.action === "SELL")) return "watch";
+    const st = a.sig && a.sig.state; if (st === "EXPIRED" || st === "INVALIDATED" || st === "STALE") return "dead";
+    if (!boardOpen()) return "closed"; if (a.validUntil && a.validUntil < nowMs()) return "dead";
+    return (a.confidence || 0) < liveBar() ? "paper" : "now";
   }
+  function ranked() {
+    const g = { act: [], paper: [], watch: [], passed: [], closedMkt: 0, held: 0 };
+    for (const a of S.alerts) { const c = boardClass(a); if (c === "now") g.act.push(a); else if (c === "paper") g.paper.push(a); else if (c === "watch") g.watch.push(a); else if (c === "passed") g.passed.push(a); else if (c === "closed") g.closedMkt++; else if (c === "held" || c === "ordered") g.held++; }
+    g.act.sort(byConf); g.paper.sort(byConf); g.watch.sort(byConf); g.passed.sort(byConf); return g;
+  }
+  const nextScan = () => { const b = S.board; if (!b || !b.start) return "at the next open (9:30 ET)"; return new Date(b.start).toLocaleString("en-US", { timeZone: "America/New_York", weekday: "short", hour: "numeric", minute: "2-digit" }) + " ET"; };
   function statusLine(a) {
     if (actionable(a)) return a.action === "BUY" ? "Buy: the team approved this one" : "Sell: the team says take it off";
     if (vetoed(a)) { const w = a.vetoWhy.join(" ").toLowerCase(); return "Not buying: " + (/no edge|conviction|confidence/.test(w) ? "no clear edge" : /size|share|fits/.test(w) ? "too small to size safely" : /data/.test(w) ? "data looked unreliable" : "risk too high"); }
@@ -223,18 +237,22 @@
       g.act.slice(1, 3).forEach((a, i) => { const r = mk("div", "hrun"); r.append(mk("b", "", "#" + (i + 2) + " " + a.action + " " + a.ticker), document.createTextNode(" " + (a.confidence || 0) + "/100 " + (a.strategy || "Scanner"))); r.onclick = (e) => { e.stopPropagation(); openDrawer(a); }; h.append(r); });
     } else {
       h.onclick = null; h.title = ""; h.classList.remove("clk");
-      h.append(mk("div", "hcalm", "No trade right now"), mk("div", "hsay", "The team found nothing worth the risk. Sitting out is a valid move."), mk("div", "hsub", (S.finishedAt ? "Last checked " + new Date(S.finishedAt).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" }) + " (" + ago(S.finishedAt) + ")" : "Not checked yet") + ". Press GO to scan again."));
+      const shut = !boardOpen(); h.append(mk("div", "hcalm", shut ? "Market closed" : "No trade right now"), mk("div", "hsay", shut ? "No buy signals until the open (9:30 ET)." : "The team found nothing worth the risk. Sitting out is a valid move."), mk("div", "hsub", (S.finishedAt ? "Last checked " + new Date(S.finishedAt).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" }) + " (" + ago(S.finishedAt) + ")" : "Not checked yet") + ". Press GO to scan again."));
     }
     if (holds.length) { const hb = mk("div", "hhold"); hb.append(mk("small", "", "NEEDS ACTION")); holds.slice(0, 3).forEach((x) => hb.append(mk("div", "", x.txt))); h.append(hb); }
   }
   function renderAlerts() {
-    if (!changed("al", [S.rcBusy, S.view, S.live && S.live.orders, S.alerts, S.closed, S.closedOpen, S.passedOpen, S.finishedAt, S.stats && S.stats.positions, Math.floor(Date.now() / 60000)])) return;
+    if (!changed("al", [S.rcBusy, S.view, S.live && S.live.orders, S.alerts, S.closed, S.closedOpen, S.passedOpen, S.watchOpen, S.paperOpen, S.board, S.fakeNow, S.finishedAt, S.stats && S.stats.positions, Math.floor(Date.now() / 60000)])) return;
     renderHero(); const box = $("#fl-alerts"), keepTop = box.scrollTop; box.textContent = "";
     const cl = S.closed || [], closedFold = () => { if (!cl.length) return; const f = mk("button", "fl-fold", (S.closedOpen ? "▾ " : "▸ ") + "Closed signals (" + cl.length + ")"); f.title = "Ideas the engine retired automatically (too late, price moved, stop or target already passed). Kept for learning."; f.onclick = () => { S.closedOpen = !S.closedOpen; renderAlerts(); }; box.append(f); if (S.closedOpen) cl.forEach((a) => box.append(card(a, 0, true))); };
     if (S.sigAt && S.alerts.length) box.append(Object.assign(mk("div", "fl-upd", "Signals checked " + ago(S.sigAt)), { title: "Every open idea is re-checked against a fresh price about every 10 minutes (every minute or two during the day-trade scan). Dead ideas close themselves." }));
     if (!S.alerts.length) { box.append(mk("div", "fl-empty", "No alerts yet. Hit GO to send the desks to work.")); closedFold(); $("#fl-when").textContent = ""; return; }
     const g = ranked(); let n = 0;
-    [...g.act, ...g.watch].forEach((a) => box.append(card(a, ++n)));
+    if (!g.act.length) box.append(mk("div", "fl-empty fl-calm", boardOpen() ? "No buy signals right now. Anything the team likes shows here only while it is fresh and still at its entry price." : "Market closed — no buy signals until the open (9:30 ET). Next scan " + nextScan() + "."));
+    g.act.forEach((a) => box.append(card(a, ++n)));
+    const fold = (key, label, tip, list) => { if (!list.length) return; const f = mk("button", "fl-fold", (S[key] ? "▾ " : "▸ ") + label + " (" + list.length + ")"); f.title = tip; f.onclick = () => { S[key] = !S[key]; renderAlerts(); }; box.append(f); if (S[key]) list.forEach((a) => box.append(card(a, 0, true))); };
+    fold("watchOpen", "Watching", "Interesting, not ready. Nothing to do yet.", g.watch);
+    fold("paperOpen", "Paper-only ideas", "Not strong enough for real money (confidence under " + liveBar() + "). The paper book may still trade them.", g.paper);
     if (g.passed.length) {
       const f = mk("button", "fl-fold", (S.passedOpen ? "▾ " : "▸ ") + "Passed on (" + g.passed.length + ")"); f.onclick = () => { S.passedOpen = !S.passedOpen; renderAlerts(); }; box.append(f);
       if (S.passedOpen) g.passed.forEach((a) => box.append(card(a, 0, true)));
@@ -550,7 +568,7 @@
   }
   function load(r) {
     if (S.preview) return; // dev screenshot hook: HQFloor.preview() freezes the data
-    const st = r.state; if (st) { S.desks = st.desks || {}; S.alerts = st.alerts || []; S.tape = st.tape || []; S.finishedAt = st.finishedAt || 0; S.usage = st.usage || null; S.flag = st.flag || ""; S.day = st.day || null; S.alpaca = st.alpaca || null; S.options = st.options || null; S.pred = st.predictions || null; S.trk = st.tracker || null; S.fm = st.fastmirror || null; S.mode = st.mode === "live" ? "live" : "paper"; S.trades = st.trades || S.trades || []; S.closed = st.closedSignals || []; S.sigAt = (st.sigWatch && st.sigWatch.at) || 0; }
+    const st = r.state; if (st) { S.desks = st.desks || {}; S.alerts = st.alerts || []; S.tape = st.tape || []; S.finishedAt = st.finishedAt || 0; S.usage = st.usage || null; S.flag = st.flag || ""; S.day = st.day || null; S.alpaca = st.alpaca || null; S.options = st.options || null; S.pred = st.predictions || null; S.trk = st.tracker || null; S.fm = st.fastmirror || null; S.mode = st.mode === "live" ? "live" : "paper"; S.trades = st.trades || S.trades || []; S.closed = st.closedSignals || []; S.sigAt = (st.sigWatch && st.sigWatch.at) || 0; S.board = st.board || null; }
     S.health = r.health || { ok: true, why: [] }; S.running = !!r.running; S.stats = r.stats; S.sig = r.journal || {}; S.equity = r.equity || []; all(); renderTrades();
   }
   // ---------- TRADES: every trade (open first, then closed) with a click-to-expand card: how and why it was taken (engine: data/trades.jsonl via state.trades) ----------
@@ -626,7 +644,7 @@
     shown: (on) => { S.active = on !== false; if (S.active) { S.autoPlay = true; refresh(); let st = ""; try { st = sessionStorage.getItem(DVK); } catch (e) {} if (st === "1" && !S.dv) dvEnter(true); } else { stopPlay(); closeCard(); if (S.dv || S.focusSet) { dvApply(false); if (S.focusSet && window.HQTower) HQTower.clearFocus(); S.focusSet = false; S.dvBusy = false; } } },
     tip: (id) => DESK_JOB[id] || "", help: toggleHelp, dv: () => !!S.dv, dataView: (on) => (on === false ? dvExit() : dvEnter()),
     events: () => events(), cur: () => S.cur, active: () => !!S.active, agentCard, agentClose,
-    preview: (al, pos, pred, mode, trades, closed) => { S.preview = true; if (closed) { S.closed = closed; S.sigAt = Date.now() - 120000; } if (trades) { S.trades = trades; const p = $("#fl-trades"); if (!p || p.classList.contains("hidden")) toggleTrades(); else renderTrades(); } if (mode) { S.view = mode; applyMode(); } S.alerts = al; if (pred) S.pred = pred; if (pos && S.stats) S.stats = Object.assign({}, S.stats, { positions: pos }); all(); }, running: () => S.running, busy, desks: deskView, onChange: (f) => listeners.push(f), NAME, HUE, ANG, SEATS,
+    preview: (al, pos, pred, mode, trades, closed, board, fakeNow) => { S.preview = true; S.board = board || null; S.fakeNow = fakeNow || 0; if (closed) { S.closed = closed; S.sigAt = Date.now() - 120000; } if (trades) { S.trades = trades; const p = $("#fl-trades"); if (!p || p.classList.contains("hidden")) toggleTrades(); else renderTrades(); } if (mode) { S.view = mode; applyMode(); } S.alerts = al; if (pred) S.pred = pred; if (pos && S.stats) S.stats = Object.assign({}, S.stats, { positions: pos }); all(); }, running: () => S.running, busy, desks: deskView, onChange: (f) => listeners.push(f), NAME, HUE, ANG, SEATS,
     data: () => ({ tape: S.tape, equity: S.equity, alerts: S.alerts, stats: S.stats, view: S.view, live: (S.live && S.live.account) || null }),
     select: (seat) => { S.sel = S.sel === seat ? "" : seat; renderAgents(); }, selected: () => S.sel,
     escape: () => { if (S.dv) { dvExit(); return true; } if (S.card) { closeCard(); return true; } const d = $("#fl-drawer"); if (!d.classList.contains("hidden")) { d.classList.add("hidden"); return true; } if (S.sel) { S.sel = ""; renderAgents(); return true; } return false; },
