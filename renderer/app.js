@@ -613,6 +613,8 @@ document.querySelectorAll("#tabs button").forEach((b) => (b.onclick = () => setV
   const start = S.projects.find((p) => p.id === (ui.proj || init.settings.last)) || S.projects.find((p) => p.id === init.settings.last) || activeProjects()[0] || S.projects[0];
   if (start) await selectProject(start.id);
   if (ui.conv && ui.proj === S.cur) { try { await openConv(ui.conv); } catch (e) {} }
+  // The boot IPC can resolve before the later <script>s (nebula-lib bundle, nebula.js, home.js, tower.js) have run; setView would then skip HQNebula.show and Home stayed on "scanning" forever.
+  if (document.readyState !== "complete") await new Promise((r) => addEventListener("load", r, { once: true }));
   if (ui.view === "tower") setView("tower"); else if (ui.view === "home" || ui.view === "nebula") setView("home"); else if (!ui.view && (init.settings.startView || "home") === "home") setView("home", true);
   requestAnimationFrame(() => document.body.classList.remove("booting")); // start view chosen: reveal (no HQ flash before home)
   hq.agents().then((a) => { S.agents = a; renderAgents(); renderProjects(); });

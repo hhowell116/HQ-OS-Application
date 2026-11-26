@@ -246,12 +246,16 @@
   const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   function fit() { if (!N.g) return; const w = stage.clientWidth, h = stage.clientHeight; if (w > 0 && h > 0) { N.g.width(w).height(h); N.bloom && N.bloom.setSize(w, h); } }
 
+  // scan with a watchdog: if the main process does not answer in 12s, retry once, then show a clickable error instead of a black "scanning" screen
+  const scanOnce = (force, ms) => Promise.race([hq.graphScan(!!force), new Promise((_, rj) => setTimeout(() => rj(new Error("timed out")), ms))]);
   async function scan(force) {
     if (N.loading) return; N.loading = true; $("#nb-refresh").classList.add("spin");
+    const cnt = $("#nb-count"); cnt.classList.remove("err"); cnt.onclick = null; cnt.style.cursor = "";
     try {
-      const d = await hq.graphScan(!!force); N.data = d; N.scanAt = Date.now();
-      if (d.err) $("#nb-count").textContent = "scan failed: " + d.err; else { chips(); build(); }
-    } catch (e) { $("#nb-count").textContent = "scan failed: " + e.message; }
+      let d; try { d = await scanOnce(force, 12000); } catch (e) { cnt.textContent = "scanning (retrying)…"; d = await scanOnce(true, 20000); }
+      N.data = d; N.scanAt = Date.now();
+      if (d.err) throw new Error(d.err); chips(); build();
+    } catch (e) { cnt.textContent = "scan failed: " + e.message + " (click to retry)"; cnt.classList.add("err"); cnt.style.cursor = "pointer"; cnt.onclick = () => scan(true); }
     N.loading = false; $("#nb-refresh").classList.remove("spin");
   }
 
@@ -293,5 +297,6 @@
   $("#nb-back").onclick = () => window.HQView("hq");
   hq.on("todo-changed", () => { if (N.on) scan(true); else N.scanAt = 0; });
 
+  if (document.body.classList.contains("in-nebula")) show(true); // setView ran before this script loaded
   window.HQNebula = { show, scan, gather, setMode, select: (id) => N.g && select(id), _state: N };
 })();
